@@ -2,6 +2,7 @@ import React from 'react';
 import { View, StyleSheet, ScrollView, SafeAreaView } from 'react-native';
 import { Navigation } from '../../components/feature/Navigation';
 import { BottomNavigation } from '../../components/feature/BottomNavigation';
+import { ChatFloatingButton } from '../../components/feature/ChatFloatingButton';
 import { NewsSlider } from './components/NewsSlider';
 import { ServiceCategories } from './components/ServiceCategories';
 import { QuickActions } from './components/QuickActions';
@@ -11,8 +12,8 @@ export function HomePage() {
   return (
     <SafeAreaView style={styles.container}>
       <Navigation />
-      
-      <ScrollView 
+
+      <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
@@ -22,8 +23,9 @@ export function HomePage() {
         <QuickActions />
         <RecentOrders />
       </ScrollView>
-      
+
       <BottomNavigation />
+      <ChatFloatingButton />
     </SafeAreaView>
   );
 }

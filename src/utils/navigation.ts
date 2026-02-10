@@ -21,6 +21,7 @@ export const routeMap: { [key: string]: string } = {
   '/profile/referral': 'Referral',
   '/profile/terms': 'Terms',
   '/profile/about': 'About',
+  '/chatbot': 'Chatbot',
 };
 
 export const navigateTo = (path: string, params?: any) => {

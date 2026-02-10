@@ -23,6 +23,8 @@ const BookingPage: React.FC = () => {
     notes: ''
   });
 
+  const [completedOrder, setCompletedOrder] = useState<any>(null);
+
   const updateBookingData = (field: string, value: any) => {
     setBookingData(prev => ({ ...prev, [field]: value }));
   };
@@ -38,8 +40,7 @@ const BookingPage: React.FC = () => {
   const handleBooking = () => {
     // Simulate payment processing
     setTimeout(() => {
-      setShowReceipt(true);
-      generateReceipt({
+      const newOrder = {
         id: `BWS-${Date.now().toString().slice(-6)}`,
         service: bookingData.serviceType === 'instant' ? 'Instant Pickup' : 'Scheduled Pickup',
         date: new Date().toLocaleDateString('en-GB'),
@@ -50,13 +51,16 @@ const BookingPage: React.FC = () => {
         amount: '₵25.00',
         rider: undefined,
         paymentMethod: 'Mobile Money'
-      });
+      };
+      setCompletedOrder(newOrder);
+      setShowReceipt(true);
     }, 1500);
   };
 
   const resetBooking = () => {
     setStep(1);
     setShowReceipt(false);
+    setCompletedOrder(null);
     setBookingData({
       location: '',
       serviceType: '',
@@ -71,8 +75,8 @@ const BookingPage: React.FC = () => {
     return (
       <SafeAreaView style={styles.container}>
         <Navigation />
-        
-        <ScrollView 
+
+        <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
@@ -89,29 +93,29 @@ const BookingPage: React.FC = () => {
             <View style={styles.receiptCard}>
               <View style={styles.receiptHeader}>
                 <Text style={styles.receiptTitle}>Receipt</Text>
-                <Text style={styles.receiptNumber}>Order #BWS-{Date.now().toString().slice(-6)}</Text>
+                <Text style={styles.receiptNumber}>Order #{completedOrder?.id}</Text>
               </View>
 
               <View style={styles.receiptDetails}>
                 <View style={styles.receiptRow}>
                   <Text style={styles.receiptLabel}>Service:</Text>
-                  <Text style={styles.receiptValue}>{bookingData.serviceType === 'instant' ? 'Instant Pickup' : 'Scheduled Pickup'}</Text>
+                  <Text style={styles.receiptValue}>{completedOrder?.service}</Text>
                 </View>
                 <View style={styles.receiptRow}>
                   <Text style={styles.receiptLabel}>Location:</Text>
-                  <Text style={styles.receiptValue}>{bookingData.location}</Text>
+                  <Text style={styles.receiptValue}>{completedOrder?.address}</Text>
                 </View>
                 <View style={styles.receiptRow}>
                   <Text style={styles.receiptLabel}>Scheduled:</Text>
-                  <Text style={styles.receiptValue}>{bookingData.scheduledTime || 'Immediately'}</Text>
+                  <Text style={styles.receiptValue}>{completedOrder?.time || 'Immediately'}</Text>
                 </View>
                 <View style={styles.receiptRow}>
-                  <Text style={styles.receiptLabel}>Waste Types:</Text>
-                  <Text style={styles.receiptValue}>{bookingData.wasteTypes.join(', ')}</Text>
+                  <Text style={styles.receiptLabel}>Waste Type:</Text>
+                  <Text style={styles.receiptValue}>{completedOrder?.wasteType}</Text>
                 </View>
                 <View style={styles.receiptRow}>
                   <Text style={styles.receiptLabel}>Bag Size:</Text>
-                  <Text style={styles.receiptValue}>{bookingData.bagSize}</Text>
+                  <Text style={styles.receiptValue}>{completedOrder?.bagSize}</Text>
                 </View>
                 <View style={styles.receiptDivider} />
                 <View style={styles.receiptRow}>
@@ -132,19 +136,19 @@ const BookingPage: React.FC = () => {
             </View>
 
             <View style={styles.buttonContainer}>
-              <Button 
-                variant="primary" 
-                onPress={() => Alert.alert('Print', 'Receipt printing functionality would be implemented here')}
+              <Button
+                variant="primary"
+                onPress={() => completedOrder && generateReceipt(completedOrder)}
                 fullWidth
               >
                 <View style={styles.buttonContent}>
                   <RemixIcon name="ri-printer-line" size={20} color="#fff" />
-                  <Text style={styles.buttonText}>Print Receipt</Text>
+                  <Text style={styles.buttonText}>Download Receipt PDF</Text>
                 </View>
               </Button>
-              
-              <Button 
-                variant="outline" 
+
+              <Button
+                variant="outline"
                 onPress={resetBooking}
                 fullWidth
               >
@@ -156,7 +160,7 @@ const BookingPage: React.FC = () => {
             </View>
           </View>
         </ScrollView>
-        
+
         <BottomNavigation />
       </SafeAreaView>
     );
@@ -165,8 +169,8 @@ const BookingPage: React.FC = () => {
   return (
     <SafeAreaView style={styles.container}>
       <Navigation />
-      
-      <ScrollView 
+
+      <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
@@ -177,34 +181,34 @@ const BookingPage: React.FC = () => {
             <Text style={styles.progressPercent}>{Math.round((step / 4) * 100)}%</Text>
           </View>
           <View style={styles.progressBar}>
-            <View 
+            <View
               style={[
-                styles.progressFill, 
+                styles.progressFill,
                 { width: `${(step / 4) * 100}%` }
-              ]} 
+              ]}
             />
           </View>
         </View>
 
         <View style={styles.stepCard}>
           {step === 1 && (
-            <LocationSelector 
+            <LocationSelector
               value={bookingData.location}
               onChange={(value) => updateBookingData('location', value)}
             />
           )}
-          
+
           {step === 2 && (
-            <ServiceSelector 
+            <ServiceSelector
               value={bookingData.serviceType}
               onChange={(value) => updateBookingData('serviceType', value)}
               scheduledTime={bookingData.scheduledTime}
               onTimeChange={(value) => updateBookingData('scheduledTime', value)}
             />
           )}
-          
+
           {step === 3 && (
-            <WasteTypeSelector 
+            <WasteTypeSelector
               selectedTypes={bookingData.wasteTypes}
               selectedSize={bookingData.bagSize}
               notes={bookingData.notes}
@@ -213,9 +217,9 @@ const BookingPage: React.FC = () => {
               onNotesChange={(value) => updateBookingData('notes', value)}
             />
           )}
-          
+
           {step === 4 && (
-            <PricingSummary 
+            <PricingSummary
               bookingData={bookingData}
             />
           )}
@@ -223,8 +227,8 @@ const BookingPage: React.FC = () => {
 
         <View style={styles.navigationButtons}>
           {step > 1 && (
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onPress={prevStep}
               style={styles.navButton}
             >
@@ -234,12 +238,12 @@ const BookingPage: React.FC = () => {
               </View>
             </Button>
           )}
-          
+
           {step < 4 ? (
-            <Button 
-              variant="primary" 
+            <Button
+              variant="primary"
               onPress={nextStep}
-              style={[styles.navButton, !(step > 1) && styles.navButtonFull]}
+              style={styles.navButton}
               disabled={
                 (step === 1 && !bookingData.location) ||
                 (step === 2 && !bookingData.serviceType) ||
@@ -252,10 +256,10 @@ const BookingPage: React.FC = () => {
               </View>
             </Button>
           ) : (
-            <Button 
-              variant="primary" 
+            <Button
+              variant="primary"
               onPress={handleBooking}
-              style={[styles.navButton, !(step > 1) && styles.navButtonFull]}
+              style={styles.navButton}
             >
               <View style={styles.buttonContent}>
                 <RemixIcon name="ri-check-line" size={18} color="#fff" />
@@ -265,7 +269,7 @@ const BookingPage: React.FC = () => {
           )}
         </View>
       </ScrollView>
-      
+
       <BottomNavigation />
     </SafeAreaView>
   );

@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, SafeAreaView, TouchableOpacity, Lin
 import { Navigation } from '../../components/feature/Navigation';
 import { BottomNavigation } from '../../components/feature/BottomNavigation';
 import { RemixIcon } from '../../utils/icons';
+import { navigateTo } from '../../utils/navigation';
 
 const SupportPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState('faq');
@@ -97,7 +98,7 @@ const SupportPage: React.FC = () => {
       subtitle: 'Chat with our AI assistant',
       description: 'Instant help available 24/7',
       action: () => {
-        Alert.alert('Live Chat', 'Live chat functionality would be implemented here');
+        navigateTo('/chatbot');
       },
     },
   ];
@@ -110,8 +111,8 @@ const SupportPage: React.FC = () => {
     <SafeAreaView style={styles.container}>
       <Navigation />
       <BottomNavigation />
-      
-      <ScrollView 
+
+      <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}

@@ -78,6 +78,7 @@ const iconMap: { [key: string]: string } = {
   'ri-user-line': 'person-outline',
   'ri-money-dollar-circle-line': 'cash-outline',
   'ri-bank-card-line': 'card-outline',
+  'ri-chat-smile-3-fill': 'chatbubble-ellipses',
 };
 
 export const RemixIcon: React.FC<IconProps> = ({ name, size = 24, color = '#000', style }) => {

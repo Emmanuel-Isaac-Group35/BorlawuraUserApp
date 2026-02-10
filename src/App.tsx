@@ -18,6 +18,7 @@ import ReferralPage from './pages/profile/referral/page';
 import TermsPage from './pages/profile/terms/page';
 import AboutPage from './pages/profile/about/page';
 import NotFound from './pages/NotFound';
+import ChatbotPage from './pages/chatbot/page';
 
 // Import navigation utility
 import { navigationRef } from './utils/navigation';
@@ -53,6 +54,7 @@ function AppNavigator() {
         <Stack.Screen name="Referral" component={ReferralPage} />
         <Stack.Screen name="Terms" component={TermsPage} />
         <Stack.Screen name="About" component={AboutPage} />
+        <Stack.Screen name="Chatbot" component={ChatbotPage} />
         <Stack.Screen name="NotFound" component={NotFound} />
       </Stack.Navigator>
     </NavigationContainer>

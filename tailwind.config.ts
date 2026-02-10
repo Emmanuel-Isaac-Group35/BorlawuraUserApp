@@ -1,4 +1,5 @@
 import type { Config } from 'tailwindcss';
+import nativewind from 'nativewind/tailwind/native.js';
 
 export default {
   content: [
@@ -6,7 +7,7 @@ export default {
     "./src/**/*.{js,jsx,ts,tsx}",
     "./index.{js,jsx,ts,tsx}",
   ],
-  presets: [require("nativewind/preset")],
+  presets: [nativewind],
   theme: {
     extend: {
       fontFamily: {
