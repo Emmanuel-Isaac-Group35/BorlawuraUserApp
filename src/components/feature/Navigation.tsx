@@ -1,24 +1,9 @@
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Modal, Pressable } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import React from 'react';
+import { View, Text, StyleSheet } from 'react-native';
 import { RemixIcon } from '../../utils/icons';
-import { navigateTo } from '../../utils/navigation';
 
 export const Navigation: React.FC = () => {
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const navigation = useNavigation();
 
-  const menuItems = [
-    { label: 'Home', path: '/' },
-    { label: 'Services', path: '/services' },
-    { label: 'Track Order', path: '/track-order' },
-    { label: 'Support', path: '/support' }
-  ];
-
-  const handleMenuClick = (path: string) => {
-    navigateTo(path);
-    setIsMenuOpen(false);
-  };
 
   return (
     <>
@@ -30,32 +15,11 @@ export const Navigation: React.FC = () => {
             </View>
             <Text style={styles.logoText}>Borla Wura</Text>
           </View>
-          
-          <TouchableOpacity 
-            onPress={() => setIsMenuOpen(!isMenuOpen)}
-            style={styles.menuButton}
-          >
-            <RemixIcon 
-              name={isMenuOpen ? 'ri-close-line' : 'ri-menu-line'} 
-              size={24} 
-              color="#4b5563" 
-            />
-          </TouchableOpacity>
+
+
         </View>
-        
-        {isMenuOpen && (
-          <View style={styles.menu}>
-            {menuItems.map((item) => (
-              <TouchableOpacity
-                key={item.path}
-                onPress={() => handleMenuClick(item.path)}
-                style={styles.menuItem}
-              >
-                <Text style={styles.menuItemText}>{item.label}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
+
+
       </View>
     </>
   );
@@ -99,25 +63,5 @@ const styles = StyleSheet.create({
     color: '#1f2937',
     fontFamily: 'Pacifico',
   },
-  menuButton: {
-    width: 32,
-    height: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  menu: {
-    marginTop: 16,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#f3f4f6',
-  },
-  menuItem: {
-    width: '100%',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-  },
-  menuItemText: {
-    fontSize: 16,
-    color: '#374151',
-  },
+
 });
