@@ -13,6 +13,7 @@ import NotificationsPage from '../pages/profile/notifications/page';
 import ReferralPage from '../pages/profile/referral/page';
 import TermsPage from '../pages/profile/terms/page';
 import AboutPage from '../pages/profile/about/page';
+import RiderChatPage from '../pages/chat-rider/page';
 import NotFound from '../pages/NotFound';
 
 const routes: RouteObject[] = [

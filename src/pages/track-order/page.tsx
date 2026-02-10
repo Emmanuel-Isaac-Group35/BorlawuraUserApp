@@ -3,7 +3,56 @@ import { View, Text, StyleSheet, ScrollView, SafeAreaView, TouchableOpacity, Ima
 import { Navigation } from '../../components/feature/Navigation';
 import { BottomNavigation } from '../../components/feature/BottomNavigation';
 import { RemixIcon } from '../../utils/icons';
+import { navigateTo } from '../../utils/navigation';
 import * as Sharing from 'expo-sharing';
+import { WebView } from 'react-native-webview';
+
+const getMapHtml = (lat: number, lng: number) => `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    body { margin: 0; padding: 0; }
+    #map { width: 100%; height: 100vh; }
+    .custom-icon {
+      background-color: #10b981;
+      border-radius: 50%;
+      border: 3px solid #ffffff;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <script>
+    const map = L.map('map', {
+      zoomControl: false,
+      attributionControl: false,
+      dragging: false, 
+      scrollWheelZoom: false,
+      doubleClickZoom: false,
+      boxZoom: false,
+      tap: false
+    }).setView([${lat}, ${lng}], 15);
+
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+      attribution: 'OpenStreetMap'
+    }).addTo(map);
+
+    const icon = L.divIcon({
+      className: 'custom-icon',
+      iconSize: [20, 20],
+      iconAnchor: [10, 10]
+    });
+
+    L.marker([${lat}, ${lng}], { icon: icon }).addTo(map);
+  </script>
+</body>
+</html>
+`;
 
 const TrackOrderPage: React.FC = () => {
   const [order] = useState({
@@ -28,6 +77,8 @@ const TrackOrderPage: React.FC = () => {
     estimatedArrival: '12 mins',
     currentLocation: 'Approaching your location'
   });
+
+  const [riderLocation, setRiderLocation] = useState({ lat: 5.6037, lng: -0.1870 });
 
   const [currentStep, setCurrentStep] = useState(2);
   const [isLiveTracking, setIsLiveTracking] = useState(true);
@@ -66,12 +117,15 @@ const TrackOrderPage: React.FC = () => {
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
-    
+
     if (isLiveTracking) {
       interval = setInterval(() => {
         // Simulate real-time location updates
-        // In production, this would use actual location tracking
-      }, 10000);
+        setRiderLocation(prev => ({
+          lat: prev.lat + (Math.random() - 0.5) * 0.001,
+          lng: prev.lng + (Math.random() - 0.5) * 0.001
+        }));
+      }, 3000);
     }
 
     return () => {
@@ -90,13 +144,13 @@ const TrackOrderPage: React.FC = () => {
   const handleCancelOrder = () => {
     Alert.alert(
       'Cancel Order',
-      'Are you sure you want to cancel this order? This action cannot be undone.',
+      'Are you sure you want to cancel this order?',
       [
-        { text: 'Keep Order', style: 'cancel' },
-        { 
-          text: 'Yes, Cancel',
+        { text: 'No', style: 'cancel' },
+        {
+          text: 'Yes',
           style: 'destructive',
-          onPress: () => Alert.alert('Success', 'Order cancelled successfully. You will receive a refund within 24 hours.')
+          onPress: () => navigateTo('/')
         }
       ]
     );
@@ -125,8 +179,8 @@ const TrackOrderPage: React.FC = () => {
     <SafeAreaView style={styles.container}>
       <Navigation />
       <BottomNavigation />
-      
-      <ScrollView 
+
+      <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
@@ -145,18 +199,21 @@ const TrackOrderPage: React.FC = () => {
         </View>
 
         <View style={styles.mapContainer}>
-          <View style={styles.mapPlaceholder}>
-            <Text style={styles.mapText}>Map View</Text>
-            <Text style={styles.mapSubtext}>Real-time location tracking would be displayed here</Text>
+          <View style={styles.mapWrapper}>
+            <WebView
+              source={{ html: getMapHtml(riderLocation.lat, riderLocation.lng) }}
+              style={styles.map}
+              scrollEnabled={false}
+            />
           </View>
-          
+
           <View style={styles.mapOverlay}>
             <View style={styles.liveBadge}>
               <View style={styles.liveDotSmall} />
               <Text style={styles.liveBadgeText}>Live Location</Text>
             </View>
           </View>
-          
+
           <View style={styles.mapControls}>
             <View style={styles.locationInfo}>
               <Text style={styles.locationText}>{order.currentLocation}</Text>
@@ -169,14 +226,14 @@ const TrackOrderPage: React.FC = () => {
               >
                 <RemixIcon name="ri-share-line" size={20} color="#4b5563" />
               </TouchableOpacity>
-              <TouchableOpacity 
+              <TouchableOpacity
                 onPress={toggleLiveTracking}
                 style={[styles.controlButton, isLiveTracking && styles.controlButtonActive]}
               >
-                <RemixIcon 
-                  name={isLiveTracking ? 'ri-pause-line' : 'ri-play-line'} 
-                  size={20} 
-                  color={isLiveTracking ? '#10b981' : '#4b5563'} 
+                <RemixIcon
+                  name={isLiveTracking ? 'ri-pause-line' : 'ri-play-line'}
+                  size={20}
+                  color={isLiveTracking ? '#10b981' : '#4b5563'}
                 />
               </TouchableOpacity>
             </View>
@@ -191,7 +248,7 @@ const TrackOrderPage: React.FC = () => {
               <Text style={styles.onlineText}>Online</Text>
             </View>
           </View>
-          
+
           <View style={styles.riderInfo}>
             <View style={styles.riderImageContainer}>
               <Image
@@ -203,7 +260,7 @@ const TrackOrderPage: React.FC = () => {
                 <RemixIcon name="ri-check-line" size={12} color="#ffffff" />
               </View>
             </View>
-            
+
             <View style={styles.riderDetails}>
               <View style={styles.riderNameRow}>
                 <Text style={styles.riderName}>{order.rider.name}</Text>
@@ -215,7 +272,7 @@ const TrackOrderPage: React.FC = () => {
               <Text style={styles.riderVehicle}>{order.rider.vehicle}</Text>
               <Text style={styles.riderPhone}>{order.rider.phone}</Text>
             </View>
-            
+
             <View style={styles.riderActions}>
               <TouchableOpacity
                 onPress={handleCallRider}
@@ -224,7 +281,7 @@ const TrackOrderPage: React.FC = () => {
                 <RemixIcon name="ri-phone-line" size={20} color="#ffffff" />
               </TouchableOpacity>
               <TouchableOpacity
-                onPress={() => Alert.alert('Chat', 'Live chat functionality would be implemented here')}
+                onPress={() => navigateTo('/chat-rider')}
                 style={styles.chatRiderButton}
               >
                 <RemixIcon name="ri-chat-3-line" size={20} color="#ffffff" />
@@ -235,7 +292,7 @@ const TrackOrderPage: React.FC = () => {
 
         <View style={styles.progressCard}>
           <Text style={styles.progressTitle}>Order Progress</Text>
-          
+
           <View style={styles.progressSteps}>
             {trackingSteps.map((step, index) => (
               <View key={step.id} style={styles.progressStep}>
@@ -261,7 +318,7 @@ const TrackOrderPage: React.FC = () => {
                     ]} />
                   )}
                 </View>
-                
+
                 <View style={styles.stepContent}>
                   <View style={styles.stepHeader}>
                     <Text style={[
@@ -297,7 +354,7 @@ const TrackOrderPage: React.FC = () => {
 
         <View style={styles.orderDetailsCard}>
           <Text style={styles.orderDetailsTitle}>Order Details</Text>
-          
+
           <View style={styles.orderDetailsList}>
             <View style={styles.orderDetailRow}>
               <Text style={styles.orderDetailLabel}>Service</Text>
@@ -331,16 +388,16 @@ const TrackOrderPage: React.FC = () => {
             <RemixIcon name="ri-phone-line" size={20} color="#ffffff" />
             <Text style={styles.primaryActionText}>Call Rider</Text>
           </TouchableOpacity>
-          
+
           <TouchableOpacity
-            onPress={() => Alert.alert('Chat', 'Live chat functionality would be implemented here')}
+            onPress={() => navigateTo('/chat-rider')}
             style={styles.secondaryAction}
           >
             <RemixIcon name="ri-chat-3-line" size={20} color="#ffffff" />
             <Text style={styles.secondaryActionText}>Live Chat</Text>
           </TouchableOpacity>
         </View>
-        
+
         <TouchableOpacity
           onPress={handleCancelOrder}
           style={styles.cancelButton}
@@ -421,24 +478,17 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 2,
   },
-  mapPlaceholder: {
-    height: 192,
+  mapWrapper: {
+    height: 240,
     backgroundColor: '#f3f4f6',
     borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
+    overflow: 'hidden',
     marginBottom: 16,
   },
-  mapText: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#4b5563',
-    marginBottom: 4,
+  map: {
+    flex: 1,
   },
-  mapSubtext: {
-    fontSize: 12,
-    color: '#9ca3af',
-  },
+
   mapOverlay: {
     position: 'absolute',
     top: 28,
