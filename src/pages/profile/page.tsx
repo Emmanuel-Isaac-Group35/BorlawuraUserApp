@@ -4,8 +4,10 @@ import { Navigation } from '../../components/feature/Navigation';
 import { BottomNavigation } from '../../components/feature/BottomNavigation';
 import { RemixIcon } from '../../utils/icons';
 import { navigateTo } from '../../utils/navigation';
+import { useAuth } from '../../context/AuthContext';
 
 const ProfilePage: React.FC = () => {
+  const { logout } = useAuth();
   const [user, setUser] = useState({
     name: 'Akosua Mensah',
     email: 'akosua.mensah@email.com',
@@ -177,7 +179,9 @@ const ProfilePage: React.FC = () => {
         {
           text: 'Sign Out',
           style: 'destructive',
-          onPress: () => Alert.alert('Success', 'Logged out successfully')
+          onPress: async () => {
+            await logout();
+          }
         }
       ]
     );
