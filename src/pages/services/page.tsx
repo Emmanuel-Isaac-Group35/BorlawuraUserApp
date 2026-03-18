@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, SafeAreaView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Navigation } from '../../components/feature/Navigation';
 import { BottomNavigation } from '../../components/feature/BottomNavigation';
 import { RemixIcon } from '../../utils/icons';
@@ -8,7 +9,15 @@ import { navigateTo } from '../../utils/navigation';
 const ServicesPage: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState('all');
 
-  const services = [
+  const services: Array<{
+    id: number;
+    title: string;
+    description: string;
+    price: string;
+    icon: string;
+    category: string;
+    features: string[];
+  }> = [
     {
       id: 1,
       title: 'Instant Pickup',
@@ -53,15 +62,6 @@ const ServicesPage: React.FC = () => {
       icon: 'ri-truck-line',
       category: 'bulk',
       features: ['Large capacity', 'Multiple bags', 'Special handling']
-    },
-    {
-      id: 6,
-      title: 'Office Cleanup',
-      description: 'Commercial waste collection for offices',
-      price: '₵20',
-      icon: 'ri-building-line',
-      category: 'commercial',
-      features: ['Business hours', 'Regular service', 'Professional team']
     }
   ];
 
@@ -70,8 +70,7 @@ const ServicesPage: React.FC = () => {
     { id: 'pickup', label: 'Pickup', icon: 'ri-truck-line' },
     { id: 'recycling', label: 'Recycling', icon: 'ri-recycle-line' },
     { id: 'organic', label: 'Organic', icon: 'ri-leaf-line' },
-    { id: 'bulk', label: 'Bulk', icon: 'ri-stack-line' },
-    { id: 'commercial', label: 'Commercial', icon: 'ri-building-line' }
+    { id: 'bulk', label: 'Bulk', icon: 'ri-stack-line' }
   ];
 
   const filteredServices = selectedCategory === 'all' 

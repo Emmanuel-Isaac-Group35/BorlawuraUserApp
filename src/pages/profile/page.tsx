@@ -1,35 +1,112 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, SafeAreaView, Modal, TouchableOpacity, TextInput, Alert, Image } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, Modal, TouchableOpacity, TextInput, Alert, Image, RefreshControl } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Navigation } from '../../components/feature/Navigation';
 import { BottomNavigation } from '../../components/feature/BottomNavigation';
 import { RemixIcon } from '../../utils/icons';
 import { navigateTo } from '../../utils/navigation';
 import { useAuth } from '../../context/AuthContext';
+import { supabase } from '../../lib/supabase';
 
 const ProfilePage: React.FC = () => {
-  const { logout } = useAuth();
+  const { logout, user: authUser } = useAuth();
   const [user, setUser] = useState({
-    name: 'Akosua Mensah',
-    email: 'akosua.mensah@email.com',
-    phone: '+233 24 567 8901',
-    avatar: 'https://readdy.ai/api/search-image?query=Professional%20African%20woman%20portrait%2C%20friendly%20smile%2C%20business%20casual%20attire%2C%20clean%20background%2C%20high-quality%20headshot%20photography%2C%20natural%20lighting%2C%20confident%20expression&width=100&height=100&seq=avatar1&orientation=squarish',
-    joinDate: 'January 2024',
-    totalOrders: 24,
-    savedAmount: '₵180'
+    name: authUser?.full_name || authUser?.name || 'Valued User',
+    email: authUser?.email || 'No email provided',
+    phone: authUser?.phone_number || authUser?.phoneNumber || 'No phone number',
+    avatar: 'https://cdn-icons-png.flaticon.com/512/149/149071.png', // Generic avatar
+    joinDate: new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+    totalOrders: 0, 
+    savedAmount: '₵0'
   });
+
+  const [isLoading, setIsLoading] = useState(false);
+
+  const fetchUserData = async () => {
+    // Background update from DB for fresh stats
+    if (authUser?.supabase_id || authUser?.id) {
+      const searchId = authUser.supabase_id || authUser.id;
+      if (!searchId || String(searchId).startsWith('user_')) return;
+      
+      setIsLoading(true);
+      try {
+        // Fetch real stats from DB
+        const { data: dbUser } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', searchId)
+          .single();
+
+        const { count } = await supabase
+          .from('orders')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', searchId)
+          .eq('status', 'completed');
+
+        if (dbUser) {
+          setUser(prev => ({
+            ...prev,
+            name: dbUser.full_name || prev.name,
+            email: dbUser.email || prev.email,
+            phone: dbUser.phone_number || prev.phone,
+            totalOrders: count || 0,
+            savedAmount: `₵${dbUser.balance || 0}`
+          }));
+        }
+      } catch (e) {
+        console.error("Failed to fetch fresh user data:", e);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (authUser) {
+      // Sync local state when authUser changes
+      setUser(prev => ({
+        ...prev,
+        name: authUser.full_name || authUser.name || 'Valued User',
+        email: authUser.email || 'No email provided',
+        phone: authUser.phone_number || authUser.phoneNumber || 'No phone number'
+      }));
+      fetchUserData();
+
+      // Listen for real-time changes
+      const searchId = authUser.supabase_id || authUser.id;
+      if (searchId && !String(searchId).startsWith('user_')) {
+        const channel = supabase
+          .channel('profile-stats-updates')
+          .on(
+            'postgres_changes',
+            {
+              event: '*',
+              schema: 'public',
+              table: 'orders',
+              filter: `user_id=eq.${searchId}`,
+            },
+            (payload) => {
+              console.log('Profile stats update received:', payload);
+              fetchUserData(); 
+            }
+          )
+          .subscribe();
+
+        return () => {
+          supabase.removeChannel(channel);
+        };
+      }
+    }
+  }, [authUser]);
+
+
 
   const [addresses, setAddresses] = useState([
     {
       id: 1,
-      label: 'Home',
-      address: '123 Osu Street, Accra',
+      label: 'Register Location',
+      address: authUser?.location || 'No location set',
       isDefault: true
-    },
-    {
-      id: 2,
-      label: 'Office',
-      address: '456 East Legon, Accra',
-      isDefault: false
     }
   ]);
 
@@ -196,6 +273,14 @@ const ProfilePage: React.FC = () => {
         style={styles.scrollView}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl 
+            refreshing={isLoading} 
+            onRefresh={fetchUserData} 
+            colors={['#10b981']}
+            tintColor={'#10b981'}
+          />
+        }
       >
         <View style={styles.profileCard}>
           <View style={styles.profileHeader}>

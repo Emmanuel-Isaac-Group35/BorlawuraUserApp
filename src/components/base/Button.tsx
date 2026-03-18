@@ -27,17 +27,17 @@ export const Button: React.FC<ButtonProps> = ({
 }) => {
   const buttonStyles: ViewStyle[] = [
     styles.base,
-    styles[variant],
-    styles[`size_${size}`],
+    (styles as any)[variant],
+    (styles as any)[`size_${size}`],
     fullWidth && styles.fullWidth,
     disabled && styles.disabled,
     style,
   ];
 
-  const textStyles: TextStyle[] = [
+  const textStyles: any[] = [
     styles.text,
-    styles[`text_${variant}`],
-    styles[`textSize_${size}`],
+    (styles as any)[`text_${variant}`],
+    (styles as any)[`textSize_${size}`],
     disabled && styles.textDisabled,
   ];
 

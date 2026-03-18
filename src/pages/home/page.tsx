@@ -1,5 +1,6 @@
-import React from 'react';
-import { View, StyleSheet, ScrollView, SafeAreaView } from 'react-native';
+import React, { useState } from 'react';
+import { View, StyleSheet, ScrollView, RefreshControl } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Navigation } from '../../components/feature/Navigation';
 import { BottomNavigation } from '../../components/feature/BottomNavigation';
 import { ChatFloatingButton } from '../../components/feature/ChatFloatingButton';
@@ -9,6 +10,16 @@ import { QuickActions } from './components/QuickActions';
 import { RecentOrders } from './components/RecentOrders';
 
 export function HomePage() {
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = React.useCallback(() => {
+    setRefreshing(true);
+    // Real-time synchronization is already on, but we'll simulate a 1.5s refresh for UX
+    setTimeout(() => {
+      setRefreshing(false);
+    }, 1500);
+  }, []);
+
   return (
     <SafeAreaView style={styles.container}>
       <Navigation />
@@ -17,6 +28,14 @@ export function HomePage() {
         style={styles.scrollView}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl 
+            refreshing={refreshing} 
+            onRefresh={onRefresh} 
+            colors={['#10b981']}
+            tintColor={'#10b981'}
+          />
+        }
       >
         <NewsSlider />
         <ServiceCategories />

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, SafeAreaView, Modal, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Modal, TouchableOpacity, Alert } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Navigation } from '../../components/feature/Navigation';
 import { BottomNavigation } from '../../components/feature/BottomNavigation';
 import { LocationSelector } from './components/LocationSelector';
@@ -10,6 +11,8 @@ import { Button } from '../../components/base/Button';
 import { RemixIcon } from '../../utils/icons';
 import { generateReceipt } from '../../utils/receiptGenerator';
 import { navigateTo } from '../../utils/navigation';
+import { useAuth } from '../../context/AuthContext';
+import { supabase } from '../../lib/supabase';
 
 const BookingPage: React.FC = () => {
   const [step, setStep] = useState(1);
@@ -37,24 +40,88 @@ const BookingPage: React.FC = () => {
     if (step > 1) setStep(step - 1);
   };
 
-  const handleBooking = () => {
-    // Simulate payment processing
-    setTimeout(() => {
-      const newOrder = {
-        id: `BWS-${Date.now().toString().slice(-6)}`,
-        service: bookingData.serviceType === 'instant' ? 'Instant Pickup' : 'Scheduled Pickup',
-        date: new Date().toLocaleDateString('en-GB'),
-        time: bookingData.scheduledTime || new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
-        address: bookingData.location,
-        wasteType: bookingData.wasteTypes.join(', '),
-        bagSize: bookingData.bagSize,
-        amount: '₵25.00',
-        rider: undefined,
-        paymentMethod: 'Mobile Money'
-      };
-      setCompletedOrder(newOrder);
-      setShowReceipt(true);
-    }, 1500);
+  const { user } = useAuth();
+  
+  const handleBooking = async () => {
+    // Calculate price based on the same logic as PricingSummary
+    const basePrice = bookingData.serviceType === 'instant' ? 15 : 12;
+    const sizePrice = bookingData.bagSize === 'medium' ? 5 : (bookingData.bagSize === 'large' ? 10 : 0);
+    const serviceFee = 2;
+    const finalPrice = basePrice + sizePrice + serviceFee;
+
+    const newOrder = {
+      id: `BWS-${Date.now().toString().slice(-6)}`,
+      service: bookingData.serviceType === 'instant' ? 'Instant Pickup' : 'Scheduled Pickup',
+      date: new Date().toLocaleDateString('en-GB'),
+      time: bookingData.scheduledTime || new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
+      address: bookingData.location,
+      wasteType: bookingData.wasteTypes.join(', '),
+      bagSize: bookingData.bagSize,
+      amount: `₵${finalPrice.toFixed(2)}`,
+      paymentMethod: 'Mobile Money'
+    };
+
+    try {
+      if (user && (user.id || user.supabase_id)) {
+        let realUserId = user.supabase_id || user.id;
+        
+        // Special recovery: If the ID is a placeholder from a manual session
+        if (realUserId && realUserId.toString().startsWith('user_')) {
+          let searchPhone = (user.phoneNumber || user.phone_number || '').replace(/\s+/g, '');
+          if (searchPhone.startsWith('0')) {
+            searchPhone = '+233' + searchPhone.substring(1);
+          } else if (searchPhone && !searchPhone.startsWith('+')) {
+            searchPhone = '+233' + searchPhone;
+          }
+          const searchEmail = user.email && user.email.includes('@') ? user.email : null;
+          
+          let query = supabase.from('users').select('id');
+          if (searchPhone && searchEmail) {
+            query = query.or(`phone_number.eq.${searchPhone},email.eq.${searchEmail}`);
+          } else if (searchPhone) {
+            query = query.eq('phone_number', searchPhone);
+          } else if (searchEmail) {
+            query = query.eq('email', searchEmail);
+          }
+
+          const { data: dbUser } = await query.single();
+          if (dbUser) {
+            realUserId = dbUser.id;
+          } else {
+             // If not found, show error and stop
+             Alert.alert("Account Not Synced", "We couldn't find your account in our database. Please try signing out and signing in again.");
+             return;
+          }
+        }
+
+        const { error } = await supabase.from('orders').insert([{
+          user_id: realUserId,
+          service_type: bookingData.serviceType === 'instant' ? 'Instant Pickup' : 'Scheduled Pickup',
+          address: bookingData.location,
+          waste_type: bookingData.wasteTypes.join(', '),
+          waste_size: bookingData.bagSize,
+          notes: bookingData.notes || '',
+          status: 'pending',
+          amount: finalPrice,
+          scheduled_at: bookingData.scheduledTime ? new Date().toISOString() : null
+        }]);
+        
+        if (error) {
+          console.error("Supabase order insert error:", error);
+          Alert.alert("Booking Error", "We couldn't save your booking to the server. Please check your connection.");
+          return;
+        }
+
+        // Successfully saved
+        setCompletedOrder(newOrder);
+        setShowReceipt(true);
+      } else {
+        Alert.alert("Error", "You must be logged in to book a service.");
+      }
+    } catch (e) {
+      console.error("Critical booking failure:", e);
+      Alert.alert("System Error", "Something went wrong during the booking process.");
+    }
   };
 
   const resetBooking = () => {

@@ -1,76 +1,121 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, SafeAreaView, Modal, TouchableOpacity, TextInput, Alert, Linking } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Modal, TouchableOpacity, TextInput, Alert, Linking, FlatList, RefreshControl } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Navigation } from '../../components/feature/Navigation';
 import { BottomNavigation } from '../../components/feature/BottomNavigation';
 import { RemixIcon } from '../../utils/icons';
 import { generateReceipt } from '../../utils/receiptGenerator';
 import { navigateTo } from '../../utils/navigation';
+import { supabase } from '../../lib/supabase';
+import { useAuth } from '../../context/AuthContext';
 
 const OrdersPage: React.FC = () => {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('active');
   const [showRatingModal, setShowRatingModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [rating, setRating] = useState(0);
   const [showModifyModal, setShowModifyModal] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const [orders, setOrders] = useState([
-    {
-      id: 'BW001',
-      status: 'in_progress',
-      service: 'Instant Pickup',
-      date: '2024-01-15',
-      time: '14:30',
-      address: '123 Osu Street, Accra',
-      rider: 'Kwame Asante',
-      riderPhone: '+233 24 123 4567',
-      amount: '₵15.00',
-      wasteType: 'General Household',
-      bagSize: 'Medium',
-      estimatedArrival: '15 mins',
-      paymentMethod: 'MTN Mobile Money'
-    },
-    {
-      id: 'BW002',
-      status: 'scheduled',
-      service: 'Scheduled Pickup',
-      date: '2024-01-16',
-      time: '09:00',
-      address: '456 East Legon, Accra',
-      amount: '₵12.00',
-      wasteType: 'Recyclables',
-      bagSize: 'Large',
-      paymentMethod: 'Vodafone Cash'
-    },
-    {
-      id: 'BW003',
-      status: 'completed',
-      service: 'Organic Waste',
-      date: '2024-01-14',
-      time: '16:45',
-      address: '789 Tema Community 1',
-      rider: 'Ama Serwaa',
-      amount: '₵8.00',
-      wasteType: 'Organic',
-      bagSize: 'Small',
-      rating: 5,
-      paymentMethod: 'MTN Mobile Money'
-    },
-    {
-      id: 'BW004',
-      status: 'completed',
-      service: 'Bulk Collection',
-      date: '2024-01-12',
-      time: '11:20',
-      address: '321 Kumasi Central',
-      rider: 'Kofi Mensah',
-      amount: '₵25.00',
-      wasteType: 'Mixed',
-      bagSize: 'Extra Large',
-      rating: 4,
-      paymentMethod: 'Visa Card'
+  const [orders, setOrders] = useState<any[]>([]);
+  const [modifiedData, setModifiedData] = useState({
+    date: '',
+    time: '',
+    address: ''
+  });
+
+  React.useEffect(() => {
+    fetchOrders();
+
+    // Set up real-time subscription
+    let searchId = user?.supabase_id || user?.id;
+    if (searchId && !String(searchId).startsWith('user_')) {
+      const channel = supabase
+        .channel('order-updates')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'orders',
+            filter: `user_id=eq.${searchId}`,
+          },
+          (payload) => {
+            console.log('Real-time update received:', payload);
+            fetchOrders(); // Reload orders when something changes
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
     }
-  ]);
+  }, [user]);
+
+  const fetchOrders = async () => {
+    if (!user) return;
+    setIsLoading(true);
+    try {
+      let searchId = user.supabase_id || user.id;
+      if (searchId && String(searchId).startsWith('user_')) {
+        let searchPhone = (user.phone_number || user.phoneNumber || '').replace(/\s+/g, '');
+        if (searchPhone.startsWith('0')) {
+          searchPhone = '+233' + searchPhone.substring(1);
+        } else if (searchPhone && !searchPhone.startsWith('+')) {
+          searchPhone = '+233' + searchPhone;
+        }
+        const searchEmail = user.email && user.email.includes('@') ? user.email : null;
+        
+        let query = supabase.from('users').select('id');
+        if (searchPhone && searchEmail) {
+          query = query.or(`phone_number.eq.${searchPhone},email.eq.${searchEmail}`);
+        } else if (searchPhone) {
+          query = query.eq('phone_number', searchPhone);
+        } else if (searchEmail) {
+          query = query.eq('email', searchEmail);
+        }
+        
+        const { data: dbUser } = await query.single();
+        if (dbUser) searchId = dbUser.id;
+      }
+
+      if (!searchId || String(searchId).startsWith('user_')) {
+        setIsLoading(false);
+        return;
+      }
+      const { data, error } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('user_id', searchId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      const formattedOrders = (data || []).map(p => ({
+        id: p.id.slice(0, 8).toUpperCase(),
+        realId: p.id,
+        status: p.status === 'pending' ? 'scheduled' : (p.status === 'in_progress' ? 'in_progress' : p.status),
+        service: p.service_type || 'Waste Pickup',
+        date: new Date(p.created_at).toLocaleDateString('en-GB'),
+        time: p.scheduled_at ? new Date(p.scheduled_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : new Date(p.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
+        address: p.address,
+        amount: '₵' + (typeof p.amount === 'number' ? p.amount.toFixed(2) : (p.amount || '0.00')),
+        wasteType: p.waste_type || 'General',
+        bagSize: p.waste_size || 'Standard',
+        rider: p.rider_id ? 'Assigned' : null,
+        paymentMethod: p.payment_method || 'Mobile Money'
+      }));
+
+      setOrders(formattedOrders);
+    } catch (e) {
+      console.error('Error fetching orders:', e);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -117,21 +162,39 @@ const OrdersPage: React.FC = () => {
     setShowRatingModal(true);
   };
 
-  const handleSubmitRating = () => {
+  const handleSubmitRating = async () => {
     if (rating === 0) {
       Alert.alert('Error', 'Please select a rating');
       return;
     }
-    setOrders(orders.map(order => 
-      order.id === selectedOrder.id ? { ...order, rating } : order
-    ));
-    setShowRatingModal(false);
-    setRating(0);
-    setSelectedOrder(null);
+    
+    try {
+      const { error } = await supabase
+        .from('orders')
+        .update({ rating: rating })
+        .eq('id', selectedOrder.realId);
+
+      if (error) throw error;
+
+      setOrders(orders.map(order => 
+        order.id === selectedOrder.id ? { ...order, rating } : order
+      ));
+      setShowRatingModal(false);
+      setRating(0);
+      setSelectedOrder(null);
+    } catch (error) {
+       console.error("Error rating order:", error);
+       Alert.alert("Error", "Failed to save your rating.");
+    }
   };
 
   const handleModifyOrder = (order: any) => {
     setSelectedOrder(order);
+    setModifiedData({
+      date: order.date,
+      time: order.time,
+      address: order.address
+    });
     setShowModifyModal(true);
   };
 
@@ -140,19 +203,54 @@ const OrdersPage: React.FC = () => {
     setShowCancelModal(true);
   };
 
-  const confirmCancelOrder = () => {
-    setOrders(orders.map(order => 
-      order.id === selectedOrder.id ? { ...order, status: 'cancelled' } : order
-    ));
-    setShowCancelModal(false);
-    setSelectedOrder(null);
+  const confirmCancelOrder = async () => {
+    if (!selectedOrder) return;
+    
+    try {
+      const { error } = await supabase
+        .from('orders')
+        .update({ status: 'cancelled' })
+        .eq('id', selectedOrder.realId);
+
+      if (error) throw error;
+
+      setOrders(orders.map(order => 
+        order.id === selectedOrder.id ? { ...order, status: 'cancelled' } : order
+      ));
+      setShowCancelModal(false);
+      setSelectedOrder(null);
+    } catch (error) {
+       console.error("Error cancelling order:", error);
+       Alert.alert("Error", "Failed to cancel the order.");
+    }
   };
 
-  const handleSaveModification = () => {
+  const handleSaveModification = async () => {
     if (!selectedOrder) return;
-    // Modification logic would go here
-    setShowModifyModal(false);
-    setSelectedOrder(null);
+    
+    try {
+      // Combine date and time if necessary, or just update fields
+      const { error } = await supabase
+        .from('orders')
+        .update({ 
+          address: modifiedData.address,
+          // Since our table has scheduled_at, we might want to update that if we had a proper picker
+          // For now we just update address as a simple modification example
+        })
+        .eq('id', selectedOrder.realId);
+
+      if (error) throw error;
+
+      setOrders(orders.map(order => 
+        order.id === selectedOrder.id ? { ...order, ...modifiedData } : order
+      ));
+      setShowModifyModal(false);
+      setSelectedOrder(null);
+      Alert.alert("Success", "Order updated successfully.");
+    } catch (error) {
+       console.error("Error modifying order:", error);
+       Alert.alert("Error", "Failed to update the order.");
+    }
   };
 
   const handleDownloadReceipt = async (order: any) => {
@@ -185,6 +283,14 @@ const OrdersPage: React.FC = () => {
         style={styles.scrollView}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl 
+            refreshing={isLoading} 
+            onRefresh={fetchOrders} 
+            colors={['#10b981']} // Success green color
+            tintColor={'#10b981'}
+          />
+        }
       >
         <View style={styles.header}>
           <Text style={styles.title}>My Orders</Text>
@@ -242,8 +348,12 @@ const OrdersPage: React.FC = () => {
             </TouchableOpacity>
           </View>
         ) : (
-          <View style={styles.ordersList}>
-            {displayOrders.map((order) => {
+<FlatList
+            data={displayOrders}
+            keyExtractor={item => item.id}
+            contentContainerStyle={styles.ordersList}
+            scrollEnabled={false}
+            renderItem={({ item: order }) => {
               const statusColors = getStatusColor(order.status);
               return (
                 <View key={order.id} style={styles.orderCard}>
@@ -364,8 +474,8 @@ const OrdersPage: React.FC = () => {
                   </View>
                 </View>
               );
-            })}
-          </View>
+            }}
+          />
         )}
       </ScrollView>
 
@@ -446,7 +556,8 @@ const OrdersPage: React.FC = () => {
                 <Text style={styles.formLabel}>Date</Text>
                 <TextInput
                   style={styles.formInput}
-                  defaultValue={selectedOrder?.date}
+                  value={modifiedData.date}
+                  onChangeText={(text) => setModifiedData({...modifiedData, date: text})}
                   placeholder="Select date"
                 />
               </View>
@@ -454,7 +565,8 @@ const OrdersPage: React.FC = () => {
                 <Text style={styles.formLabel}>Time</Text>
                 <TextInput
                   style={styles.formInput}
-                  defaultValue={selectedOrder?.time}
+                  value={modifiedData.time}
+                  onChangeText={(text) => setModifiedData({...modifiedData, time: text})}
                   placeholder="Select time"
                 />
               </View>
@@ -462,7 +574,8 @@ const OrdersPage: React.FC = () => {
                 <Text style={styles.formLabel}>Address</Text>
                 <TextInput
                   style={[styles.formInput, styles.textArea]}
-                  defaultValue={selectedOrder?.address}
+                  value={modifiedData.address}
+                  onChangeText={(text) => setModifiedData({...modifiedData, address: text})}
                   placeholder="Enter address"
                   multiline
                   numberOfLines={3}

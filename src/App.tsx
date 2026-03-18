@@ -9,6 +9,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 // Import pages
 import HomePage from './pages/home/page';
 import AuthPage from './pages/auth/page';
+import SignupPage from './pages/auth/signup';
 import OTPPage from './pages/auth/otp';
 import BookingPage from './pages/booking/page';
 import OrdersPage from './pages/orders/page';
@@ -47,15 +48,16 @@ function AppNavigator() {
         {!isLoggedIn ? (
           <>
             <Stack.Screen name="Auth" component={AuthPage} />
+            <Stack.Screen name="Signup" component={SignupPage} />
             <Stack.Screen name="OTP" component={OTPPage} />
           </>
         ) : (
           <>
-            <Stack.Screen name="Home" component={HomePage} />
-            <Stack.Screen name="Booking" component={BookingPage} />
-            <Stack.Screen name="Orders" component={OrdersPage} />
-            <Stack.Screen name="Services" component={ServicesPage} />
-            <Stack.Screen name="Profile" component={ProfilePage} />
+            <Stack.Screen name="Home" component={HomePage} options={{ animation: 'none' }} />
+            <Stack.Screen name="Booking" component={BookingPage} options={{ animation: 'none' }} />
+            <Stack.Screen name="Orders" component={OrdersPage} options={{ animation: 'none' }} />
+            <Stack.Screen name="Services" component={ServicesPage} options={{ animation: 'none' }} />
+            <Stack.Screen name="Profile" component={ProfilePage} options={{ animation: 'none' }} />
             <Stack.Screen name="Support" component={SupportPage} />
             <Stack.Screen name="TrackOrder" component={TrackOrderPage} />
             <Stack.Screen name="PaymentMethods" component={PaymentMethodsPage} />
@@ -79,7 +81,7 @@ function App() {
   useEffect(() => {
     const timer = setTimeout(() => {
       setShowSplash(false);
-    }, 5000); // 5 seconds
+    }, 1500); // reduced from 5 seconds to 1.5s to speed up app loading
 
     return () => clearTimeout(timer);
   }, []);

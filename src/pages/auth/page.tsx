@@ -6,37 +6,91 @@ import {
   Image,
   TextInput,
   TouchableOpacity,
-  SafeAreaView,
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons, FontAwesome } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
+import * as Notifications from 'expo-notifications';
 import { useAuth } from '../../context/AuthContext';
+import { supabase } from '../../lib/supabase';
+
+// Configure notification behavior for foreground notifications
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  } as Notifications.NotificationBehavior),
+});
 
 const AuthPage = () => {
   const navigation = useNavigation<any>();
   const { login } = useAuth();
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleContinue = () => {
-    if (phoneNumber) {
-      navigation.navigate('OTP', { phoneNumber: `+233 ${phoneNumber}` });
+  const handleContinue = async () => {
+    if (phoneNumber && password && !isLoading) {
+      setIsLoading(true);
+      const cleanNumber = phoneNumber.replace(/\s+/g, '');
+      const finalNumber = cleanNumber.startsWith('0') ? cleanNumber.substring(1) : cleanNumber;
+      const fullNumber = `+233${finalNumber}`;
+      
+      try {
+        // First verify user in DB
+        const { data: user, error } = await supabase
+          .from('users')
+          .select('*')
+          .eq('phone_number', fullNumber)
+          .eq('password', password)
+          .single();
+
+        if (error || !user) {
+          setIsLoading(false);
+          Alert.alert("Authentication Failed", "Invalid phone number or password. If you don't have an account, please Sign Up.");
+          return;
+        }
+
+        // User exists and password matches! Log in immediately without OTP
+        try {
+          await login({ 
+            phoneNumber: fullNumber, 
+            id: user.id || 'user_' + Date.now(), 
+            name: user.full_name, 
+            email: user.email, 
+            password: user.password, 
+            isSignup: false,
+            supabase_id: user.id
+          });
+          
+          setIsLoading(false);
+          // Navigation is handled automatically by AuthNavigator
+        } catch (loginError: any) {
+          console.error("Login failed:", loginError);
+          setIsLoading(false);
+          Alert.alert("Login Error", loginError.message || "Failed to log in.");
+        }
+      } catch (error) {
+        console.error('Login process error:', error);
+        setIsLoading(false);
+        Alert.alert('Error', 'An error occurred during sign in. Please try again.');
+      }
+    } else if (!phoneNumber) {
+      Alert.alert("Required", "Please enter your phone number");
+    } else if (!password) {
+      Alert.alert("Required", "Please enter your password");
     }
   };
 
   const handleSocialLogin = async (provider: string) => {
-    // Simulate social login process
-    const mockUserData = {
-      id: `${provider}_${Date.now()}`,
-      name: `${provider} User`,
-      email: `${provider.toLowerCase()}@example.com`,
-      provider: provider
-    };
-    
-    await login(mockUserData);
-    // Navigation is handled by AuthNavigator pattern in App.tsx
+    // social login logic...
   };
 
   return (
@@ -64,7 +118,7 @@ const AuthPage = () => {
 
           {/* Bottom Section */}
           <View style={styles.bottomSection}>
-            <Text style={styles.title}>Enter your number</Text>
+            <Text style={styles.title}>Sign In</Text>
 
             <View style={styles.inputRow}>
               <TouchableOpacity style={styles.countryPicker}>
@@ -86,12 +140,38 @@ const AuthPage = () => {
               />
             </View>
 
+            <View style={[styles.phoneInput, { marginBottom: 30, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 0 }]}>
+              <TextInput
+                style={{ flex: 1, paddingHorizontal: 16, height: 50, color: '#000', fontSize: 16 }}
+                placeholder="Password"
+                secureTextEntry={!showPassword}
+                value={password}
+                onChangeText={setPassword}
+                placeholderTextColor="#999"
+              />
+              <TouchableOpacity style={{ paddingRight: 15 }} onPress={() => setShowPassword(!showPassword)}>
+                <Ionicons 
+                  name={showPassword ? "eye-off-outline" : "eye-outline"} 
+                  size={20} 
+                  color="#666" 
+                />
+              </TouchableOpacity>
+            </View>
+
             <TouchableOpacity 
-              style={[styles.nextButton, !phoneNumber && styles.nextButtonDisabled]}
+              style={[styles.nextButton, (!phoneNumber || isLoading) && styles.nextButtonDisabled]}
               onPress={handleContinue}
-              disabled={!phoneNumber}
+              disabled={!phoneNumber || isLoading}
             >
-              <Text style={styles.nextButtonText}>Next</Text>
+              {isLoading ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text style={styles.nextButtonText}>Next</Text>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity style={{alignItems: 'center', marginTop: -10, marginBottom: 20}} onPress={() => navigation.navigate('Signup')}>
+              <Text style={{color: '#666', fontSize: 16}}>Don't have an account? <Text style={{color: '#32BA7C', fontWeight: 'bold'}}>Sign up</Text></Text>
             </TouchableOpacity>
 
             <View style={styles.dividerContainer}>

@@ -1,0 +1,2493 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "description": "",
+    "title": "standard public schema",
+    "version": "14.1"
+  },
+  "host": "kpdyklcickeqmybngpea.supabase.co:443",
+  "basePath": "/",
+  "schemes": [
+    "https"
+  ],
+  "consumes": [
+    "application/json",
+    "application/vnd.pgrst.object+json;nulls=stripped",
+    "application/vnd.pgrst.object+json",
+    "text/csv"
+  ],
+  "produces": [
+    "application/json",
+    "application/vnd.pgrst.object+json;nulls=stripped",
+    "application/vnd.pgrst.object+json",
+    "text/csv"
+  ],
+  "paths": {
+    "/": {
+      "get": {
+        "produces": [
+          "application/openapi+json",
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "summary": "OpenAPI description (this document)",
+        "tags": [
+          "Introspection"
+        ]
+      }
+    },
+    "/payments": {
+      "get": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.payments.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.payments.user_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.payments.pickup_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.payments.amount"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.payments.status"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.payments.created_at"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/order"
+          },
+          {
+            "$ref": "#/parameters/range"
+          },
+          {
+            "$ref": "#/parameters/rangeUnit"
+          },
+          {
+            "$ref": "#/parameters/offset"
+          },
+          {
+            "$ref": "#/parameters/limit"
+          },
+          {
+            "$ref": "#/parameters/preferCount"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "items": {
+                "$ref": "#/definitions/payments"
+              },
+              "type": "array"
+            }
+          },
+          "206": {
+            "description": "Partial Content"
+          }
+        },
+        "tags": [
+          "payments"
+        ]
+      },
+      "post": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/body.payments"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/preferPost"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "payments"
+        ]
+      },
+      "delete": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.payments.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.payments.user_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.payments.pickup_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.payments.amount"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.payments.status"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.payments.created_at"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "payments"
+        ]
+      },
+      "patch": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.payments.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.payments.user_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.payments.pickup_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.payments.amount"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.payments.status"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.payments.created_at"
+          },
+          {
+            "$ref": "#/parameters/body.payments"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "payments"
+        ]
+      }
+    },
+    "/pickups": {
+      "get": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.pickups.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.pickups.user_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.pickups.rider_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.pickups.status"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.pickups.pickup_time"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.pickups.location"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.pickups.address"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.pickups.waste_type"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.pickups.waste_size"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.pickups.details"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.pickups.created_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.pickups.completed_at"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/order"
+          },
+          {
+            "$ref": "#/parameters/range"
+          },
+          {
+            "$ref": "#/parameters/rangeUnit"
+          },
+          {
+            "$ref": "#/parameters/offset"
+          },
+          {
+            "$ref": "#/parameters/limit"
+          },
+          {
+            "$ref": "#/parameters/preferCount"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "items": {
+                "$ref": "#/definitions/pickups"
+              },
+              "type": "array"
+            }
+          },
+          "206": {
+            "description": "Partial Content"
+          }
+        },
+        "tags": [
+          "pickups"
+        ]
+      },
+      "post": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/body.pickups"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/preferPost"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "pickups"
+        ]
+      },
+      "delete": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.pickups.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.pickups.user_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.pickups.rider_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.pickups.status"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.pickups.pickup_time"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.pickups.location"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.pickups.address"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.pickups.waste_type"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.pickups.waste_size"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.pickups.details"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.pickups.created_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.pickups.completed_at"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "pickups"
+        ]
+      },
+      "patch": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.pickups.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.pickups.user_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.pickups.rider_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.pickups.status"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.pickups.pickup_time"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.pickups.location"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.pickups.address"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.pickups.waste_type"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.pickups.waste_size"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.pickups.details"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.pickups.created_at"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.pickups.completed_at"
+          },
+          {
+            "$ref": "#/parameters/body.pickups"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "pickups"
+        ]
+      }
+    },
+    "/admins": {
+      "get": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.admins.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.admins.full_name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.admins.email"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.admins.role"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.admins.status"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.admins.last_login"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.admins.created_at"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/order"
+          },
+          {
+            "$ref": "#/parameters/range"
+          },
+          {
+            "$ref": "#/parameters/rangeUnit"
+          },
+          {
+            "$ref": "#/parameters/offset"
+          },
+          {
+            "$ref": "#/parameters/limit"
+          },
+          {
+            "$ref": "#/parameters/preferCount"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "items": {
+                "$ref": "#/definitions/admins"
+              },
+              "type": "array"
+            }
+          },
+          "206": {
+            "description": "Partial Content"
+          }
+        },
+        "tags": [
+          "admins"
+        ]
+      },
+      "post": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/body.admins"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/preferPost"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "admins"
+        ]
+      },
+      "delete": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.admins.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.admins.full_name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.admins.email"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.admins.role"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.admins.status"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.admins.last_login"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.admins.created_at"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "admins"
+        ]
+      },
+      "patch": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.admins.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.admins.full_name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.admins.email"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.admins.role"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.admins.status"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.admins.last_login"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.admins.created_at"
+          },
+          {
+            "$ref": "#/parameters/body.admins"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "admins"
+        ]
+      }
+    },
+    "/riders": {
+      "get": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.riders.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.riders.full_name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.riders.phone_number"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.riders.email"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.riders.vehicle_type"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.riders.vehicle_number"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.riders.status"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.riders.rating"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.riders.total_earnings"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.riders.total_pickups"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.riders.latitude"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.riders.longitude"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.riders.created_at"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/order"
+          },
+          {
+            "$ref": "#/parameters/range"
+          },
+          {
+            "$ref": "#/parameters/rangeUnit"
+          },
+          {
+            "$ref": "#/parameters/offset"
+          },
+          {
+            "$ref": "#/parameters/limit"
+          },
+          {
+            "$ref": "#/parameters/preferCount"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "items": {
+                "$ref": "#/definitions/riders"
+              },
+              "type": "array"
+            }
+          },
+          "206": {
+            "description": "Partial Content"
+          }
+        },
+        "tags": [
+          "riders"
+        ]
+      },
+      "post": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/body.riders"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/preferPost"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "riders"
+        ]
+      },
+      "delete": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.riders.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.riders.full_name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.riders.phone_number"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.riders.email"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.riders.vehicle_type"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.riders.vehicle_number"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.riders.status"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.riders.rating"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.riders.total_earnings"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.riders.total_pickups"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.riders.latitude"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.riders.longitude"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.riders.created_at"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "riders"
+        ]
+      },
+      "patch": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.riders.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.riders.full_name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.riders.phone_number"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.riders.email"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.riders.vehicle_type"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.riders.vehicle_number"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.riders.status"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.riders.rating"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.riders.total_earnings"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.riders.total_pickups"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.riders.latitude"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.riders.longitude"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.riders.created_at"
+          },
+          {
+            "$ref": "#/parameters/body.riders"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "riders"
+        ]
+      }
+    },
+    "/feedback": {
+      "get": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.feedback.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.feedback.user_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.feedback.type"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.feedback.rating"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.feedback.comment"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.feedback.status"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.feedback.created_at"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/order"
+          },
+          {
+            "$ref": "#/parameters/range"
+          },
+          {
+            "$ref": "#/parameters/rangeUnit"
+          },
+          {
+            "$ref": "#/parameters/offset"
+          },
+          {
+            "$ref": "#/parameters/limit"
+          },
+          {
+            "$ref": "#/parameters/preferCount"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "items": {
+                "$ref": "#/definitions/feedback"
+              },
+              "type": "array"
+            }
+          },
+          "206": {
+            "description": "Partial Content"
+          }
+        },
+        "tags": [
+          "feedback"
+        ]
+      },
+      "post": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/body.feedback"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/preferPost"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "feedback"
+        ]
+      },
+      "delete": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.feedback.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.feedback.user_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.feedback.type"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.feedback.rating"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.feedback.comment"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.feedback.status"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.feedback.created_at"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "feedback"
+        ]
+      },
+      "patch": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.feedback.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.feedback.user_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.feedback.type"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.feedback.rating"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.feedback.comment"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.feedback.status"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.feedback.created_at"
+          },
+          {
+            "$ref": "#/parameters/body.feedback"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "feedback"
+        ]
+      }
+    },
+    "/sms_logs": {
+      "get": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.sms_logs.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.sms_logs.recipient"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.sms_logs.sender_name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.sms_logs.message"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.sms_logs.status"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.sms_logs.created_at"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/order"
+          },
+          {
+            "$ref": "#/parameters/range"
+          },
+          {
+            "$ref": "#/parameters/rangeUnit"
+          },
+          {
+            "$ref": "#/parameters/offset"
+          },
+          {
+            "$ref": "#/parameters/limit"
+          },
+          {
+            "$ref": "#/parameters/preferCount"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "items": {
+                "$ref": "#/definitions/sms_logs"
+              },
+              "type": "array"
+            }
+          },
+          "206": {
+            "description": "Partial Content"
+          }
+        },
+        "tags": [
+          "sms_logs"
+        ]
+      },
+      "post": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/body.sms_logs"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/preferPost"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "sms_logs"
+        ]
+      },
+      "delete": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.sms_logs.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.sms_logs.recipient"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.sms_logs.sender_name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.sms_logs.message"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.sms_logs.status"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.sms_logs.created_at"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "sms_logs"
+        ]
+      },
+      "patch": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.sms_logs.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.sms_logs.recipient"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.sms_logs.sender_name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.sms_logs.message"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.sms_logs.status"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.sms_logs.created_at"
+          },
+          {
+            "$ref": "#/parameters/body.sms_logs"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "sms_logs"
+        ]
+      }
+    },
+    "/users": {
+      "get": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.users.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.users.full_name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.users.phone_number"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.users.email"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.users.address"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.users.location"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.users.subscription_type"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.users.registration_status"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.users.status"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.users.balance"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.users.role"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.users.created_at"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/order"
+          },
+          {
+            "$ref": "#/parameters/range"
+          },
+          {
+            "$ref": "#/parameters/rangeUnit"
+          },
+          {
+            "$ref": "#/parameters/offset"
+          },
+          {
+            "$ref": "#/parameters/limit"
+          },
+          {
+            "$ref": "#/parameters/preferCount"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "items": {
+                "$ref": "#/definitions/users"
+              },
+              "type": "array"
+            }
+          },
+          "206": {
+            "description": "Partial Content"
+          }
+        },
+        "tags": [
+          "users"
+        ]
+      },
+      "post": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/body.users"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/preferPost"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "users"
+        ]
+      },
+      "delete": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.users.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.users.full_name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.users.phone_number"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.users.email"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.users.address"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.users.location"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.users.subscription_type"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.users.registration_status"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.users.status"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.users.balance"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.users.role"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.users.created_at"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "users"
+        ]
+      },
+      "patch": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.users.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.users.full_name"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.users.phone_number"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.users.email"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.users.address"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.users.location"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.users.subscription_type"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.users.registration_status"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.users.status"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.users.balance"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.users.role"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.users.created_at"
+          },
+          {
+            "$ref": "#/parameters/body.users"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/audit_logs": {
+      "get": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.audit_logs.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.audit_logs.admin_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.audit_logs.action"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.audit_logs.target_type"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.audit_logs.target_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.audit_logs.ip_address"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.audit_logs.details"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.audit_logs.created_at"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/order"
+          },
+          {
+            "$ref": "#/parameters/range"
+          },
+          {
+            "$ref": "#/parameters/rangeUnit"
+          },
+          {
+            "$ref": "#/parameters/offset"
+          },
+          {
+            "$ref": "#/parameters/limit"
+          },
+          {
+            "$ref": "#/parameters/preferCount"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "items": {
+                "$ref": "#/definitions/audit_logs"
+              },
+              "type": "array"
+            }
+          },
+          "206": {
+            "description": "Partial Content"
+          }
+        },
+        "tags": [
+          "audit_logs"
+        ]
+      },
+      "post": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/body.audit_logs"
+          },
+          {
+            "$ref": "#/parameters/select"
+          },
+          {
+            "$ref": "#/parameters/preferPost"
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "audit_logs"
+        ]
+      },
+      "delete": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.audit_logs.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.audit_logs.admin_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.audit_logs.action"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.audit_logs.target_type"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.audit_logs.target_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.audit_logs.ip_address"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.audit_logs.details"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.audit_logs.created_at"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "audit_logs"
+        ]
+      },
+      "patch": {
+        "parameters": [
+          {
+            "$ref": "#/parameters/rowFilter.audit_logs.id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.audit_logs.admin_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.audit_logs.action"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.audit_logs.target_type"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.audit_logs.target_id"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.audit_logs.ip_address"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.audit_logs.details"
+          },
+          {
+            "$ref": "#/parameters/rowFilter.audit_logs.created_at"
+          },
+          {
+            "$ref": "#/parameters/body.audit_logs"
+          },
+          {
+            "$ref": "#/parameters/preferReturn"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "audit_logs"
+        ]
+      }
+    },
+    "/rpc/generate_phone": {
+      "post": {
+        "parameters": [
+          {
+            "in": "body",
+            "name": "args",
+            "required": true,
+            "schema": {
+              "type": "object"
+            }
+          },
+          {
+            "$ref": "#/parameters/preferParams"
+          }
+        ],
+        "produces": [
+          "application/json",
+          "application/vnd.pgrst.object+json;nulls=stripped",
+          "application/vnd.pgrst.object+json"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "(rpc) generate_phone"
+        ]
+      }
+    }
+  },
+  "definitions": {
+    "payments": {
+      "required": [
+        "id",
+        "amount"
+      ],
+      "properties": {
+        "id": {
+          "default": "extensions.uuid_generate_v4()",
+          "description": "Note:\nThis is a Primary Key.<pk/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "user_id": {
+          "description": "Note:\nThis is a Foreign Key to `users.id`.<fk table='users' column='id'/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "pickup_id": {
+          "description": "Note:\nThis is a Foreign Key to `pickups.id`.<fk table='pickups' column='id'/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "amount": {
+          "format": "numeric",
+          "type": "number"
+        },
+        "status": {
+          "default": "pending",
+          "format": "text",
+          "type": "string"
+        },
+        "created_at": {
+          "default": "timezone('utc'::text, now())",
+          "format": "timestamp with time zone",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "pickups": {
+      "required": [
+        "id"
+      ],
+      "properties": {
+        "id": {
+          "default": "extensions.uuid_generate_v4()",
+          "description": "Note:\nThis is a Primary Key.<pk/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "user_id": {
+          "description": "Note:\nThis is a Foreign Key to `users.id`.<fk table='users' column='id'/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "rider_id": {
+          "description": "Note:\nThis is a Foreign Key to `riders.id`.<fk table='riders' column='id'/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "status": {
+          "default": "requested",
+          "format": "text",
+          "type": "string"
+        },
+        "pickup_time": {
+          "format": "timestamp with time zone",
+          "type": "string"
+        },
+        "location": {
+          "format": "jsonb"
+        },
+        "address": {
+          "format": "text",
+          "type": "string"
+        },
+        "waste_type": {
+          "format": "text",
+          "type": "string"
+        },
+        "waste_size": {
+          "format": "text",
+          "type": "string"
+        },
+        "details": {
+          "format": "text",
+          "type": "string"
+        },
+        "created_at": {
+          "default": "timezone('utc'::text, now())",
+          "format": "timestamp with time zone",
+          "type": "string"
+        },
+        "completed_at": {
+          "format": "timestamp with time zone",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "admins": {
+      "required": [
+        "id",
+        "full_name",
+        "email"
+      ],
+      "properties": {
+        "id": {
+          "default": "extensions.uuid_generate_v4()",
+          "description": "Note:\nThis is a Primary Key.<pk/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "full_name": {
+          "format": "text",
+          "type": "string"
+        },
+        "email": {
+          "format": "text",
+          "type": "string"
+        },
+        "role": {
+          "format": "text",
+          "type": "string"
+        },
+        "status": {
+          "default": "active",
+          "format": "text",
+          "type": "string"
+        },
+        "last_login": {
+          "format": "timestamp with time zone",
+          "type": "string"
+        },
+        "created_at": {
+          "default": "timezone('utc'::text, now())",
+          "format": "timestamp with time zone",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "riders": {
+      "required": [
+        "id",
+        "full_name",
+        "phone_number"
+      ],
+      "properties": {
+        "id": {
+          "default": "extensions.uuid_generate_v4()",
+          "description": "Note:\nThis is a Primary Key.<pk/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "full_name": {
+          "format": "text",
+          "type": "string"
+        },
+        "phone_number": {
+          "format": "text",
+          "type": "string"
+        },
+        "email": {
+          "format": "text",
+          "type": "string"
+        },
+        "vehicle_type": {
+          "format": "text",
+          "type": "string"
+        },
+        "vehicle_number": {
+          "format": "text",
+          "type": "string"
+        },
+        "status": {
+          "default": "active",
+          "format": "text",
+          "type": "string"
+        },
+        "rating": {
+          "default": 5,
+          "format": "numeric",
+          "type": "number"
+        },
+        "total_earnings": {
+          "default": 0,
+          "format": "numeric",
+          "type": "number"
+        },
+        "total_pickups": {
+          "default": 0,
+          "format": "integer",
+          "type": "integer"
+        },
+        "latitude": {
+          "format": "double precision",
+          "type": "number"
+        },
+        "longitude": {
+          "format": "double precision",
+          "type": "number"
+        },
+        "created_at": {
+          "default": "timezone('utc'::text, now())",
+          "format": "timestamp with time zone",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "feedback": {
+      "required": [
+        "id"
+      ],
+      "properties": {
+        "id": {
+          "default": "extensions.uuid_generate_v4()",
+          "description": "Note:\nThis is a Primary Key.<pk/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "user_id": {
+          "description": "Note:\nThis is a Foreign Key to `users.id`.<fk table='users' column='id'/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "type": {
+          "format": "text",
+          "type": "string"
+        },
+        "rating": {
+          "format": "integer",
+          "type": "integer"
+        },
+        "comment": {
+          "format": "text",
+          "type": "string"
+        },
+        "status": {
+          "default": "pending",
+          "format": "text",
+          "type": "string"
+        },
+        "created_at": {
+          "default": "timezone('utc'::text, now())",
+          "format": "timestamp with time zone",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "sms_logs": {
+      "required": [
+        "id"
+      ],
+      "properties": {
+        "id": {
+          "default": "extensions.uuid_generate_v4()",
+          "description": "Note:\nThis is a Primary Key.<pk/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "recipient": {
+          "format": "text",
+          "type": "string"
+        },
+        "sender_name": {
+          "format": "text",
+          "type": "string"
+        },
+        "message": {
+          "format": "text",
+          "type": "string"
+        },
+        "status": {
+          "default": "sent",
+          "format": "text",
+          "type": "string"
+        },
+        "created_at": {
+          "default": "timezone('utc'::text, now())",
+          "format": "timestamp with time zone",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "users": {
+      "required": [
+        "id",
+        "full_name",
+        "phone_number"
+      ],
+      "properties": {
+        "id": {
+          "default": "extensions.uuid_generate_v4()",
+          "description": "Note:\nThis is a Primary Key.<pk/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "full_name": {
+          "format": "text",
+          "type": "string"
+        },
+        "phone_number": {
+          "format": "text",
+          "type": "string"
+        },
+        "email": {
+          "format": "text",
+          "type": "string"
+        },
+        "address": {
+          "format": "text",
+          "type": "string"
+        },
+        "location": {
+          "format": "text",
+          "type": "string"
+        },
+        "subscription_type": {
+          "default": "pay-as-you-go",
+          "format": "text",
+          "type": "string"
+        },
+        "registration_status": {
+          "default": "pending",
+          "format": "text",
+          "type": "string"
+        },
+        "status": {
+          "default": "active",
+          "format": "text",
+          "type": "string"
+        },
+        "balance": {
+          "default": 0,
+          "format": "numeric",
+          "type": "number"
+        },
+        "role": {
+          "default": "customer",
+          "format": "text",
+          "type": "string"
+        },
+        "created_at": {
+          "default": "timezone('utc'::text, now())",
+          "format": "timestamp with time zone",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "audit_logs": {
+      "required": [
+        "id"
+      ],
+      "properties": {
+        "id": {
+          "default": "extensions.uuid_generate_v4()",
+          "description": "Note:\nThis is a Primary Key.<pk/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "admin_id": {
+          "description": "Note:\nThis is a Foreign Key to `admins.id`.<fk table='admins' column='id'/>",
+          "format": "uuid",
+          "type": "string"
+        },
+        "action": {
+          "format": "text",
+          "type": "string"
+        },
+        "target_type": {
+          "format": "text",
+          "type": "string"
+        },
+        "target_id": {
+          "format": "text",
+          "type": "string"
+        },
+        "ip_address": {
+          "format": "text",
+          "type": "string"
+        },
+        "details": {
+          "format": "jsonb"
+        },
+        "created_at": {
+          "default": "timezone('utc'::text, now())",
+          "format": "timestamp with time zone",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  "parameters": {
+    "preferParams": {
+      "name": "Prefer",
+      "description": "Preference",
+      "required": false,
+      "in": "header",
+      "type": "string"
+    },
+    "preferReturn": {
+      "name": "Prefer",
+      "description": "Preference",
+      "required": false,
+      "enum": [
+        "return=representation",
+        "return=minimal",
+        "return=none"
+      ],
+      "in": "header",
+      "type": "string"
+    },
+    "preferCount": {
+      "name": "Prefer",
+      "description": "Preference",
+      "required": false,
+      "enum": [
+        "count=none"
+      ],
+      "in": "header",
+      "type": "string"
+    },
+    "preferPost": {
+      "name": "Prefer",
+      "description": "Preference",
+      "required": false,
+      "enum": [
+        "return=representation",
+        "return=minimal",
+        "return=none",
+        "resolution=ignore-duplicates",
+        "resolution=merge-duplicates"
+      ],
+      "in": "header",
+      "type": "string"
+    },
+    "select": {
+      "name": "select",
+      "description": "Filtering Columns",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "on_conflict": {
+      "name": "on_conflict",
+      "description": "On Conflict",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "order": {
+      "name": "order",
+      "description": "Ordering",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "range": {
+      "name": "Range",
+      "description": "Limiting and Pagination",
+      "required": false,
+      "in": "header",
+      "type": "string"
+    },
+    "rangeUnit": {
+      "name": "Range-Unit",
+      "description": "Limiting and Pagination",
+      "required": false,
+      "default": "items",
+      "in": "header",
+      "type": "string"
+    },
+    "offset": {
+      "name": "offset",
+      "description": "Limiting and Pagination",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "limit": {
+      "name": "limit",
+      "description": "Limiting and Pagination",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "body.payments": {
+      "name": "payments",
+      "description": "payments",
+      "required": false,
+      "in": "body",
+      "schema": {
+        "$ref": "#/definitions/payments"
+      }
+    },
+    "rowFilter.payments.id": {
+      "name": "id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.payments.user_id": {
+      "name": "user_id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.payments.pickup_id": {
+      "name": "pickup_id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.payments.amount": {
+      "name": "amount",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.payments.status": {
+      "name": "status",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.payments.created_at": {
+      "name": "created_at",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "body.pickups": {
+      "name": "pickups",
+      "description": "pickups",
+      "required": false,
+      "in": "body",
+      "schema": {
+        "$ref": "#/definitions/pickups"
+      }
+    },
+    "rowFilter.pickups.id": {
+      "name": "id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.pickups.user_id": {
+      "name": "user_id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.pickups.rider_id": {
+      "name": "rider_id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.pickups.status": {
+      "name": "status",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.pickups.pickup_time": {
+      "name": "pickup_time",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.pickups.location": {
+      "name": "location",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.pickups.address": {
+      "name": "address",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.pickups.waste_type": {
+      "name": "waste_type",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.pickups.waste_size": {
+      "name": "waste_size",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.pickups.details": {
+      "name": "details",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.pickups.created_at": {
+      "name": "created_at",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.pickups.completed_at": {
+      "name": "completed_at",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "body.admins": {
+      "name": "admins",
+      "description": "admins",
+      "required": false,
+      "in": "body",
+      "schema": {
+        "$ref": "#/definitions/admins"
+      }
+    },
+    "rowFilter.admins.id": {
+      "name": "id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.admins.full_name": {
+      "name": "full_name",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.admins.email": {
+      "name": "email",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.admins.role": {
+      "name": "role",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.admins.status": {
+      "name": "status",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.admins.last_login": {
+      "name": "last_login",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.admins.created_at": {
+      "name": "created_at",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "body.riders": {
+      "name": "riders",
+      "description": "riders",
+      "required": false,
+      "in": "body",
+      "schema": {
+        "$ref": "#/definitions/riders"
+      }
+    },
+    "rowFilter.riders.id": {
+      "name": "id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.riders.full_name": {
+      "name": "full_name",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.riders.phone_number": {
+      "name": "phone_number",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.riders.email": {
+      "name": "email",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.riders.vehicle_type": {
+      "name": "vehicle_type",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.riders.vehicle_number": {
+      "name": "vehicle_number",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.riders.status": {
+      "name": "status",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.riders.rating": {
+      "name": "rating",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.riders.total_earnings": {
+      "name": "total_earnings",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.riders.total_pickups": {
+      "name": "total_pickups",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.riders.latitude": {
+      "name": "latitude",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.riders.longitude": {
+      "name": "longitude",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.riders.created_at": {
+      "name": "created_at",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "body.feedback": {
+      "name": "feedback",
+      "description": "feedback",
+      "required": false,
+      "in": "body",
+      "schema": {
+        "$ref": "#/definitions/feedback"
+      }
+    },
+    "rowFilter.feedback.id": {
+      "name": "id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.feedback.user_id": {
+      "name": "user_id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.feedback.type": {
+      "name": "type",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.feedback.rating": {
+      "name": "rating",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.feedback.comment": {
+      "name": "comment",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.feedback.status": {
+      "name": "status",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.feedback.created_at": {
+      "name": "created_at",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "body.sms_logs": {
+      "name": "sms_logs",
+      "description": "sms_logs",
+      "required": false,
+      "in": "body",
+      "schema": {
+        "$ref": "#/definitions/sms_logs"
+      }
+    },
+    "rowFilter.sms_logs.id": {
+      "name": "id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.sms_logs.recipient": {
+      "name": "recipient",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.sms_logs.sender_name": {
+      "name": "sender_name",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.sms_logs.message": {
+      "name": "message",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.sms_logs.status": {
+      "name": "status",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.sms_logs.created_at": {
+      "name": "created_at",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "body.users": {
+      "name": "users",
+      "description": "users",
+      "required": false,
+      "in": "body",
+      "schema": {
+        "$ref": "#/definitions/users"
+      }
+    },
+    "rowFilter.users.id": {
+      "name": "id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.users.full_name": {
+      "name": "full_name",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.users.phone_number": {
+      "name": "phone_number",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.users.email": {
+      "name": "email",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.users.address": {
+      "name": "address",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.users.location": {
+      "name": "location",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.users.subscription_type": {
+      "name": "subscription_type",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.users.registration_status": {
+      "name": "registration_status",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.users.status": {
+      "name": "status",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.users.balance": {
+      "name": "balance",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.users.role": {
+      "name": "role",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.users.created_at": {
+      "name": "created_at",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "body.audit_logs": {
+      "name": "audit_logs",
+      "description": "audit_logs",
+      "required": false,
+      "in": "body",
+      "schema": {
+        "$ref": "#/definitions/audit_logs"
+      }
+    },
+    "rowFilter.audit_logs.id": {
+      "name": "id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.audit_logs.admin_id": {
+      "name": "admin_id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.audit_logs.action": {
+      "name": "action",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.audit_logs.target_type": {
+      "name": "target_type",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.audit_logs.target_id": {
+      "name": "target_id",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.audit_logs.ip_address": {
+      "name": "ip_address",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.audit_logs.details": {
+      "name": "details",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    },
+    "rowFilter.audit_logs.created_at": {
+      "name": "created_at",
+      "required": false,
+      "in": "query",
+      "type": "string"
+    }
+  },
+  "externalDocs": {
+    "description": "PostgREST Documentation",
+    "url": "https://postgrest.org/en/v14/references/api.html"
+  }
+}

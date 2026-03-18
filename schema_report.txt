@@ -1,0 +1,9 @@
+Starting schema check...
+Users table is empty.
+Dummy insert error message: null value in column "full_name" of relation "users" violates not-null constraint
+Full error: {
+  "code": "23502",
+  "details": null,
+  "hint": null,
+  "message": "null value in column \"full_name\" of relation \"users\" violates not-null constraint"
+}

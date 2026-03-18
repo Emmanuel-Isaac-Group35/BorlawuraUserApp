@@ -4,7 +4,8 @@ import { createRef } from 'react';
 export const navigationRef = createRef<NavigationContainerRef<any>>();
 
 export const navigate = (name: string, params?: any) => {
-  navigationRef.current?.navigate(name as never, params as never);
+  // @ts-ignore
+  navigationRef.current?.navigate(name, params);
 };
 
 // Map web routes to React Navigation routes

@@ -4,23 +4,28 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  SafeAreaView,
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import * as Notifications from 'expo-notifications';
 import { useAuth } from '../../context/AuthContext';
 
 const OTPPage = () => {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const { login } = useAuth();
-  const { phoneNumber } = route.params || { phoneNumber: '024 123 4567' };
+  const { phoneNumber, generatedOtp: initialOtp, name, email, password, isSignup } = route.params || { phoneNumber: '024 123 4567', generatedOtp: '1234' };
   
   const [otp, setOtp] = useState(['', '', '', '']);
+  const [currentOtp, setCurrentOtp] = useState(initialOtp);
   const [timer, setTimer] = useState(30);
+  const [isResending, setIsResending] = useState(false);
   const inputs = useRef<any>([]);
 
   useEffect(() => {
@@ -54,9 +59,82 @@ const OTPPage = () => {
   const handleVerify = async (code?: string) => {
     const finalCode = code || otp.join('');
     if (finalCode.length === 4) {
-      // Simulate verification and login
-      await login({ phoneNumber, id: 'user_' + Date.now() });
-      // Navigation is handled automatically by AuthNavigator in App.tsx
+      if (finalCode === currentOtp) {
+        // Verification and login
+        try {
+          await login({ phoneNumber, id: 'user_' + Date.now(), name, email, password, isSignup });
+          // Navigation is handled automatically by AuthNavigator in App.tsx
+        } catch (error: any) {
+          Alert.alert("Auth Error", error.message || "Failed to log in.");
+          navigation.navigate('Auth');
+        }
+      } else {
+        Alert.alert('Invalid Code', 'The verification code you entered is incorrect.');
+        setOtp(['', '', '', '']);
+        inputs.current[0]?.focus();
+      }
+    }
+  };
+
+  const handleResend = async () => {
+    if (isResending) return;
+    setIsResending(true);
+    
+    const newOtpCode = Math.floor(1000 + Math.random() * 9000).toString();
+    setCurrentOtp(newOtpCode);
+    
+    try {
+      const response = await fetch('https://sms.arkesel.com/api/v2/sms/send', {
+        method: 'POST',
+        headers: {
+          'api-key': 'UEJrVktDRnBqeWZpdmxXSG1WbHk',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          sender: 'BorlaWura',
+          message: `Your BorlaWura verification code is: ${newOtpCode}`,
+          recipients: [phoneNumber]
+        })
+      });
+      
+      const data = await response.json();
+      console.log('Resend SMS Response:', data);
+      
+      // Trigger a local push notification with the OTP
+      const { status } = await Notifications.requestPermissionsAsync();
+      if (status === 'granted') {
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: "BorlaWura Verification",
+            body: `Your new verification code is: ${newOtpCode}`,
+            sound: true,
+          },
+          trigger: null, // Send immediately
+        });
+      }
+      
+      setIsResending(false);
+      setTimer(30);
+      Alert.alert('Success', 'A new verification code has been sent to your phone.');
+    } catch (error) {
+      console.error('Failed to resend OTP:', error);
+
+      // Still try to show the notification as a fallback
+      const { status } = await Notifications.requestPermissionsAsync();
+      if (status === 'granted') {
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: "BorlaWura Verification",
+            body: `Your new verification code is: ${newOtpCode} (Fallback)`,
+            sound: true,
+          },
+          trigger: null,
+        });
+      }
+
+      setIsResending(false);
+      setTimer(30);
+      Alert.alert('Notice', 'Failed to send SMS code, but a fallback code was generated.');
     }
   };
 
@@ -98,8 +176,12 @@ const OTPPage = () => {
             {timer > 0 ? (
               <Text style={styles.resendText}>Resend code in {timer}s</Text>
             ) : (
-              <TouchableOpacity>
-                <Text style={styles.resendLink}>Resend code</Text>
+              <TouchableOpacity onPress={handleResend} disabled={isResending}>
+                {isResending ? (
+                  <ActivityIndicator color="#32BA7C" style={{ marginBottom: 20 }} />
+                ) : (
+                  <Text style={styles.resendLink}>Resend code</Text>
+                )}
               </TouchableOpacity>
             )}
             
