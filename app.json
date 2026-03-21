@@ -2,6 +2,7 @@
   "expo": {
     "name": "Borla Wura",
     "slug": "borlawura-user",
+    "scheme": "borlawura-user",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",

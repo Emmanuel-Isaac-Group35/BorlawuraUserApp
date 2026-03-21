@@ -19,7 +19,7 @@ const SupportPage: React.FC = () => {
     {
       id: 2,
       question: 'What types of waste do you collect?',
-      answer: 'We collect general household waste, recyclables (plastic, paper, cans), organic waste, and bulk items. We do not collect hazardous materials, electronics, or medical waste.',
+      answer: 'We collect general household waste and bulk items. We do not collect hazardous materials, electronics, or medical waste.',
     },
     {
       id: 3,

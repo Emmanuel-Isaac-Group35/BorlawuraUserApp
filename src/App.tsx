@@ -32,20 +32,20 @@ import { navigationRef } from './utils/navigation';
 const Stack = createNativeStackNavigator();
 
 function AppNavigator() {
-  const { isLoggedIn, isLoading } = useAuth();
+  const { isLoggedIn, isSuspended, isLoading } = useAuth();
 
   if (isLoading) return null; // Or a loading spinner
 
   return (
     <NavigationContainer ref={navigationRef}>
       <Stack.Navigator
-        initialRouteName={isLoggedIn ? "Home" : "Auth"}
+        initialRouteName={isLoggedIn ? (isSuspended ? "Auth" : "Home") : "Auth"}
         screenOptions={{
           headerShown: false,
           contentStyle: { backgroundColor: '#f9fafb' },
         }}
       >
-        {!isLoggedIn ? (
+        {!isLoggedIn || isSuspended ? (
           <>
             <Stack.Screen name="Auth" component={AuthPage} />
             <Stack.Screen name="Signup" component={SignupPage} />

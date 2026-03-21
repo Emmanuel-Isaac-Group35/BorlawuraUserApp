@@ -37,24 +37,6 @@ const ServicesPage: React.FC = () => {
       features: ['Flexible timing', 'Recurring options', 'Cost effective']
     },
     {
-      id: 3,
-      title: 'Recyclable Collection',
-      description: 'Specialized collection for recyclable materials',
-      price: '₵10',
-      icon: 'ri-recycle-line',
-      category: 'recycling',
-      features: ['Proper sorting', 'Eco-friendly disposal', 'Environmental impact']
-    },
-    {
-      id: 4,
-      title: 'Organic Waste',
-      description: 'Collection of organic and compostable waste',
-      price: '₵8',
-      icon: 'ri-leaf-line',
-      category: 'organic',
-      features: ['Composting ready', 'Garden waste included', 'Sustainable disposal']
-    },
-    {
       id: 5,
       title: 'Bulk Collection',
       description: 'Large volume waste collection service',
@@ -68,8 +50,6 @@ const ServicesPage: React.FC = () => {
   const categories = [
     { id: 'all', label: 'All Services', icon: 'ri-apps-line' },
     { id: 'pickup', label: 'Pickup', icon: 'ri-truck-line' },
-    { id: 'recycling', label: 'Recycling', icon: 'ri-recycle-line' },
-    { id: 'organic', label: 'Organic', icon: 'ri-leaf-line' },
     { id: 'bulk', label: 'Bulk', icon: 'ri-stack-line' }
   ];
 

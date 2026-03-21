@@ -28,9 +28,7 @@ export const PricingSummary: React.FC<PricingSummaryProps> = ({ bookingData }) =
 
   const getWasteTypeNames = () => {
     const typeMap: { [key: string]: string } = {
-      'general': 'General Household Waste',
-      'recyclables': 'Recyclables',
-      'organic': 'Organic Waste'
+      'general': 'General Household Waste'
     };
     return bookingData.wasteTypes.map(type => typeMap[type]).join(', ');
   };

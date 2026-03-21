@@ -26,20 +26,6 @@ export const WasteTypeSelector: React.FC<WasteTypeSelectorProps> = ({
       description: 'Regular trash, food waste, non-recyclables',
       icon: 'https://readdy.ai/api/search-image?query=icon%2C%203D%20cartoon%20household%20waste%20bin%2C%20the%20icon%20should%20take%20up%2070%25%20of%20the%20frame%2C%20vibrant%20colors%20with%20soft%20gradients%2C%20minimalist%20design%2C%20smooth%20rounded%20shapes%2C%20subtle%20shading%2C%20no%20outlines%2C%20centered%20composition%2C%20isolated%20on%20white%20background%2C%20playful%20and%20friendly%20aesthetic%2C%20isometric%20perspective%2C%20high%20detail%20quality%2C%20clean%20and%20modern%20look%2C%20single%20object%20focus&width=80&height=80&seq=waste1&orientation=squarish',
       color: '#f3f4f6'
-    },
-    {
-      id: 'recyclables',
-      title: 'Recyclables',
-      description: 'Plastic bottles, cans, paper, cardboard',
-      icon: 'https://readdy.ai/api/search-image?query=icon%2C%203D%20cartoon%20recycling%20symbol%20with%20bottles%20and%20cans%2C%20the%20icon%20should%20take%20up%2070%25%20of%20the%20frame%2C%20vibrant%20green%20colors%20with%20soft%20gradients%2C%20minimalist%20design%2C%20smooth%20rounded%20shapes%2C%20subtle%20shading%2C%20no%20outlines%2C%20centered%20composition%2C%20isolated%20on%20white%20background%2C%20playful%20and%20friendly%20aesthetic%2C%20isometric%20perspective%2C%20high%20detail%20quality%2C%20clean%20and%20modern%20look%2C%20single%20object%20focus&width=80&height=80&seq=waste2&orientation=squarish',
-      color: '#dcfce7'
-    },
-    {
-      id: 'organic',
-      title: 'Organic Waste',
-      description: 'Food scraps, garden waste, compostables',
-      icon: 'https://readdy.ai/api/search-image?query=icon%2C%203D%20cartoon%20organic%20waste%20with%20fruits%20and%20vegetables%2C%20the%20icon%20should%20take%20up%2070%25%20of%20the%20frame%2C%20vibrant%20brown%20and%20green%20colors%20with%20soft%20gradients%2C%20minimalist%20design%2C%20smooth%20rounded%20shapes%2C%20subtle%20shading%2C%20no%20outlines%2C%20centered%20composition%2C%20isolated%20on%20white%20background%2C%20playful%20and%20friendly%20aesthetic%2C%20isometric%20perspective%2C%20high%20detail%20quality%2C%20clean%20and%20modern%20look%2C%20single%20object%20focus&width=80&height=80&seq=waste3&orientation=squarish',
-      color: '#fef3c7'
     }
   ];
 

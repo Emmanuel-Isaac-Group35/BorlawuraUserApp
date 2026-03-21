@@ -19,20 +19,6 @@ export const ServiceCategories: React.FC = () => {
       color: '#ef4444'
     },
     {
-      id: 'recyclables',
-      title: 'Recyclables',
-      description: 'Plastic, paper, cans & bottles',
-      image: 'https://readdy.ai/api/search-image?query=icon%2C%203D%20cartoon%20recycling%20symbols%20with%20plastic%20bottles%20and%20paper%2C%20the%20icon%20should%20take%20up%2070%25%20of%20the%20frame%2C%20vibrant%20green%20colors%20with%20soft%20gradients%2C%20minimalist%20design%2C%20smooth%20rounded%20shapes%2C%20subtle%20shading%2C%20no%20outlines%2C%20centered%20composition%2C%20isolated%20on%20white%20background%2C%20playful%20and%20friendly%20aesthetic%2C%20isometric%20perspective%2C%20high%20detail%20quality%2C%20clean%20and%20modern%20look%2C%20single%20object%20focus&width=100&height=100&seq=cat2&orientation=squarish',
-      color: '#22c55e'
-    },
-    {
-      id: 'organic',
-      title: 'Organic Waste',
-      description: 'Food scraps & garden waste',
-      image: 'https://readdy.ai/api/search-image?query=icon%2C%203D%20cartoon%20organic%20waste%20compost%20bin%20with%20vegetables%20and%20fruits%2C%20the%20icon%20should%20take%20up%2070%25%20of%20the%20frame%2C%20vibrant%20brown%20and%20green%20colors%20with%20soft%20gradients%2C%20minimalist%20design%2C%20smooth%20rounded%20shapes%2C%20subtle%20shading%2C%20no%20outlines%2C%20centered%20composition%2C%20isolated%20on%20white%20background%2C%20playful%20and%20friendly%20aesthetic%2C%20isometric%20perspective%2C%20high%20detail%20quality%2C%20clean%20and%20modern%20look%2C%20single%20object%20focus&width=100&height=100&seq=cat3&orientation=squarish',
-      color: '#f59e0b'
-    },
-    {
       id: 'bulk',
       title: 'Bulk Items',
       description: 'Furniture & large items',

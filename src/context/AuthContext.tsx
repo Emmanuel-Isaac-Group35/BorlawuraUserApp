@@ -10,6 +10,7 @@ import { supabase } from '../lib/supabase';
 // Context type definition
 interface AuthContextType {
   isLoggedIn: boolean;
+  isSuspended: boolean;
   user: any;
   login: (userData: any) => Promise<void>;
   logout: () => Promise<void>;
@@ -32,8 +33,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (storedUserJSON) {
           let userData = JSON.parse(storedUserJSON);
           
-          // Re-sync logic: If the stored ID is a temporary string, 
-          // try to recover the real UUID from Supabase
+          // 1. Initial Data Sync: Ensure we have the latest record from DB
+          // This is critical for catching suspensions that happened while the app was closed
+          if (userData.id) {
+             const { data: dbUser, error: checkError } = await supabase
+               .from('users')
+               .select('*')
+               .eq('id', userData.id)
+               .maybeSingle();
+             
+             if (dbUser) {
+               userData = {
+                 ...userData,
+                 ...dbUser,
+                 supabase_id: dbUser.id
+               };
+               // Persist the freshest data
+               await RNAsyncStorage.setItem('user', JSON.stringify(userData));
+             }
+          }
+
+          // 2. Re-sync logic for temporary IDs (Legacy fallback)
           if (userData.id && userData.id.toString().startsWith('user_')) {
             let searchPhone = (userData.phone_number || userData.phoneNumber || '').replace(/\s+/g, '');
             if (searchPhone.startsWith('0')) {
@@ -71,30 +91,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setUser(userData);
           setIsLoggedIn(true);
 
-          if (userData.status === 'suspended') {
-            setIsSuspended(true);
-          }
-
-          // Real-time account status monitoring
-          const userChannel = supabase
-            .channel(`user-status-${userData.id}`)
-            .on(
-              'postgres_changes',
-              { event: 'UPDATE', schema: 'public', table: 'users', filter: `id=eq.${userData.id}` },
-              (payload) => {
-                const newStatus = payload.new.status;
-                if (newStatus === 'suspended') {
-                  setIsSuspended(true);
-                } else if (newStatus === 'active') {
-                  setIsSuspended(false);
-                }
-              }
-            )
-            .subscribe();
-
-          return () => {
-             supabase.removeChannel(userChannel);
-          };
+          // Update check for all restricted statuses
+          const isRestricted = (
+            ['suspended', 'flagged', 'pending'].includes(userData.status) || 
+            ['rejected', 'pending'].includes(userData.registration_status)
+          );
+          setIsSuspended(isRestricted);
         }
       } catch (e) {
         console.error('Failed to load auth state', e);
@@ -105,20 +107,61 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     checkAuth();
   }, []);
 
+  // Set up real-time monitoring when user is logged in
+  useEffect(() => {
+    let userChannel: any = null;
+    const userId = user?.supabase_id || user?.id;
+
+    if (userId && isLoggedIn) {
+      console.log('Setting up real-time listener for user:', userId);
+      userChannel = supabase
+        .channel(`user-status-${userId}`)
+        .on(
+          'postgres_changes',
+          { event: 'UPDATE', schema: 'public', table: 'users', filter: `id=eq.${userId}` },
+          (payload) => {
+            const newStatus = payload.new.status;
+            const regStatus = payload.new.registration_status;
+            
+            console.log('Real-time status update received:', newStatus, regStatus);
+
+            const shouldBlock = (
+              ['suspended', 'flagged', 'pending'].includes(newStatus) || 
+              ['rejected', 'pending'].includes(regStatus)
+            );
+            
+            setIsSuspended(shouldBlock);
+            setUser((prev: any) => prev ? { ...prev, status: newStatus, registration_status: regStatus } : null);
+          }
+        )
+        .subscribe();
+    }
+
+    return () => {
+      if (userChannel) {
+        console.log('Removing real-time listener for user:', userId);
+        supabase.removeChannel(userChannel);
+      }
+    };
+  }, [user?.id, user?.supabase_id, isLoggedIn]);
+
   const login = async (userData: any) => {
+    let existingUser: any = null;
     try {
       // Normalize phone number to used format
       const finalPhone = userData.phoneNumber || userData.phone_number;
       
       if (finalPhone) {
         try {
-          const { data: existingUser, error: fetchError } = await supabase
+          const { data, error: fetchError } = await supabase
             .from('users')
             .select('*')
             .eq('phone_number', finalPhone)
-            .single();
+            .maybeSingle();
+          
+          existingUser = data;
 
-          if (!existingUser && fetchError?.code === 'PGRST116') {
+          if (!existingUser) {
             // User not found
             if (userData.isSignup) {
               // Only insert a new user if they used the Signup flow
@@ -129,7 +172,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     full_name: userData.name || '',
                     email: userData.email || '',
                     password: userData.password || '', 
-                    status: 'active'
+                    status: 'active',
+                    registration_status: 'approved'
                 }])
                 .select()
                 .single();
@@ -140,10 +184,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               }
               
               if (insertedUser) {
-                userData.id = insertedUser.id;
-                userData.name = insertedUser.full_name;
-                userData.email = insertedUser.email;
-                userData.phone_number = insertedUser.phone_number;
+                existingUser = insertedUser;
               }
             } else {
                throw new Error("Account not found. Please sign up first.");
@@ -151,7 +192,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           } else if (existingUser) {
             // If they are signing up again with the same number, but providing a new name/email
             if (userData.isSignup) {
-               const { data: updatedUser, error: updateError } = await supabase
+               const { data: updatedUser } = await supabase
                   .from('users')
                   .update({ 
                      full_name: userData.name || existingUser.full_name,
@@ -161,19 +202,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                   .eq('id', existingUser.id)
                   .select()
                   .single();
-
+ 
                if (updatedUser) {
-                 userData.name = updatedUser.full_name;
-                 userData.email = updatedUser.email;
+                 existingUser = updatedUser;
                }
             }
-
-            // Found existing user, copy their database ID and other fields
-            userData.id = existingUser.id;
-            userData.name = userData.name || existingUser.full_name;
-            userData.email = userData.email || existingUser.email || userData.email_address;
-            userData.phone_number = existingUser.phone_number;
-            userData.location = existingUser.location;
           }
         } catch (dbError: any) {
           console.error("Failed to sync user with DB:", dbError);
@@ -183,25 +216,45 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       const storageUser = { 
         ...userData, 
+        ...existingUser, 
         phoneNumber: finalPhone, 
         phone_number: finalPhone,
-        name: userData.name || userData.full_name || '',
-        full_name: userData.name || userData.full_name || '',
-        email: userData.email || userData.email_address || '', // Ensure email is not lost
-        supabase_id: userData.id // Explicitly track the real DB id
+        name: userData.name || existingUser?.full_name || '',
+        full_name: userData.name || existingUser?.full_name || '',
+        email: userData.email || existingUser?.email || '',
+        supabase_id: existingUser?.id || userData.id
       };
+
+      // CRITICAL SECURITY CHECK
+      const restrictedStatuses = ['suspended', 'flagged', 'rejected'];
+      const isActuallyRestricted = (
+        restrictedStatuses.includes(storageUser.status) || 
+        restrictedStatuses.includes(storageUser.registration_status)
+      );
+      
+      if (isActuallyRestricted) {
+         let message = "This account has been restricted by the administrator.";
+         if (storageUser.status === 'suspended') message = "Your account has been suspended for violating terms of service.";
+         else if (storageUser.status === 'flagged') message = "Your account is under review for security reasons.";
+         else if (storageUser.registration_status === 'rejected') message = "Your account registration was not approved.";
+         
+         setIsSuspended(true);
+         setUser(storageUser);
+         setIsLoggedIn(false); // ENSURE THIS IS FALSE
+         throw new Error(message);
+      }
+
+      // If pending, they can log in but will be blocked by the modal in the background
+      const isPending = storageUser.status === 'pending' || storageUser.registration_status === 'pending';
       
       await RNAsyncStorage.setItem('user', JSON.stringify(storageUser));
       setUser(storageUser);
+      setIsSuspended(isPending);
       setIsLoggedIn(true);
-      
-      if (storageUser.status === 'suspended') {
-        setIsSuspended(true);
-      } else {
-        setIsSuspended(false);
-      }
-    } catch (e) {
-      console.error('Failed to save auth state', e);
+    } catch (e: any) {
+      console.error('Login error', e);
+      setIsLoggedIn(false);
+      throw e;
     }
   };
 
@@ -210,13 +263,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await RNAsyncStorage.removeItem('user');
       setUser(null);
       setIsLoggedIn(false);
+      setIsSuspended(false);
     } catch (e) {
       console.error('Failed to clear auth state', e);
     }
   };
 
+  const getSuspendedMessage = () => {
+     if (!user) return "Your account has been restricted.";
+     const s = (user.status || '').toLowerCase();
+     const rs = (user.registration_status || '').toLowerCase();
+
+     if (s === 'suspended') return "Your account has been suspended by the administrator for violating terms of service.";
+     if (s === 'flagged') return "Your account has been flagged for security review.";
+     if (rs === 'rejected') return "Your account registration has been rejected.";
+     if (rs === 'pending' || s === 'pending') return "Your account is currently pending administrative approval.";
+     
+     return "Your access to this application has been restricted.";
+  };
+
   return (
-    <AuthContext.Provider value={{ isLoggedIn, user, login, logout, isLoading }}>
+    <AuthContext.Provider value={{ isLoggedIn, isSuspended, user, login, logout, isLoading }}>
       {children}
       
       <Modal
@@ -227,17 +294,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.iconContainer}>
-              <Ionicons name="warning" size={60} color="#dc2626" />
+              <Ionicons 
+                name={(user?.status === 'pending' || user?.registration_status === 'pending') ? "time" : "warning"} 
+                size={60} 
+                color={(user?.status === 'pending' || user?.registration_status === 'pending') ? "#d97706" : "#dc2626"} 
+              />
             </View>
-            <Text style={styles.modalTitle}>Account Suspended</Text>
+            <Text style={styles.modalTitle}>
+              {(user?.status === 'pending' || user?.registration_status === 'pending') ? "Account Pending" : "Account Restricted"}
+            </Text>
             <Text style={styles.modalSubtitle}>
-              Your account has been suspended by the administrator for violating terms of service.
+              {getSuspendedMessage()}
             </Text>
             <Text style={styles.modalSubtitle}>
               Please contact support if you believe this is a mistake.
             </Text>
             <TouchableOpacity 
-              style={styles.logoutButton}
+              style={[styles.logoutButton, (user?.status === 'pending' || user?.registration_status === 'pending') && { backgroundColor: '#d97706' }]}
               onPress={logout}
             >
               <Text style={styles.logoutButtonText}>Sign Out</Text>

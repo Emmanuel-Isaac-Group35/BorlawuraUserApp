@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal } from 'react-native';
 import { RemixIcon } from '../../../utils/icons';
 
 interface ServiceSelectorProps {
@@ -12,6 +12,22 @@ interface ServiceSelectorProps {
 export const ServiceSelector: React.FC<ServiceSelectorProps> = ({ value, onChange, scheduledTime, onTimeChange }) => {
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedTime, setSelectedTime] = useState('');
+  const [showDatePicker, setShowDatePicker] = useState(false);
+
+  // Generate next 7 days
+  const availableDates = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() + i);
+    
+    if (i === 0) return 'Today';
+    if (i === 1) return 'Tomorrow';
+    
+    return d.toLocaleDateString('en-GB', { 
+      weekday: 'short', 
+      day: 'numeric', 
+      month: 'short' 
+    });
+  });
 
   const services = [
     {
@@ -47,10 +63,21 @@ export const ServiceSelector: React.FC<ServiceSelectorProps> = ({ value, onChang
     }
   };
 
-  const handleDateTimeChange = () => {
-    if (selectedDate && selectedTime) {
-      onTimeChange(`${selectedDate} ${selectedTime}`);
+  const handleDateTimeChange = (date = selectedDate, time = selectedTime) => {
+    if (date && time) {
+      onTimeChange(`${date} | ${time}`);
     }
+  };
+
+  const selectDate = (date: string) => {
+    setSelectedDate(date);
+    setShowDatePicker(false);
+    handleDateTimeChange(date, selectedTime);
+  };
+
+  const selectTime = (time: string) => {
+    setSelectedTime(time);
+    handleDateTimeChange(selectedDate, time);
   };
 
   return (
@@ -96,11 +123,18 @@ export const ServiceSelector: React.FC<ServiceSelectorProps> = ({ value, onChang
             <View style={styles.dateTimeContainer}>
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Date</Text>
-                <TouchableOpacity style={styles.dateInput}>
-                  <Text style={styles.dateInputText}>
+                <TouchableOpacity 
+                  style={styles.dateInput}
+                  onPress={() => setShowDatePicker(true)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[
+                    styles.dateInputText,
+                    !selectedDate && { color: '#9ca3af' }
+                  ]}>
                     {selectedDate || 'Select date'}
                   </Text>
-                  <RemixIcon name="ri-calendar-line" size={20} color="#6b7280" />
+                  <RemixIcon name="ri-calendar-line" size={20} color="#10b981" />
                 </TouchableOpacity>
               </View>
               
@@ -110,10 +144,7 @@ export const ServiceSelector: React.FC<ServiceSelectorProps> = ({ value, onChang
                   {timeSlots.map((slot) => (
                     <TouchableOpacity
                       key={slot}
-                      onPress={() => {
-                        setSelectedTime(slot);
-                        handleDateTimeChange();
-                      }}
+                      onPress={() => selectTime(slot)}
                       style={[
                         styles.timeSlot,
                         selectedTime === slot && styles.timeSlotActive
@@ -133,6 +164,61 @@ export const ServiceSelector: React.FC<ServiceSelectorProps> = ({ value, onChang
             </View>
           </View>
         )}
+
+        {/* Date Picker Modal */}
+        <Modal
+          visible={showDatePicker}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setShowDatePicker(false)}
+        >
+          <TouchableOpacity 
+            style={styles.modalOverlay}
+            activeOpacity={1}
+            onPress={() => setShowDatePicker(false)}
+          >
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Select a Pickup Date</Text>
+                <TouchableOpacity 
+                  onPress={() => setShowDatePicker(false)}
+                  style={styles.closeButton}
+                >
+                  <RemixIcon name="ri-close-line" size={24} color="#6b7280" />
+                </TouchableOpacity>
+              </View>
+              
+              <View style={styles.dateList}>
+                {availableDates.map((date) => (
+                  <TouchableOpacity
+                    key={date}
+                    style={[
+                      styles.dateOption,
+                      selectedDate === date && styles.dateOptionActive
+                    ]}
+                    onPress={() => selectDate(date)}
+                  >
+                    <View style={styles.dateOptionLeft}>
+                      <View style={[
+                        styles.radioCircle,
+                        selectedDate === date && styles.radioCircleActive
+                      ]}>
+                        {selectedDate === date && <View style={styles.radioInner} />}
+                      </View>
+                      <Text style={[
+                        styles.dateOptionText,
+                        selectedDate === date && styles.dateOptionTextActive
+                      ]}>
+                        {date}
+                      </Text>
+                    </View>
+                    {date === 'Today' && <Text style={styles.todayBadge}>Limited slots</Text>}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          </TouchableOpacity>
+        </Modal>
       </View>
     </ScrollView>
   );
@@ -282,5 +368,91 @@ const styles = StyleSheet.create({
   timeSlotTextActive: {
     color: '#065f46',
     fontWeight: '500',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#ffffff',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    maxHeight: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1f2937',
+  },
+  closeButton: {
+    padding: 4,
+  },
+  dateList: {
+    gap: 12,
+  },
+  dateOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    backgroundColor: '#ffffff',
+  },
+  dateOptionActive: {
+    borderColor: '#10b981',
+    backgroundColor: '#ecfdf5',
+  },
+  dateOptionLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  radioCircle: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: '#d1d5db',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  radioCircleActive: {
+    borderColor: '#10b981',
+  },
+  radioInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#10b981',
+  },
+  dateOptionText: {
+    fontSize: 16,
+    color: '#374151',
+    fontWeight: '500',
+  },
+  dateOptionTextActive: {
+    color: '#065f46',
+  },
+  todayBadge: {
+    fontSize: 12,
+    color: '#ef4444',
+    fontWeight: '500',
+    backgroundColor: '#fee2e2',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
   },
 });

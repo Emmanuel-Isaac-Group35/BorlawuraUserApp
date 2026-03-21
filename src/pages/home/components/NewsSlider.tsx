@@ -25,16 +25,6 @@ export const NewsSlider: React.FC = () => {
 
   const newsItems: NewsItem[] = [
     {
-      id: 1,
-      title: "Waste Sorting Tip",
-      content: "Separate plastic bottles from caps before disposal. This helps recycling facilities process materials more efficiently.",
-      category: 'tip',
-      icon: 'ri-recycle-line',
-      bgColor: '#ecfdf5',
-      textColor: '#065f46',
-      image: 'https://readdy.ai/api/search-image?query=Waste%20sorting%20and%20recycling%20concept%2C%20separated%20plastic%20bottles%20and%20caps%2C%20colorful%20recycling%20bins%2C%20clean%20organized%20waste%20management%2C%20eco-friendly%20disposal%20system%2C%20bright%20clean%20environment%2C%20educational%20waste%20sorting%20demonstration%2C%20sustainable%20living%20concept%2C%20high-quality%20realistic%20photography&width=350&height=180&seq=tip1&orientation=landscape'
-    },
-    {
       id: 2,
       title: "Service Update",
       content: "New pickup zones added in East Legon and Cantonments. Book your instant pickup now with 25-minute guarantee!",
@@ -45,16 +35,6 @@ export const NewsSlider: React.FC = () => {
       image: 'https://readdy.ai/api/search-image?query=Modern%20waste%20collection%20truck%20in%20upscale%20residential%20area%2C%20East%20Legon%20neighborhood%2C%20professional%20waste%20management%20service%2C%20clean%20urban%20streets%2C%20efficient%20pickup%20service%2C%20modern%20Ghana%20residential%20area%2C%20bright%20daylight%2C%20service%20expansion%20concept%2C%20high-quality%20realistic%20photography&width=350&height=180&seq=news1&orientation=landscape'
     },
     {
-      id: 3,
-      title: "Eco-Friendly Tip",
-      content: "Compost your organic waste at home! Kitchen scraps can become nutrient-rich soil for your garden in 3-4 weeks.",
-      category: 'tip',
-      icon: 'ri-leaf-line',
-      bgColor: '#f0fdf4',
-      textColor: '#166534',
-      image: 'https://readdy.ai/api/search-image?query=Home%20composting%20setup%20with%20kitchen%20scraps%2C%20organic%20waste%20composting%20bin%2C%20fresh%20vegetables%20and%20fruit%20peels%2C%20rich%20dark%20compost%20soil%2C%20garden%20composting%20system%2C%20sustainable%20home%20gardening%2C%20eco-friendly%20waste%20management%2C%20natural%20recycling%20process%2C%20high-quality%20realistic%20photography&width=350&height=180&seq=tip2&orientation=landscape'
-    },
-    {
       id: 4,
       title: "Holiday Schedule",
       content: "Special pickup hours during Independence Day weekend. Extended service until 11 PM on March 6th and 7th.",
@@ -63,16 +43,6 @@ export const NewsSlider: React.FC = () => {
       bgColor: '#fff7ed',
       textColor: '#9a3412',
       image: 'https://readdy.ai/api/search-image?query=Ghana%20Independence%20Day%20celebration%20with%20waste%20management%20service%2C%20red%20gold%20green%20colors%2C%20festive%20holiday%20atmosphere%2C%20extended%20service%20hours%2C%20professional%20waste%20collection%20during%20celebrations%2C%20patriotic%20holiday%20theme%2C%20clean%20city%20celebration%2C%20high-quality%20realistic%20photography&width=350&height=180&seq=alert1&orientation=landscape'
-    },
-    {
-      id: 5,
-      title: "Recycling Reward",
-      content: "Earn ₵2 cashback for every 5kg of recyclables! Separate plastics, papers, and metals to qualify for rewards.",
-      category: 'news',
-      icon: 'ri-coin-line',
-      bgColor: '#faf5ff',
-      textColor: '#6b21a8',
-      image: 'https://readdy.ai/api/search-image?query=Recycling%20rewards%20program%20concept%2C%20separated%20recyclable%20materials%2C%20plastic%20bottles%20papers%20metals%2C%20Ghana%20cedi%20coins%20and%20cashback%20rewards%2C%20eco-friendly%20incentive%20system%2C%20sustainable%20waste%20management%20rewards%2C%20clean%20organized%20recycling%20setup%2C%20high-quality%20realistic%20photography&width=350&height=180&seq=news2&orientation=landscape'
     },
     {
       id: 6,
@@ -93,6 +63,12 @@ export const NewsSlider: React.FC = () => {
 
     return () => clearInterval(interval);
   }, [newsItems.length]);
+
+  useEffect(() => {
+    if (currentSlide >= newsItems.length) {
+      setCurrentSlide(0);
+    }
+  }, [newsItems.length, currentSlide]);
 
   const handleSlideChange = (index: number) => {
     setCurrentSlide(index);
@@ -115,7 +91,9 @@ export const NewsSlider: React.FC = () => {
     }
   };
 
-  const currentItem = newsItems[currentSlide];
+  const currentItem = newsItems[currentSlide] || newsItems[0];
+
+  if (!currentItem) return null;
 
   return (
     <View style={[styles.container, { backgroundColor: currentItem.bgColor }]}>

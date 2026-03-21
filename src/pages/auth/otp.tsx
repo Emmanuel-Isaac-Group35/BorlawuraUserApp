@@ -101,16 +101,20 @@ const OTPPage = () => {
       console.log('Resend SMS Response:', data);
       
       // Trigger a local push notification with the OTP
-      const { status } = await Notifications.requestPermissionsAsync();
-      if (status === 'granted') {
-        await Notifications.scheduleNotificationAsync({
-          content: {
-            title: "BorlaWura Verification",
-            body: `Your new verification code is: ${newOtpCode}`,
-            sound: true,
-          },
-          trigger: null, // Send immediately
-        });
+      try {
+        const { status } = await Notifications.requestPermissionsAsync();
+        if (status === 'granted') {
+          await Notifications.scheduleNotificationAsync({
+            content: {
+              title: "BorlaWura Verification",
+              body: `Your new verification code is: ${newOtpCode}`,
+              sound: true,
+            },
+            trigger: null, // Send immediately
+          });
+        }
+      } catch (notifyError) {
+        console.warn('Notifications not supported or failed:', notifyError);
       }
       
       setIsResending(false);
@@ -120,16 +124,20 @@ const OTPPage = () => {
       console.error('Failed to resend OTP:', error);
 
       // Still try to show the notification as a fallback
-      const { status } = await Notifications.requestPermissionsAsync();
-      if (status === 'granted') {
-        await Notifications.scheduleNotificationAsync({
-          content: {
-            title: "BorlaWura Verification",
-            body: `Your new verification code is: ${newOtpCode} (Fallback)`,
-            sound: true,
-          },
-          trigger: null,
-        });
+      try {
+        const { status } = await Notifications.requestPermissionsAsync();
+        if (status === 'granted') {
+          await Notifications.scheduleNotificationAsync({
+            content: {
+              title: "BorlaWura Verification",
+              body: `Your new verification code is: ${newOtpCode} (Fallback)`,
+              sound: true,
+            },
+            trigger: null,
+          });
+        }
+      } catch (notifyError) {
+        console.warn('Fallback notifications failed:', notifyError);
       }
 
       setIsResending(false);

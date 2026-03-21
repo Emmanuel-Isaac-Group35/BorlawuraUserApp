@@ -28,13 +28,6 @@ export const QuickActions: React.FC = () => {
       path: '/booking'
     },
     {
-      icon: 'ri-recycle-line',
-      title: 'Recycling',
-      subtitle: 'Eco-friendly',
-      color: '#22c55e',
-      path: '/services'
-    },
-    {
       icon: 'ri-truck-line',
       title: 'Track Order',
       subtitle: 'Live updates',
