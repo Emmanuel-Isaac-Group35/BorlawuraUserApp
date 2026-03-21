@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Modal, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Modal, TouchableOpacity, Alert, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Navigation } from '../../components/feature/Navigation';
 import { BottomNavigation } from '../../components/feature/BottomNavigation';
@@ -7,6 +7,7 @@ import { LocationSelector } from './components/LocationSelector';
 import { ServiceSelector } from './components/ServiceSelector';
 import { WasteTypeSelector } from './components/WasteTypeSelector';
 import { PricingSummary } from './components/PricingSummary';
+import { FindingRider } from './components/FindingRider';
 import { Button } from '../../components/base/Button';
 import { RemixIcon } from '../../utils/icons';
 import { generateReceipt } from '../../utils/receiptGenerator';
@@ -17,8 +18,11 @@ import { supabase } from '../../lib/supabase';
 const BookingPage: React.FC = () => {
   const [step, setStep] = useState(1);
   const [showReceipt, setShowReceipt] = useState(false);
+  const [showFindingRider, setShowFindingRider] = useState(false);
   const [bookingData, setBookingData] = useState({
     location: '',
+    latitude: null as number | null,
+    longitude: null as number | null,
     serviceType: '',
     wasteTypes: [] as string[],
     bagSize: '',
@@ -27,9 +31,14 @@ const BookingPage: React.FC = () => {
   });
 
   const [completedOrder, setCompletedOrder] = useState<any>(null);
+  const [assignedRider, setAssignedRider] = useState<any>(null);
 
-  const updateBookingData = (field: string, value: any) => {
-    setBookingData(prev => ({ ...prev, [field]: value }));
+  const updateBookingData = (fieldOrData: string | object, value?: any) => {
+    if (typeof fieldOrData === 'object') {
+      setBookingData(prev => ({ ...prev, ...fieldOrData }));
+    } else {
+      setBookingData(prev => ({ ...prev, [fieldOrData]: value }));
+    }
   };
 
   const nextStep = () => {
@@ -88,7 +97,6 @@ const BookingPage: React.FC = () => {
           if (dbUser) {
             realUserId = dbUser.id;
           } else {
-             // If not found, show error and stop
              Alert.alert("Account Not Synced", "We couldn't find your account in our database. Please try signing out and signing in again.");
              return;
           }
@@ -100,7 +108,7 @@ const BookingPage: React.FC = () => {
           address: bookingData.location,
           waste_type: bookingData.wasteTypes.join(', '),
           waste_size: bookingData.bagSize,
-          notes: bookingData.notes || '',
+          notes: bookingData.notes + (bookingData.latitude ? `\n[GPS: ${bookingData.latitude}, ${bookingData.longitude}]` : ''),
           status: 'pending',
           amount: finalPrice,
           scheduled_at: bookingData.scheduledTime ? new Date().toISOString() : null
@@ -112,9 +120,8 @@ const BookingPage: React.FC = () => {
           return;
         }
 
-        // Successfully saved
         setCompletedOrder(newOrder);
-        setShowReceipt(true);
+        setShowFindingRider(true);
       } else {
         Alert.alert("Error", "You must be logged in to book a service.");
       }
@@ -127,9 +134,13 @@ const BookingPage: React.FC = () => {
   const resetBooking = () => {
     setStep(1);
     setShowReceipt(false);
+    setShowFindingRider(false);
     setCompletedOrder(null);
+    setAssignedRider(null);
     setBookingData({
       location: '',
+      latitude: null,
+      longitude: null,
       serviceType: '',
       wasteTypes: [],
       bagSize: '',
@@ -138,11 +149,36 @@ const BookingPage: React.FC = () => {
     });
   };
 
+  const handleRiderFound = (rider: any) => {
+    setAssignedRider(rider);
+    setShowFindingRider(false);
+    setShowReceipt(true);
+  };
+
+  const handleCancelSearching = () => {
+    setShowFindingRider(false);
+    Alert.alert("Search Cancelled", "Rider search has been stopped.");
+  };
+
+  if (showFindingRider) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <Navigation />
+        <FindingRider 
+          userLat={bookingData.latitude}
+          userLng={bookingData.longitude}
+          onRiderFound={handleRiderFound}
+          onCancel={handleCancelSearching}
+        />
+        <BottomNavigation />
+      </SafeAreaView>
+    );
+  }
+
   if (showReceipt) {
     return (
       <SafeAreaView style={styles.container}>
         <Navigation />
-
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.content}
@@ -184,6 +220,25 @@ const BookingPage: React.FC = () => {
                   <Text style={styles.receiptLabel}>Bag Size:</Text>
                   <Text style={styles.receiptValue}>{completedOrder?.bagSize}</Text>
                 </View>
+                {assignedRider && (
+                  <View style={styles.riderSummary}>
+                    <View style={styles.receiptDivider} />
+                    <Text style={styles.riderSummaryTitle}>Assigned Rider</Text>
+                    <View style={styles.riderSummaryContent}>
+                      <Image source={{ uri: assignedRider.photo }} style={styles.riderSummaryPhoto} />
+                      <View style={styles.riderSummaryInfo}>
+                        <Text style={styles.riderSummaryName}>{assignedRider.name}</Text>
+                        <Text style={styles.riderSummaryStatus}>Arriving in a tricycle</Text>
+                      </View>
+                      <TouchableOpacity 
+                        style={styles.trackBtn}
+                        onPress={() => navigateTo('/track-order')}
+                      >
+                        <Text style={styles.trackBtnText}>Track</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )}
                 <View style={styles.receiptDivider} />
                 <View style={styles.receiptRow}>
                   <Text style={styles.receiptTotalLabel}>Total Paid:</Text>
@@ -196,7 +251,9 @@ const BookingPage: React.FC = () => {
                 <View style={styles.infoContent}>
                   <Text style={styles.infoTitle}>What's Next?</Text>
                   <Text style={styles.infoText}>
-                    Our team will arrive at your location at the scheduled time. You'll receive SMS updates about your collection.
+                    {assignedRider 
+                      ? `${assignedRider.name} is on the way to your location. You can track their real-time location using the "Track" button above.`
+                      : "Our team will arrive at your location at the scheduled time. You'll receive SMS updates about your collection."}
                   </Text>
                 </View>
               </View>
@@ -227,7 +284,6 @@ const BookingPage: React.FC = () => {
             </View>
           </View>
         </ScrollView>
-
         <BottomNavigation />
       </SafeAreaView>
     );
@@ -236,7 +292,6 @@ const BookingPage: React.FC = () => {
   return (
     <SafeAreaView style={styles.container}>
       <Navigation />
-
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.content}
@@ -261,7 +316,21 @@ const BookingPage: React.FC = () => {
           {step === 1 && (
             <LocationSelector
               value={bookingData.location}
-              onChange={(value) => updateBookingData('location', value)}
+              onChange={(value, coords) => {
+                if (coords) {
+                  updateBookingData({
+                    location: value,
+                    latitude: coords.latitude,
+                    longitude: coords.longitude
+                  });
+                } else {
+                  updateBookingData({
+                    location: value,
+                    latitude: null,
+                    longitude: null
+                  });
+                }
+              }}
             />
           )}
 
@@ -336,7 +405,6 @@ const BookingPage: React.FC = () => {
           )}
         </View>
       </ScrollView>
-
       <BottomNavigation />
     </SafeAreaView>
   );
@@ -405,9 +473,6 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   navButton: {
-    flex: 1,
-  },
-  navButtonFull: {
     flex: 1,
   },
   buttonContent: {
@@ -536,5 +601,48 @@ const styles = StyleSheet.create({
   },
   buttonContainer: {
     gap: 12,
+  },
+  riderSummary: {
+    marginTop: 8,
+  },
+  riderSummaryTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1f2937',
+    marginBottom: 12,
+  },
+  riderSummaryContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  riderSummaryPhoto: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+  },
+  riderSummaryInfo: {
+    flex: 1,
+  },
+  riderSummaryName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1f2937',
+  },
+  riderSummaryStatus: {
+    fontSize: 12,
+    color: '#10b981',
+    fontWeight: '500',
+  },
+  trackBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: '#ecfdf5',
+    borderRadius: 8,
+  },
+  trackBtnText: {
+    fontSize: 12,
+    color: '#10b981',
+    fontWeight: '600',
   },
 });

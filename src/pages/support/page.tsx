@@ -83,11 +83,11 @@ const SupportPage: React.FC = () => {
     {
       icon: 'ri-mail-line',
       title: 'Email Support',
-      subtitle: 'support@borlawura.com',
+      subtitle: 'borlawuraapp@gmail.com',
       description: 'Detailed inquiries and feedback',
       action: async () => {
         try {
-          await Linking.openURL('mailto:support@borlawura.com');
+          await Linking.openURL('mailto:borlawuraapp@gmail.com');
         } catch (e) {
           Alert.alert('Error', 'Unable to open email client. Please try again later.');
         }
@@ -96,10 +96,10 @@ const SupportPage: React.FC = () => {
     {
       icon: 'ri-chat-3-line',
       title: 'Live Chat',
-      subtitle: 'Chat with our AI assistant',
-      description: 'Instant help available 24/7',
+      subtitle: 'Customer Support Personnel', // Updated subtitle
+      description: 'Instant help with order issues',
       action: () => {
-        navigateTo('/chatbot');
+        navigateTo('/support-chat');
       },
     },
   ];

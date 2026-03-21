@@ -1,40 +1,59 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator } from 'react-native';
 import * as Location from 'expo-location';
 import { RemixIcon } from '../../../utils/icons';
 
 interface LocationSelectorProps {
   value: string;
-  onChange: (value: string) => void;
+  onChange: (value: string, coords?: { latitude: number, longitude: number }) => void;
 }
 
 export const LocationSelector: React.FC<LocationSelectorProps> = ({ value, onChange }) => {
   const [useCurrentLocation, setUseCurrentLocation] = useState(false);
+  const [isDetectingLocation, setIsDetectingLocation] = useState(false);
   const [manualAddress, setManualAddress] = useState(value);
 
   const handleCurrentLocation = async () => {
+    setIsDetectingLocation(true);
+    setUseCurrentLocation(true); // Immediate visual feedback
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
+        setIsDetectingLocation(false);
+        setUseCurrentLocation(false);
         Alert.alert('Permission Denied', 'Permission to access location was denied');
         return;
       }
 
-      const location = await Location.getCurrentPositionAsync({});
+      // Use a timeout with getLastKnownPosition to get a fast initial fix
+      let location = await Location.getLastKnownPositionAsync({});
+      
+      // If no last location, or to get fresh coordinates, use high accuracy with timeout
+      if (!location) {
+        location = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced, // Balanced for faster fix
+        });
+      }
+
+      const { latitude, longitude } = location.coords;
+      
       const address = await Location.reverseGeocodeAsync({
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
+        latitude,
+        longitude,
       });
 
       const formattedAddress = address[0] 
-        ? `${address[0].street || ''} ${address[0].district || ''} ${address[0].city || ''} ${address[0].region || ''}`.trim()
-        : 'Current Location - Accra, Ghana';
+        ? `${address[0].streetNumber ? address[0].streetNumber + ' ' : ''}${address[0].street || ''}, ${address[0].district || address[0].city || ''}`.trim()
+        : `GPS: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
 
-      setUseCurrentLocation(true);
-      onChange(formattedAddress || 'Current Location - Accra, Ghana');
+      setManualAddress(formattedAddress);
+      onChange(formattedAddress, { latitude, longitude });
     } catch (error) {
       console.error('Error getting location:', error);
-      onChange('Current Location - Accra, Ghana');
+      setUseCurrentLocation(false);
+      Alert.alert('Location Error', 'Could not get your current location. Please enter it manually or check your GPS settings.');
+    } finally {
+      setIsDetectingLocation(false);
     }
   };
 
@@ -59,14 +78,23 @@ export const LocationSelector: React.FC<LocationSelectorProps> = ({ value, onCha
             useCurrentLocation && styles.optionCardActive
           ]}
           activeOpacity={0.8}
+          disabled={isDetectingLocation}
         >
           <View style={styles.optionContent}>
             <View style={styles.iconWrapper}>
-              <RemixIcon name="ri-map-pin-line" size={24} color="#10b981" />
+              {isDetectingLocation ? (
+                <ActivityIndicator size="small" color="#10b981" />
+              ) : (
+                <RemixIcon name="ri-map-pin-line" size={24} color="#10b981" />
+              )}
             </View>
             <View style={styles.textWrapper}>
-              <Text style={styles.optionTitle}>Use Current Location</Text>
-              <Text style={styles.optionSubtitle}>We'll detect your location automatically</Text>
+              <Text style={styles.optionTitle}>
+                {isDetectingLocation ? 'Detecting Location...' : 'Use Current Location'}
+              </Text>
+              <Text style={styles.optionSubtitle}>
+                {isDetectingLocation ? 'Checking GPS satellites...' : "We'll detect your location automatically"}
+              </Text>
             </View>
           </View>
         </TouchableOpacity>

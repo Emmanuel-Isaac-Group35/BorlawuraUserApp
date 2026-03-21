@@ -1,70 +1,144 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput, Alert } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput, Alert, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Navigation } from '../../../components/feature/Navigation';
 import { BottomNavigation } from '../../../components/feature/BottomNavigation';
 import { RemixIcon } from '../../../utils/icons';
 import { useNavigation } from '@react-navigation/native';
+import { useAuth } from '../../../context/AuthContext';
+import { supabase } from '../../../lib/supabase';
 
 const PaymentMethodsPage: React.FC = () => {
   const navigation = useNavigation();
-  const [paymentMethods, setPaymentMethods] = useState([
-    {
-      id: 1,
-      type: 'mobile_money',
-      provider: 'MTN Mobile Money',
-      number: '**** **** 8901',
-      isDefault: true,
-      icon: 'ri-smartphone-line'
-    },
-    {
-      id: 2,
-      type: 'card',
-      provider: 'Visa',
-      number: '**** **** **** 4532',
-      expiry: '12/25',
-      isDefault: false,
-      icon: 'ri-credit-card-line'
+  const { user: authUser } = useAuth();
+  const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const fetchPaymentMethods = async () => {
+    if (!authUser) {
+      setIsLoading(false);
+      return;
     }
-  ]);
+    const searchId = authUser.supabase_id || authUser.id;
+    if (!searchId || String(searchId).startsWith('user_')) {
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      const { data, error } = await supabase
+        .from('payment_methods')
+        .select('*')
+        .eq('user_id', searchId)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        if (error.code === 'PGRST205' || error.message.includes('not find the table')) {
+          console.log('Payment methods table not yet created.');
+          setPaymentMethods([]);
+        } else {
+          throw error;
+        }
+      } else {
+        const formatted = (data || []).map(p => ({
+          id: p.id,
+          type: p.type,
+          provider: p.provider,
+          number: p.account_number,
+          isDefault: p.is_default,
+          icon: p.type === 'mobile_money' ? 'ri-smartphone-line' : 'ri-credit-card-line'
+        }));
+        setPaymentMethods(formatted);
+      }
+    } catch (e) {
+      console.error('Error fetching payment methods:', e);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchPaymentMethods();
+
+    const searchId = authUser?.supabase_id || authUser?.id;
+    if (searchId && !String(searchId).startsWith('user_')) {
+      const channel = supabase
+        .channel('payment-methods-sync')
+        .on(
+          'postgres_changes',
+          { 
+            event: '*', 
+            schema: 'public', 
+            table: 'payment_methods', 
+            filter: `user_id=eq.${searchId}` 
+          },
+          () => fetchPaymentMethods()
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
+  }, [authUser]);
 
   const [showAddMethod, setShowAddMethod] = useState(false);
-  const [selectedType, setSelectedType] = useState('mobile_money');
   const [newProvider, setNewProvider] = useState('');
   const [newNumber, setNewNumber] = useState('');
-  const [newExpiry, setNewExpiry] = useState('');
 
-  const handleAddMethod = () => {
+  const handleAddMethod = async () => {
     if (!newProvider || !newNumber) {
       Alert.alert('Error', 'Please fill in all required fields');
       return;
     }
 
-    const newMethod = {
-      id: Date.now(),
-      type: selectedType,
+    const searchId = authUser?.supabase_id || authUser?.id;
+    const methodData = {
+      user_id: searchId,
+      type: 'mobile_money',
       provider: newProvider,
-      number: selectedType === 'mobile_money' ? `**** **** ${newNumber.slice(-4)}` : `**** **** **** ${newNumber.slice(-4)}`,
-      expiry: newExpiry || undefined,
-      isDefault: paymentMethods.length === 0,
-      icon: selectedType === 'mobile_money' ? 'ri-smartphone-line' : 'ri-credit-card-line'
+      account_number: `**** **** ${newNumber.slice(-4)}`,
+      is_default: paymentMethods.length === 0,
+      created_at: new Date().toISOString()
     };
 
-    setPaymentMethods([...paymentMethods, newMethod]);
-    setShowAddMethod(false);
-    setNewProvider('');
-    setNewNumber('');
-    setNewExpiry('');
+    try {
+      const { error } = await supabase.from('payment_methods').insert([methodData]);
+      if (error) {
+        if (error.code === '42P01') {
+           Alert.alert('Notice', 'Database table not found. Please run the provided SQL script.');
+           return;
+        }
+        if (error.code === '42501') {
+           Alert.alert('Security Notice', 'Permission denied. Please run the SQL command to disable RLS (Security) for current testing.');
+           return;
+        }
+        throw error;
+      }
+      
+      setShowAddMethod(false);
+      setNewProvider('');
+      setNewNumber('');
+      fetchPaymentMethods();
+    } catch (e) {
+      console.error(e);
+      Alert.alert('Error', 'Failed to add payment method.');
+    }
   };
 
-  const handleSetDefault = (id: number) => {
-    setPaymentMethods(paymentMethods.map(method => ({
-      ...method,
-      isDefault: method.id === id
-    })));
+  const handleSetDefault = async (id: any) => {
+    const searchId = authUser?.supabase_id || authUser?.id;
+    try {
+      await supabase.from('payment_methods').update({ is_default: false }).eq('user_id', searchId);
+      await supabase.from('payment_methods').update({ is_default: true }).eq('id', id);
+      fetchPaymentMethods();
+    } catch (e) {
+      console.error(e);
+    }
   };
 
-  const handleDelete = (id: number) => {
+  const handleDelete = (id: any) => {
     Alert.alert(
       'Remove Payment Method',
       'Are you sure you want to remove this payment method?',
@@ -73,7 +147,14 @@ const PaymentMethodsPage: React.FC = () => {
         {
           text: 'Remove',
           style: 'destructive',
-          onPress: () => setPaymentMethods(paymentMethods.filter(method => method.id !== id))
+          onPress: async () => {
+            try {
+              await supabase.from('payment_methods').delete().eq('id', id);
+              fetchPaymentMethods();
+            } catch (e) {
+              Alert.alert('Error', 'Failed to delete');
+            }
+          }
         }
       ]
     );
@@ -98,52 +179,59 @@ const PaymentMethodsPage: React.FC = () => {
           </TouchableOpacity>
           <View style={styles.headerText}>
             <Text style={styles.title}>Payment Methods</Text>
-            <Text style={styles.subtitle}>Manage your payment options</Text>
+            <Text style={styles.subtitle}>Manage your MoMo accounts</Text>
           </View>
         </View>
 
         <View style={styles.paymentMethodsList}>
-          {paymentMethods.map((method) => (
-            <View key={method.id} style={styles.paymentCard}>
-              <View style={styles.paymentContent}>
-                <View style={styles.paymentIcon}>
-                  <RemixIcon name={method.icon} size={24} color="#10b981" />
-                </View>
-                
-                <View style={styles.paymentInfo}>
-                  <View style={styles.paymentHeader}>
-                    <Text style={styles.paymentProvider}>{method.provider}</Text>
-                    {method.isDefault && (
-                      <View style={styles.defaultBadge}>
-                        <Text style={styles.defaultBadgeText}>Default</Text>
-                      </View>
-                    )}
+          {isLoading ? (
+            <ActivityIndicator size="large" color="#10b981" style={{ marginTop: 20 }} />
+          ) : paymentMethods.length === 0 ? (
+            <View style={styles.emptyState}>
+              <RemixIcon name="ri-wallet-3-line" size={48} color="#9ca3af" />
+              <Text style={styles.emptyText}>No payment methods added yet</Text>
+              <Text style={styles.emptySubtitle}>Add your MTN, Vodafone, or AirtelTigo account</Text>
+            </View>
+          ) : (
+            paymentMethods.map((method) => (
+              <View key={method.id} style={styles.paymentCard}>
+                <View style={styles.paymentContent}>
+                  <View style={styles.paymentIcon}>
+                    <RemixIcon name={method.icon} size={24} color="#10b981" />
                   </View>
-                  <Text style={styles.paymentNumber}>{method.number}</Text>
-                  {method.expiry && (
-                    <Text style={styles.paymentExpiry}>Expires {method.expiry}</Text>
-                  )}
-                </View>
+                  
+                  <View style={styles.paymentInfo}>
+                    <View style={styles.paymentHeader}>
+                      <Text style={styles.paymentProvider}>{method.provider}</Text>
+                      {method.isDefault && (
+                        <View style={styles.defaultBadge}>
+                          <Text style={styles.defaultBadgeText}>Default</Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={styles.paymentNumber}>{method.number}</Text>
+                  </View>
 
-                <View style={styles.paymentActions}>
-                  {!method.isDefault && (
+                  <View style={styles.paymentActions}>
+                    {!method.isDefault && (
+                      <TouchableOpacity
+                        onPress={() => handleSetDefault(method.id)}
+                        style={styles.setDefaultButton}
+                      >
+                        <Text style={styles.setDefaultText}>Set Default</Text>
+                      </TouchableOpacity>
+                    )}
                     <TouchableOpacity
-                      onPress={() => handleSetDefault(method.id)}
-                      style={styles.setDefaultButton}
+                      onPress={() => handleDelete(method.id)}
+                      style={styles.deleteButton}
                     >
-                      <Text style={styles.setDefaultText}>Set Default</Text>
+                      <Text style={styles.deleteText}>Remove</Text>
                     </TouchableOpacity>
-                  )}
-                  <TouchableOpacity
-                    onPress={() => handleDelete(method.id)}
-                    style={styles.deleteButton}
-                  >
-                    <Text style={styles.deleteText}>Remove</Text>
-                  </TouchableOpacity>
+                  </View>
                 </View>
               </View>
-            </View>
-          ))}
+            ))
+          )}
         </View>
 
         <TouchableOpacity
@@ -151,24 +239,21 @@ const PaymentMethodsPage: React.FC = () => {
           style={styles.addButton}
         >
           <RemixIcon name="ri-add-line" size={20} color="#ffffff" />
-          <Text style={styles.addButtonText}>Add Payment Method</Text>
+          <Text style={styles.addButtonText}>Add Mobile Money</Text>
         </TouchableOpacity>
 
         <View style={styles.supportedCard}>
-          <Text style={styles.supportedTitle}>Supported Payment Methods</Text>
+          <Text style={styles.supportedTitle}>Supported Mobile Money</Text>
           <View style={styles.supportedGrid}>
             {[
               { name: 'MTN MoMo', color: '#f97316' },
               { name: 'Vodafone Cash', color: '#dc2626' },
-              { name: 'AirtelTigo', color: '#3b82f6' },
-              { name: 'Visa', color: '#3b82f6' },
-              { name: 'Mastercard', color: '#dc2626' },
-              { name: 'Verve', color: '#22c55e' }
+              { name: 'AirtelTigo', color: '#3b82f6' }
             ].map((method, index) => (
               <View key={index} style={styles.supportedItem}>
                 <View style={[styles.supportedIcon, { backgroundColor: `${method.color}20` }]}>
                   <RemixIcon 
-                    name={index < 3 ? 'ri-smartphone-line' : 'ri-credit-card-line'} 
+                    name="ri-smartphone-line" 
                     size={16} 
                     color={method.color} 
                   />
@@ -187,10 +272,18 @@ const PaymentMethodsPage: React.FC = () => {
         animationType="slide"
         onRequestClose={() => setShowAddMethod(false)}
       >
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+        >
+          <TouchableOpacity 
+            style={styles.modalDismissArea} 
+            activeOpacity={1} 
+            onPress={() => setShowAddMethod(false)} 
+          />
           <View style={styles.modalBottomContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Add Payment Method</Text>
+              <Text style={styles.modalTitle}>Add Mobile Money</Text>
               <TouchableOpacity
                 onPress={() => setShowAddMethod(false)}
                 style={styles.closeButton}
@@ -199,115 +292,39 @@ const PaymentMethodsPage: React.FC = () => {
               </TouchableOpacity>
             </View>
 
-            <View style={styles.typeSelector}>
-              <TouchableOpacity
-                onPress={() => setSelectedType('mobile_money')}
-                style={[
-                  styles.typeButton,
-                  selectedType === 'mobile_money' && styles.typeButtonActive
-                ]}
-              >
-                <Text style={[
-                  styles.typeButtonText,
-                  selectedType === 'mobile_money' && styles.typeButtonTextActive
-                ]}>
-                  Mobile Money
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => setSelectedType('card')}
-                style={[
-                  styles.typeButton,
-                  selectedType === 'card' && styles.typeButtonActive
-                ]}
-              >
-                <Text style={[
-                  styles.typeButtonText,
-                  selectedType === 'card' && styles.typeButtonTextActive
-                ]}>
-                  Card
-                </Text>
-              </TouchableOpacity>
-            </View>
-
             <View style={styles.formContainer}>
-              {selectedType === 'mobile_money' ? (
-                <>
-                  <View style={styles.formGroup}>
-                    <Text style={styles.formLabel}>Provider</Text>
-                    <TextInput
-                      value={newProvider}
-                      onChangeText={setNewProvider}
-                      style={styles.formInput}
-                      placeholder="Select provider"
-                    />
-                  </View>
-                  <View style={styles.formGroup}>
-                    <Text style={styles.formLabel}>Phone Number</Text>
-                    <TextInput
-                      value={newNumber}
-                      onChangeText={setNewNumber}
-                      style={styles.formInput}
-                      placeholder="0XX XXX XXXX"
-                      keyboardType="phone-pad"
-                    />
-                  </View>
-                </>
-              ) : (
-                <>
-                  <View style={styles.formGroup}>
-                    <Text style={styles.formLabel}>Card Type</Text>
-                    <TextInput
-                      value={newProvider}
-                      onChangeText={setNewProvider}
-                      style={styles.formInput}
-                      placeholder="Select card type"
-                    />
-                  </View>
-                  <View style={styles.formGroup}>
-                    <Text style={styles.formLabel}>Card Number</Text>
-                    <TextInput
-                      value={newNumber}
-                      onChangeText={setNewNumber}
-                      style={styles.formInput}
-                      placeholder="XXXX XXXX XXXX XXXX"
-                      keyboardType="number-pad"
-                      maxLength={19}
-                    />
-                  </View>
-                  <View style={styles.formRow}>
-                    <View style={[styles.formGroup, styles.formGroupHalf]}>
-                      <Text style={styles.formLabel}>Expiry Date</Text>
-                      <TextInput
-                        value={newExpiry}
-                        onChangeText={setNewExpiry}
-                        style={styles.formInput}
-                        placeholder="MM/YY"
-                        maxLength={5}
-                      />
-                    </View>
-                    <View style={[styles.formGroup, styles.formGroupHalf]}>
-                      <Text style={styles.formLabel}>CVV</Text>
-                      <TextInput
-                        style={styles.formInput}
-                        placeholder="XXX"
-                        keyboardType="number-pad"
-                        maxLength={3}
-                      />
-                    </View>
-                  </View>
-                </>
-              )}
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>Provider</Text>
+                <TextInput
+                  value={newProvider}
+                  onChangeText={setNewProvider}
+                  style={styles.formInput}
+                  placeholder="e.g., MTN MoMo"
+                  placeholderTextColor="#9ca3af"
+                />
+              </View>
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>Phone Number</Text>
+                <TextInput
+                  value={newNumber}
+                  onChangeText={setNewNumber}
+                  style={styles.formInput}
+                  placeholder="0XX XXX XXXX"
+                  keyboardType="phone-pad"
+                  maxLength={10}
+                  placeholderTextColor="#9ca3af"
+                />
+              </View>
             </View>
 
             <TouchableOpacity
               onPress={handleAddMethod}
               style={styles.saveButton}
             >
-              <Text style={styles.saveButtonText}>Add Payment Method</Text>
+              <Text style={styles.saveButtonText}>Confirm Add Account</Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );
@@ -417,14 +434,10 @@ const styles = StyleSheet.create({
   paymentNumber: {
     fontSize: 14,
     color: '#4b5563',
-    marginBottom: 4,
-  },
-  paymentExpiry: {
-    fontSize: 12,
-    color: '#9ca3af',
   },
   paymentActions: {
     gap: 8,
+    alignItems: 'flex-end',
   },
   setDefaultButton: {
     paddingHorizontal: 8,
@@ -459,6 +472,22 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: '#ffffff',
   },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 40,
+    gap: 8,
+  },
+  emptyText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#374151',
+    marginTop: 12,
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    color: '#6b7280',
+    textAlign: 'center',
+  },
   supportedCard: {
     backgroundColor: '#ffffff',
     borderRadius: 16,
@@ -483,11 +512,12 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   supportedItem: {
-    width: '30%',
+    flex: 1,
+    minWidth: '28%',
     alignItems: 'center',
     padding: 12,
     backgroundColor: '#f9fafb',
-    borderRadius: 8,
+    borderRadius: 12,
   },
   supportedIcon: {
     width: 32,
@@ -498,21 +528,26 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   supportedText: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#374151',
     textAlign: 'center',
+    fontWeight: '500',
   },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'flex-end',
   },
+  modalDismissArea: {
+    flex: 1,
+    width: '100%',
+  },
   modalBottomContent: {
     backgroundColor: '#ffffff',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: 24,
-    maxHeight: '90%',
+    paddingBottom: Platform.OS === 'ios' ? 40 : 24,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -533,42 +568,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  typeSelector: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 24,
-  },
-  typeButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 12,
-    backgroundColor: '#f3f4f6',
-    alignItems: 'center',
-  },
-  typeButtonActive: {
-    backgroundColor: '#10b981',
-  },
-  typeButtonText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#4b5563',
-  },
-  typeButtonTextActive: {
-    color: '#ffffff',
-  },
   formContainer: {
     gap: 16,
     marginBottom: 24,
   },
   formGroup: {
     gap: 8,
-  },
-  formGroupHalf: {
-    flex: 1,
-  },
-  formRow: {
-    flexDirection: 'row',
-    gap: 12,
   },
   formLabel: {
     fontSize: 14,
@@ -587,13 +592,13 @@ const styles = StyleSheet.create({
   saveButton: {
     width: '100%',
     backgroundColor: '#10b981',
-    paddingVertical: 12,
+    paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
   },
   saveButtonText: {
-    fontSize: 14,
-    fontWeight: '500',
+    fontSize: 16,
+    fontWeight: '600',
     color: '#ffffff',
   },
 });

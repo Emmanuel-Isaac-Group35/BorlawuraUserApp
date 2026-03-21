@@ -154,11 +154,11 @@ const AboutPage: React.FC = () => {
               <Text style={styles.contactText}>+233 30 123 4567</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              onPress={() => Linking.openURL('mailto:info@borlawura.com')}
+              onPress={() => Linking.openURL('mailto:borlawuraapp@gmail.com')}
               style={styles.contactItem}
             >
               <RemixIcon name="ri-mail-line" size={20} color="#4b5563" />
-              <Text style={styles.contactText}>info@borlawura.com</Text>
+              <Text style={styles.contactText}>borlawuraapp@gmail.com</Text>
             </TouchableOpacity>
             <View style={styles.contactItem}>
               <RemixIcon name="ri-map-pin-line" size={20} color="#4b5563" />

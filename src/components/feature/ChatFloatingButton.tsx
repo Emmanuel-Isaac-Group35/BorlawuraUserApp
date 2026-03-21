@@ -5,7 +5,7 @@ import { navigateTo } from '../../utils/navigation';
 
 export const ChatFloatingButton: React.FC = () => {
     const handlePress = () => {
-        navigateTo('/chatbot');
+        navigateTo('/support-chat');
     };
 
     return (
@@ -15,7 +15,7 @@ export const ChatFloatingButton: React.FC = () => {
             activeOpacity={0.8}
         >
             <View style={styles.bubble}>
-                <RemixIcon name="ri-chat-smile-3-fill" size={28} color="#ffffff" />
+                <RemixIcon name="ri-customer-service-2-fill" size={28} color="#ffffff" />
             </View>
         </TouchableOpacity>
     );
@@ -24,21 +24,21 @@ export const ChatFloatingButton: React.FC = () => {
 const styles = StyleSheet.create({
     container: {
         position: 'absolute',
-        bottom: 80, // Above the bottom navigation (64px + 16px margin)
-        right: 16,
+        bottom: 90, // Slightly higher to avoid overlap with bottom navigation on some devices
+        right: 20,
         zIndex: 100,
     },
     bubble: {
-        width: 60,
-        height: 60,
-        borderRadius: 30,
-        backgroundColor: '#10b981',
+        width: 56,
+        height: 56,
+        borderRadius: 20, // Rounded square as per screenshot
+        backgroundColor: '#10b981', // Borla Wura Green
         alignItems: 'center',
         justifyContent: 'center',
-        shadowColor: '#10b981',
+        shadowColor: '#000',
         shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-        elevation: 6,
+        shadowOpacity: 0.2,
+        shadowRadius: 6,
+        elevation: 8,
     },
 });

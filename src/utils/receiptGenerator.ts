@@ -145,7 +145,7 @@ export const generateReceipt = async (order: OrderDetails) => {
 
       <div class="footer">
         <p>Thank you for choosing Borla Wura!</p>
-        <p>For support, contact us at: support@borlawura.com</p>
+        <p>For support, contact us at: borlawuraapp@gmail.com</p>
         <p>This is a computer-generated receipt.</p>
       </div>
     </body>

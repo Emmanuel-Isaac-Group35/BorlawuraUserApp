@@ -102,10 +102,13 @@ const OrdersPage: React.FC = () => {
         date: new Date(p.created_at).toLocaleDateString('en-GB'),
         time: p.scheduled_at ? new Date(p.scheduled_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : new Date(p.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
         address: p.address,
+        latitude: p.latitude,
+        longitude: p.longitude,
         amount: '₵' + (typeof p.amount === 'number' ? p.amount.toFixed(2) : (p.amount || '0.00')),
         wasteType: p.waste_type || 'General',
         bagSize: p.waste_size || 'Standard',
         rider: p.rider_id ? 'Assigned' : null,
+        notes: p.notes || '',
         paymentMethod: p.payment_method || 'Mobile Money'
       }));
 
@@ -368,6 +371,12 @@ const OrdersPage: React.FC = () => {
                         </View>
                       </View>
                       <Text style={styles.orderService}>{order.service}</Text>
+                      {(order.latitude || order.notes?.includes('[GPS:')) && (
+                        <View style={styles.gpsBadge}>
+                          <RemixIcon name="ri-map-pin-user-line" size={10} color="#10b981" />
+                          <Text style={styles.gpsBadgeText}>GPS Location Attached</Text>
+                        </View>
+                      )}
                     </View>
                     <Text style={styles.orderAmount}>{order.amount}</Text>
                   </View>
@@ -1066,5 +1075,21 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     color: '#ffffff',
+  },
+  gpsBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#ecfdf5',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginTop: 4,
+    alignSelf: 'flex-start',
+  },
+  gpsBadgeText: {
+    fontSize: 10,
+    color: '#10b981',
+    fontWeight: '600',
   },
 });

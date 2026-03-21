@@ -68,7 +68,7 @@ const TermsPage: React.FC = () => {
     },
     {
       title: '7. Contact Us',
-      content: 'For privacy-related questions or to exercise your rights, contact us at privacy@borlawura.com or call +233 30 123 4567.'
+      content: 'For privacy-related questions or to exercise your rights, contact us at borlawuraapp@gmail.com or call +233 30 123 4567.'
     }
   ];
 

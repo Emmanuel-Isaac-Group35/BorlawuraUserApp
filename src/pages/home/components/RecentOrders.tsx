@@ -54,7 +54,7 @@ export const RecentOrders: React.FC = () => {
           .from('orders')
           .select('*')
           .eq('user_id', searchId)
-          .not('status', 'in', '("cancelled", "pending")') // Exclude cancelled and pending orders
+          .neq('status', 'cancelled') // Only exclude cancelled orders
           .order('created_at', { ascending: false })
           .limit(3);
 
@@ -64,8 +64,8 @@ export const RecentOrders: React.FC = () => {
           id: p.id,
           type: p.service_type || 'Waste Pickup',
           date: new Date(p.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }),
-          status: p.status === 'in_progress' ? 'in-progress' : 'completed',
-          rider: p.rider_id ? 'Assigned' : 'Searching...',
+          status: p.status === 'pending' ? 'scheduled' : (p.status === 'in_progress' ? 'in-progress' : 'completed'),
+          rider: p.rider_id ? 'Assigned' : (p.status === 'completed' ? 'Delivered' : 'Finding Rider...'),
           amount: '₵' + (typeof p.amount === 'number' ? p.amount.toFixed(2) : (p.amount || '0.00'))
         }));
         setOrders(formatted);
@@ -108,7 +108,7 @@ export const RecentOrders: React.FC = () => {
     switch (status) {
       case 'completed': return { bg: '#d1fae5', text: '#065f46' };
       case 'in-progress': return { bg: '#dbeafe', text: '#1e40af' };
-      case 'pending': return { bg: '#fef3c7', text: '#92400e' };
+      case 'scheduled': return { bg: '#fef3c7', text: '#92400e' };
       default: return { bg: '#f3f4f6', text: '#374151' };
     }
   };

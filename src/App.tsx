@@ -16,6 +16,7 @@ import OrdersPage from './pages/orders/page';
 import ServicesPage from './pages/services/page';
 import ProfilePage from './pages/profile/page';
 import SupportPage from './pages/support/page';
+import SupportChatPage from './pages/support/chat';
 import TrackOrderPage from './pages/track-order/page';
 import PaymentMethodsPage from './pages/profile/payment-methods/page';
 import NotificationsPage from './pages/profile/notifications/page';
@@ -59,6 +60,7 @@ function AppNavigator() {
             <Stack.Screen name="Services" component={ServicesPage} options={{ animation: 'none' }} />
             <Stack.Screen name="Profile" component={ProfilePage} options={{ animation: 'none' }} />
             <Stack.Screen name="Support" component={SupportPage} />
+            <Stack.Screen name="SupportChat" component={SupportChatPage} />
             <Stack.Screen name="TrackOrder" component={TrackOrderPage} />
             <Stack.Screen name="PaymentMethods" component={PaymentMethodsPage} />
             <Stack.Screen name="Notifications" component={NotificationsPage} />
