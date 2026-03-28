@@ -102,7 +102,7 @@ const BookingPage: React.FC = () => {
           }
         }
 
-        const { error } = await supabase.from('orders').insert([{
+        const { data: insertedOrderData, error } = await supabase.from('orders').insert([{
           user_id: realUserId,
           service_type: bookingData.serviceType === 'instant' ? 'Instant Pickup' : 'Scheduled Pickup',
           address: bookingData.location,
@@ -112,13 +112,15 @@ const BookingPage: React.FC = () => {
           status: 'pending',
           amount: finalPrice,
           scheduled_at: bookingData.scheduledTime ? new Date().toISOString() : null
-        }]);
+        }]).select('id').single();
         
-        if (error) {
+        if (error || !insertedOrderData) {
           console.error("Supabase order insert error:", error);
           Alert.alert("Booking Error", "We couldn't save your booking to the server. Please check your connection.");
           return;
         }
+
+        newOrder.id = insertedOrderData.id;
 
         setCompletedOrder(newOrder);
         setShowFindingRider(true);
@@ -167,6 +169,7 @@ const BookingPage: React.FC = () => {
         <FindingRider 
           userLat={bookingData.latitude}
           userLng={bookingData.longitude}
+          orderId={completedOrder?.id}
           onRiderFound={handleRiderFound}
           onCancel={handleCancelSearching}
         />

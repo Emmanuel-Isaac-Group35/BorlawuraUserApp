@@ -171,7 +171,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     phone_number: finalPhone,
                     full_name: userData.name || '',
                     email: userData.email || '',
-                    password: userData.password || '', 
                     status: 'active',
                     registration_status: 'approved'
                 }])
@@ -196,8 +195,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                   .from('users')
                   .update({ 
                      full_name: userData.name || existingUser.full_name,
-                     email: userData.email || existingUser.email,
-                     password: userData.password || existingUser.password
+                     email: userData.email || existingUser.email
                   })
                   .eq('id', existingUser.id)
                   .select()

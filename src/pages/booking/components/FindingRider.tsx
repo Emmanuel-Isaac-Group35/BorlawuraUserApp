@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Image, Animated, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, Image, Animated, Dimensions, Alert } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { RemixIcon } from '../../../utils/icons';
 import { Button } from '../../../components/base/Button';
+import { supabase } from '../../../lib/supabase';
 
 const { width, height } = Dimensions.get('window');
 
@@ -104,13 +105,16 @@ interface Rider {
 interface FindingRiderProps {
   userLat: number | null;
   userLng: number | null;
+  orderId?: string;
   onRiderFound: (rider: Rider) => void;
   onCancel: () => void;
 }
 
-export const FindingRider: React.FC<FindingRiderProps> = ({ userLat, userLng, onRiderFound, onCancel }) => {
+export const FindingRider: React.FC<FindingRiderProps> = ({ userLat, userLng, orderId, onRiderFound, onCancel }) => {
   const [status, setStatus] = useState<'searching' | 'connecting' | 'found'>('searching');
+  const [localRider, setLocalRider] = useState<Rider | null>(null);
   const [pulseAnim] = useState(new Animated.Value(1));
+  const [searchAttempt, setSearchAttempt] = useState(0);
   
   // Use provided coordinates or fallback to Accra center
   const lat = userLat || 5.6037;
@@ -124,16 +128,35 @@ export const FindingRider: React.FC<FindingRiderProps> = ({ userLat, userLng, on
     { id: '4', lat: lat - 0.003, lng: lng + 0.007 },
   ];
 
-  const foundRider: Rider = {
-    id: 'RDR-001',
-    name: 'Kwame Asante',
-    rating: 4.8,
-    phone: '+233 24 123 4567',
-    photo: 'https://readdy.ai/api/search-image?query=Professional%20African%20male%20waste%20collection%20worker%2C%20friendly%20smile%2C%20uniform%2C%20safety%20equipment%2C%20confident%20expression%2C%20clean%20background%2C%20high-quality%20portrait%20photography&width=100&height=100&seq=rider_found&orientation=squarish',
-    distance: '0.8 km away',
-    lat: lat + 0.002,
-    lng: lng + 0.002
-  };
+  useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+
+    if (status === 'searching') {
+      timeoutId = setTimeout(() => {
+        Alert.alert(
+          'No Riders Available',
+          'All riders are currently busy or not available at the moment. Would you like to cancel or keep searching?',
+          [
+            { 
+              text: 'Cancel', 
+              onPress: onCancel, 
+              style: 'cancel' 
+            },
+            { 
+              text: 'Search Again', 
+              onPress: () => setSearchAttempt(prev => prev + 1)
+            }
+          ]
+        );
+      }, 3 * 60 * 1000); // 3 minutes
+    }
+
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, [status, searchAttempt, onCancel]);
 
   useEffect(() => {
     Animated.loop(
@@ -151,18 +174,69 @@ export const FindingRider: React.FC<FindingRiderProps> = ({ userLat, userLng, on
       ])
     ).start();
 
-    // Simulate search sequence
-    const timer1 = setTimeout(() => setStatus('connecting'), 4000);
-    const timer2 = setTimeout(() => {
-      setStatus('found');
-      setTimeout(() => onRiderFound(foundRider), 2000);
-    }, 7000);
+    if (!orderId) {
+      console.warn("FindingRider: No orderId provided, cannot listen for rider changes.");
+      return;
+    }
+
+    const channel = supabase
+      .channel(`order-${orderId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'orders',
+          filter: `id=eq.${orderId}`,
+        },
+        async (payload: any) => {
+          console.log('Order status update in FindingRider:', payload);
+          const updatedOrder = payload.new;
+          if (updatedOrder.status === 'accepted' || updatedOrder.rider_id) {
+            
+            // Try fetching from riders table
+            const { data: riderData, error } = await supabase
+              .from('riders')
+              .select('*')
+              .eq('id', updatedOrder.rider_id)
+              .single();
+
+            if (error) {
+              console.error("Error fetching rider details in FindingRider:", error);
+            }
+
+            const riderPhone = riderData?.phone_number || riderData?.phone || '+233 24 000 0000';
+            const riderName = riderData?.full_name || (riderData?.first_name ? `${riderData.first_name} ${riderData.last_name || ''}`.trim() : 'Your Rider');
+            const riderPhoto = riderData?.avatar_url || 'https://readdy.ai/api/search-image?query=Professional%20African%20male%20waste%20collection%20worker%2C%20friendly%20smile%2C%20uniform%2C%20safety%20equipment%2C%20confident%20expression%2C%20clean%20background%2C%20high-quality%20portrait%20photography&width=100&height=100&seq=rider_found&orientation=squarish';
+
+            const rating = riderData?.rating ? parseFloat(riderData.rating) : 5.0;
+
+            const realRider: Rider = {
+              id: updatedOrder.rider_id || 'RDR-001',
+              name: riderName,
+              rating: rating,
+              phone: riderPhone,
+              photo: riderPhoto,
+              distance: 'On the way',
+              lat: riderData?.latitude || lat + 0.002,
+              lng: riderData?.longitude || lng + 0.002
+            };
+
+            setLocalRider(realRider);
+            setStatus('connecting');
+            setTimeout(() => {
+              setStatus('found');
+              setTimeout(() => onRiderFound(realRider), 1500);
+            }, 1000);
+          }
+        }
+      )
+      .subscribe();
 
     return () => {
-      clearTimeout(timer1);
-      clearTimeout(timer2);
+      supabase.removeChannel(channel);
     };
-  }, []);
+  }, [orderId]);
 
   return (
     <View style={styles.container}>
@@ -211,16 +285,20 @@ export const FindingRider: React.FC<FindingRiderProps> = ({ userLat, userLng, on
               <Text style={styles.foundTitle}>Rider Accepted!</Text>
             </View>
             <View style={styles.riderInfo}>
-              <Image source={{ uri: foundRider.photo }} style={styles.riderPhoto} />
-              <View style={styles.riderDetails}>
-                <Text style={styles.riderName}>{foundRider.name}</Text>
-                <View style={styles.ratingRow}>
-                  <RemixIcon name="ri-star-fill" size={14} color="#fbbf24" />
-                  <Text style={styles.ratingText}>{foundRider.rating}</Text>
-                  <View style={styles.dot} />
-                  <Text style={styles.distanceText}>{foundRider.distance}</Text>
-                </View>
-              </View>
+              {localRider && (
+                <>
+                  <Image source={{ uri: localRider.photo }} style={styles.riderPhoto} />
+                  <View style={styles.riderDetails}>
+                    <Text style={styles.riderName}>{localRider.name}</Text>
+                    <View style={styles.ratingRow}>
+                      <RemixIcon name="ri-star-fill" size={14} color="#fbbf24" />
+                      <Text style={styles.ratingText}>{localRider.rating}</Text>
+                      <View style={styles.dot} />
+                      <Text style={styles.distanceText}>{localRider.distance}</Text>
+                    </View>
+                  </View>
+                </>
+              )}
               <View style={styles.riderActions}>
                 <View style={styles.actionIcon}>
                   <RemixIcon name="ri-phone-line" size={20} color="#10b981" />
