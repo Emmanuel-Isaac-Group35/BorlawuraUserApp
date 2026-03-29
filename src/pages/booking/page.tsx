@@ -106,9 +106,11 @@ const BookingPage: React.FC = () => {
           user_id: realUserId,
           service_type: bookingData.serviceType === 'instant' ? 'Instant Pickup' : 'Scheduled Pickup',
           address: bookingData.location,
+          pickup_latitude: bookingData.latitude,
+          pickup_longitude: bookingData.longitude,
           waste_type: bookingData.wasteTypes.join(', '),
           waste_size: bookingData.bagSize,
-          notes: bookingData.notes + (bookingData.latitude ? `\n[GPS: ${bookingData.latitude}, ${bookingData.longitude}]` : ''),
+          notes: bookingData.notes,
           status: 'pending',
           amount: finalPrice,
           scheduled_at: bookingData.scheduledTime ? new Date().toISOString() : null
@@ -235,7 +237,7 @@ const BookingPage: React.FC = () => {
                       </View>
                       <TouchableOpacity 
                         style={styles.trackBtn}
-                        onPress={() => navigateTo('/track-order')}
+                        onPress={() => navigateTo('/track-order', { id: completedOrder?.id })}
                       >
                         <Text style={styles.trackBtnText}>Track</Text>
                       </TouchableOpacity>

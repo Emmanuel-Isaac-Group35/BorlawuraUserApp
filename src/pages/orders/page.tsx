@@ -102,8 +102,8 @@ const OrdersPage: React.FC = () => {
         date: new Date(p.created_at).toLocaleDateString('en-GB'),
         time: p.scheduled_at ? new Date(p.scheduled_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : new Date(p.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
         address: p.address,
-        latitude: p.latitude,
-        longitude: p.longitude,
+        latitude: p.pickup_latitude,
+        longitude: p.pickup_longitude,
         amount: '₵' + (typeof p.amount === 'number' ? p.amount.toFixed(2) : (p.amount || '0.00')),
         wasteType: p.waste_type || 'General',
         bagSize: p.waste_size || 'Standard',
@@ -450,7 +450,7 @@ const OrdersPage: React.FC = () => {
                   <View style={styles.actionButtons}>
                     {order.status === 'in_progress' && (
                       <TouchableOpacity
-                        onPress={() => handleTrackOrder(order.id)}
+                        onPress={() => handleTrackOrder(order.realId)}
                         style={styles.trackButton}
                       >
                         <Text style={styles.trackButtonText}>Track Order</Text>

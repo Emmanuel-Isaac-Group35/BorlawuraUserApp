@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Alert, Linking } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Alert, Linking, ActivityIndicator } from 'react-native';
+import { useRoute } from '@react-navigation/native';
+import { supabase } from '../../lib/supabase';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Navigation } from '../../components/feature/Navigation';
 import { BottomNavigation } from '../../components/feature/BottomNavigation';
@@ -8,7 +10,7 @@ import { navigateTo } from '../../utils/navigation';
 import * as Sharing from 'expo-sharing';
 import { WebView } from 'react-native-webview';
 
-const getMapHtml = (lat: number, lng: number) => `
+const getMapHtml = (riderLat: number, riderLng: number, userLat?: number, userLng?: number) => `
 <!DOCTYPE html>
 <html>
 <head>
@@ -18,11 +20,17 @@ const getMapHtml = (lat: number, lng: number) => `
   <style>
     body { margin: 0; padding: 0; }
     #map { width: 100%; height: 100vh; }
-    .custom-icon {
+    .rider-icon {
+      background-color: #3b82f6;
+      border-radius: 50%;
+      border: 3px solid #ffffff;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    }
+    .user-icon {
       background-color: #10b981;
       border-radius: 50%;
       border: 3px solid #ffffff;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+      box-shadow: 0 2px 4px rgba(0,0,0,0.3);
     }
   </style>
 </head>
@@ -31,110 +39,229 @@ const getMapHtml = (lat: number, lng: number) => `
   <script>
     const map = L.map('map', {
       zoomControl: false,
-      attributionControl: false,
-      dragging: false, 
-      scrollWheelZoom: false,
-      doubleClickZoom: false,
-      boxZoom: false,
-      tap: false
-    }).setView([${lat}, ${lng}], 15);
+      attributionControl: false
+    });
 
     L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
       attribution: 'OpenStreetMap'
     }).addTo(map);
 
-    const icon = L.divIcon({
-      className: 'custom-icon',
+    const riderIcon = L.divIcon({
+      className: 'rider-icon',
+      iconSize: [16, 16],
+      iconAnchor: [8, 8]
+    });
+
+    const userIcon = L.divIcon({
+      className: 'user-icon',
       iconSize: [20, 20],
       iconAnchor: [10, 10]
     });
 
-    L.marker([${lat}, ${lng}], { icon: icon }).addTo(map);
+    const markers = [];
+    const riderMarker = L.marker([${riderLat}, ${riderLng}], { icon: riderIcon, title: 'Rider' }).addTo(map);
+    markers.push([${riderLat}, ${riderLng}]);
+
+    if (${!!(userLat && userLng)}) {
+      L.marker([${userLat || 0}, ${userLng || 0}], { icon: userIcon, title: 'Your Location' }).addTo(map);
+      markers.push([${userLat || 0}, ${userLng || 0}]);
+      map.fitBounds(L.latLngBounds(markers), { padding: [50, 50] });
+    } else {
+      map.setView([${riderLat}, ${riderLng}], 15);
+    }
   </script>
 </body>
 </html>
 `;
 
 const TrackOrderPage: React.FC = () => {
-  const [order] = useState({
-    id: 'BW001',
-    status: 'in_progress',
-    service: 'Instant Pickup',
-    date: '2024-01-15',
-    time: '14:30',
-    address: '123 Osu Street, Accra',
-    rider: {
-      name: 'Kwame Asante',
-      phone: '+233 24 123 4567',
-      rating: 4.8,
-      vehicle: 'Tricycle - GR 1234 X',
-      photo: 'https://readdy.ai/api/search-image?query=Professional%20African%20male%20waste%20collection%20worker%2C%20friendly%20smile%2C%20uniform%2C%20safety%20equipment%2C%20confident%20expression%2C%20clean%20background%2C%20high-quality%20portrait%20photography&width=80&height=80&seq=rider1&orientation=squarish',
-      lat: 5.6037,
-      lng: -0.1870
-    },
-    amount: '₵15.00',
-    wasteType: 'General Household',
-    bagSize: 'Medium',
-    estimatedArrival: '12 mins',
-    currentLocation: 'Approaching your location'
-  });
-
+  const route = useRoute();
+  const { id: orderId } = (route.params as { id?: string }) || {};
+  const [order, setOrder] = useState<any>(null);
   const [riderLocation, setRiderLocation] = useState({ lat: 5.6037, lng: -0.1870 });
-
-  const [currentStep, setCurrentStep] = useState(2);
   const [isLiveTracking, setIsLiveTracking] = useState(true);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!orderId) {
+      setLoading(false);
+      return;
+    }
+
+    const fetchData = async () => {
+      try {
+        // Fetch order details first
+        const { data: orderData, error: orderError } = await supabase
+          .from('orders')
+          .select('*')
+          .eq('id', orderId)
+          .single();
+
+        if (orderError) throw orderError;
+
+        // If rider is assigned, fetch rider details
+        let riderObj = null;
+        if (orderData.rider_id) {
+          const { data: riderData, error: riderError } = await supabase
+            .from('riders')
+            .select('*')
+            .eq('id', orderData.rider_id)
+            .single();
+
+          if (!riderError && riderData) {
+            riderObj = {
+              name: riderData.full_name || (riderData.first_name ? `${riderData.first_name} ${riderData.last_name || ''}`.trim() : 'Your Rider'),
+              phone: riderData.phone_number || riderData.phone || '+233 24 000 0000',
+              rating: riderData.rating ? parseFloat(riderData.rating) : 4.8,
+              vehicle: riderData.vehicle_info || 'Tricycle',
+              photo: riderData.avatar_url || 'https://readdy.ai/api/search-image?query=Professional%20African%20male%20waste%20collection%20worker%2C%20friendly%20smile%2C%20uniform%2C%20safety%20equipment%2C%20confident%20expression%2C%20clean%20background%2C%20high-quality%20portrait%20photography&width=100&height=100&seq=rider_found&orientation=squarish',
+              lat: riderData.latitude || 5.6037,
+              lng: riderData.longitude || -0.1870
+            };
+            setRiderLocation({ lat: riderObj.lat, lng: riderObj.lng });
+          }
+        }
+
+        setOrder({
+          id: orderData.id.slice(0, 8).toUpperCase(),
+          realId: orderData.id,
+          status: orderData.status,
+          service: orderData.service_type || 'Waste Pickup',
+          date: new Date(orderData.created_at).toLocaleDateString('en-GB'),
+          time: orderData.scheduled_at ? new Date(orderData.scheduled_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : new Date(orderData.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
+          address: orderData.address,
+          latitude: orderData.pickup_latitude,
+          longitude: orderData.pickup_longitude,
+          rider: riderObj,
+          amount: '₵' + (typeof orderData.amount === 'number' ? orderData.amount.toFixed(2) : (orderData.amount || '0.00')),
+          wasteType: orderData.waste_type || 'General Household',
+          bagSize: (orderData.waste_size || 'Standard').charAt(0).toUpperCase() + (orderData.waste_size || 'Standard').slice(1),
+          estimatedArrival: riderObj ? '12 mins' : 'Calculating...',
+          currentLocation: orderData.status === 'in_progress' ? 'Rider approaching your location' : (orderData.status === 'accepted' ? 'Rider heading out' : 'Waiting for dispatch')
+        });
+      } catch (error) {
+        console.error("Error fetching order data:", error);
+        Alert.alert("Error", "Failed to fetch order details.");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, [orderId]);
+
+  // Real-time subscription for the order (to catch rider assignment/status changes)
+  useEffect(() => {
+    if (!orderId) return;
+
+    const orderChannel = supabase
+      .channel(`order-tracking-${orderId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'orders',
+          filter: `id=eq.${orderId}`,
+        },
+        async (payload: any) => {
+          console.log('Order status update received:', payload);
+          const { data: orderData, error } = await supabase
+            .from('orders')
+            .select('*, riders(*)')
+            .eq('id', orderId)
+            .single();
+          
+          if (!error && orderData) {
+            setOrder((prev: any) => ({
+              ...prev,
+              status: orderData.status,
+              rider_id: orderData.rider_id,
+              currentLocation: orderData.status === 'in_progress' ? 'Rider approaching' : prev?.currentLocation
+            }));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(orderChannel);
+    };
+  }, [orderId]);
+
+  // Real-time subscription for rider location
+  useEffect(() => {
+    if (!orderId || !isLiveTracking) return;
+
+    let riderChannel: any;
+
+    const setupRiderSubscription = async () => {
+      const { data: currentOrder } = await supabase.from('orders').select('rider_id').eq('id', orderId).single();
+      
+      if (currentOrder?.rider_id) {
+        riderChannel = supabase
+          .channel(`rider-loc-${currentOrder.rider_id}`)
+          .on(
+            'postgres_changes',
+            {
+              event: 'UPDATE',
+              schema: 'public',
+              table: 'riders',
+              filter: `id=eq.${currentOrder.rider_id}`,
+            },
+            (payload: any) => {
+              if (payload.new.latitude && payload.new.longitude) {
+                setRiderLocation({
+                  lat: parseFloat(payload.new.latitude),
+                  lng: parseFloat(payload.new.longitude)
+                });
+              }
+            }
+          )
+          .subscribe();
+      }
+    };
+
+    setupRiderSubscription();
+
+    return () => {
+      if (riderChannel) supabase.removeChannel(riderChannel);
+    };
+  }, [orderId, isLiveTracking, order?.status]);
 
   const trackingSteps = [
     {
       id: 1,
       title: 'Order Confirmed',
       description: 'Your pickup request has been confirmed',
-      time: '14:30',
-      completed: true
+      time: order?.time,
+      completed: !!order
     },
     {
       id: 2,
       title: 'Rider Assigned',
-      description: 'Kwame is on the way to your location',
-      time: '14:35',
-      completed: true
+      description: order?.rider ? `${order.rider.name} is on the way` : 'Assigning nearest rider',
+      time: '',
+      completed: !!order?.rider
     },
     {
       id: 3,
       title: 'Rider Arriving',
-      description: 'Rider will arrive in 12 minutes',
-      time: 'ETA 14:47',
+      description: 'Rider is approaching your location',
+      time: '',
       completed: false,
-      active: true
+      active: !!order?.rider && order.status === 'in_progress'
     },
     {
       id: 4,
       title: 'Pickup Complete',
       description: 'Waste collected and disposed properly',
       time: '',
-      completed: false
+      completed: order?.status === 'completed'
     }
   ];
 
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-
-    if (isLiveTracking) {
-      interval = setInterval(() => {
-        // Simulate real-time location updates
-        setRiderLocation(prev => ({
-          lat: prev.lat + (Math.random() - 0.5) * 0.001,
-          lng: prev.lng + (Math.random() - 0.5) * 0.001
-        }));
-      }, 3000);
-    }
-
-    return () => {
-      if (interval) clearInterval(interval);
-    };
-  }, [isLiveTracking]);
-
   const handleCallRider = async () => {
+    if (!order?.rider?.phone) return;
     try {
       await Linking.openURL(`tel:${order.rider.phone}`);
     } catch (error) {
@@ -151,7 +278,15 @@ const TrackOrderPage: React.FC = () => {
         {
           text: 'Yes',
           style: 'destructive',
-          onPress: () => navigateTo('/')
+          onPress: async () => {
+            if (!orderId) return;
+            try {
+              await supabase.from('orders').update({ status: 'cancelled' }).eq('id', orderId);
+              navigateTo('/');
+            } catch (err) {
+              Alert.alert("Error", "Failed to cancel order.");
+            }
+          }
         }
       ]
     );
@@ -159,10 +294,9 @@ const TrackOrderPage: React.FC = () => {
 
   const handleShareLocation = async () => {
     try {
-      const message = `Track my waste pickup at: ${order.address}`;
+      const message = `Track my waste pickup at: ${order?.address}`;
       const isAvailable = await Sharing.isAvailableAsync();
       if (isAvailable) {
-        // Share functionality would be implemented here
         Alert.alert('Share', 'Sharing functionality would be implemented here');
       } else {
         Alert.alert('Error', 'Sharing is not available on this device');
@@ -175,6 +309,31 @@ const TrackOrderPage: React.FC = () => {
   const toggleLiveTracking = () => {
     setIsLiveTracking(!isLiveTracking);
   };
+
+  if (loading) {
+     return (
+       <SafeAreaView style={styles.container}>
+         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+           <ActivityIndicator size="large" color="#10b981" />
+           <Text style={{ marginTop: 12, color: '#6b7280' }}>Loading tracking data...</Text>
+         </View>
+       </SafeAreaView>
+     );
+  }
+
+  if (!order) {
+     return (
+       <SafeAreaView style={styles.container}>
+         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+           <RemixIcon name="ri-error-warning-line" size={48} color="#ef4444" />
+           <Text style={{ marginTop: 12, color: '#1f2937', fontWeight: 'bold' }}>Order Not Found</Text>
+           <TouchableOpacity onPress={() => navigateTo('/')} style={{ marginTop: 24, padding: 12, backgroundColor: '#10b981', borderRadius: 8 }}>
+             <Text style={{ color: '#fff' }}>Go Back Home</Text>
+           </TouchableOpacity>
+         </View>
+       </SafeAreaView>
+     );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -202,9 +361,9 @@ const TrackOrderPage: React.FC = () => {
         <View style={styles.mapContainer}>
           <View style={styles.mapWrapper}>
             <WebView
-              source={{ html: getMapHtml(riderLocation.lat, riderLocation.lng) }}
+              source={{ html: getMapHtml(riderLocation.lat, riderLocation.lng, order.latitude, order.longitude) }}
               style={styles.map}
-              scrollEnabled={false}
+              scrollEnabled={true}
             />
           </View>
 
@@ -241,6 +400,7 @@ const TrackOrderPage: React.FC = () => {
           </View>
         </View>
 
+        {order.rider && (
         <View style={styles.riderCard}>
           <View style={styles.riderHeader}>
             <Text style={styles.riderCardTitle}>Your Rider</Text>
@@ -290,6 +450,7 @@ const TrackOrderPage: React.FC = () => {
             </View>
           </View>
         </View>
+        )}
 
         <View style={styles.progressCard}>
           <Text style={styles.progressTitle}>Order Progress</Text>
