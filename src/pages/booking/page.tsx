@@ -104,20 +104,21 @@ const BookingPage: React.FC = () => {
 
         const { data: insertedOrderData, error } = await supabase.from('orders').insert([{
           user_id: realUserId,
+          customer_name: user?.full_name || user?.name || 'Customer',
           service_type: bookingData.serviceType === 'instant' ? 'Instant Pickup' : 'Scheduled Pickup',
           address: bookingData.location,
           pickup_latitude: bookingData.latitude,
           pickup_longitude: bookingData.longitude,
           waste_type: bookingData.wasteTypes.join(', '),
           waste_size: bookingData.bagSize,
-          notes: bookingData.notes,
+          notes: `${bookingData.notes || ''} [Phone: ${user?.phone_number || user?.phoneNumber || ''}]`.trim(),
           status: 'pending',
           amount: finalPrice,
           scheduled_at: bookingData.scheduledTime ? new Date().toISOString() : null
         }]).select('id').single();
         
         if (error || !insertedOrderData) {
-          console.error("Supabase order insert error:", error);
+          console.error("Supabase order insert error:", JSON.stringify(error, null, 2));
           Alert.alert("Booking Error", "We couldn't save your booking to the server. Please check your connection.");
           return;
         }
