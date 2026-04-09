@@ -14,6 +14,7 @@ interface AuthContextType {
   user: any;
   login: (userData: any) => Promise<void>;
   logout: () => Promise<void>;
+  refreshUser: () => Promise<void>;
   isLoading: boolean;
 }
 
@@ -267,6 +268,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const refreshUser = async () => {
+    if (!user?.id && !user?.supabase_id) return;
+    try {
+      const searchId = user.supabase_id || user.id;
+      const { data: dbUser } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', searchId)
+        .single();
+      
+      if (dbUser) {
+        const updatedUser = { ...user, ...dbUser, supabase_id: dbUser.id };
+        setUser(updatedUser);
+        await RNAsyncStorage.setItem('user', JSON.stringify(updatedUser));
+      }
+    } catch (e) {
+      console.error('Failed to refresh user', e);
+    }
+  };
+
   const getSuspendedMessage = () => {
      if (!user) return "Your account has been restricted.";
      const s = (user.status || '').toLowerCase();
@@ -281,7 +302,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ isLoggedIn, isSuspended, user, login, logout, isLoading }}>
+    <AuthContext.Provider value={{ isLoggedIn, isSuspended, user, login, logout, refreshUser, isLoading }}>
       {children}
       
       <Modal

@@ -49,12 +49,6 @@ const NotificationsPage: React.FC = () => {
       title: 'Marketing',
       items: [
         {
-          key: 'promotions',
-          label: 'Promotions & Offers',
-          description: 'Receive special deals and discounts',
-          icon: 'ri-gift-line'
-        },
-        {
           key: 'newsletter',
           label: 'Newsletter',
           description: 'Weekly updates and tips',

@@ -10,7 +10,6 @@ interface Order {
   date: string;
   status: string;
   rider: string;
-  amount: string;
 }
 
 export const RecentOrders: React.FC = () => {
@@ -54,20 +53,41 @@ export const RecentOrders: React.FC = () => {
           .from('orders')
           .select('*')
           .eq('user_id', searchId)
-          .neq('status', 'cancelled') // Only exclude cancelled orders
+          .neq('status', 'cancelled')
           .order('created_at', { ascending: false })
           .limit(3);
 
         if (error) throw error;
 
-        const formatted = (data || []).map(p => ({
-          id: p.id,
-          type: p.service_type || 'Waste Pickup',
-          date: new Date(p.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }),
-          status: p.status === 'pending' ? 'scheduled' : (p.status === 'in_progress' ? 'in-progress' : 'completed'),
-          rider: p.rider_id ? 'Assigned' : (p.status === 'completed' ? 'Delivered' : 'Finding Rider...'),
-          amount: '₵' + (typeof p.amount === 'number' ? p.amount.toFixed(2) : (p.amount || '0.00'))
-        }));
+        // Fetch rider info separately to avoid join issues
+        const riderIds = [...new Set((data || []).map(p => p.rider_id).filter(id => id))];
+        let ridersMap: { [key: string]: any } = {};
+        
+        if (riderIds.length > 0) {
+          const { data: ridersData } = await supabase
+            .from('riders')
+            .select('id, full_name, first_name, last_name')
+            .in('id', riderIds);
+          
+          if (ridersData) {
+            ridersData.forEach(r => {
+              ridersMap[r.id] = r;
+            });
+          }
+        }
+
+        const formatted = (data || []).map(p => {
+          const riderData = p.rider_id ? ridersMap[p.rider_id] : null;
+          const riderName = riderData ? (riderData.full_name || `${riderData.first_name || ''} ${riderData.last_name || ''}`.trim()) : null;
+          
+          return {
+            id: p.id,
+            type: p.service_type || 'Waste Pickup',
+            date: new Date(p.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }),
+            status: p.status === 'pending' ? 'scheduled' : (p.status === 'in_progress' ? 'in-progress' : 'completed'),
+            rider: riderName || (p.status === 'completed' ? 'Success' : 'Finding Rider...')
+          };
+        });
         setOrders(formatted);
       } catch (e) {
         console.error('Error fetching recent orders:', e);
@@ -146,7 +166,6 @@ export const RecentOrders: React.FC = () => {
                 
                 <View style={styles.orderFooter}>
                   <Text style={styles.riderText}>Rider: {order.rider}</Text>
-                  <Text style={styles.amountText}>{order.amount}</Text>
                 </View>
               </View>
             );
@@ -172,11 +191,13 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     color: '#1f2937',
+    fontFamily: 'Montserrat-Bold',
   },
   viewAll: {
     fontSize: 14,
     fontWeight: '500',
     color: '#10b981',
+    fontFamily: 'Montserrat-Medium',
   },
   ordersList: {
     gap: 12,
@@ -203,11 +224,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     color: '#1f2937',
+    fontFamily: 'Montserrat-SemiBold',
   },
   orderDate: {
     fontSize: 12,
     color: '#6b7280',
     marginTop: 4,
+    fontFamily: 'Montserrat-Regular',
   },
   statusBadge: {
     paddingHorizontal: 8,
@@ -217,6 +240,7 @@ const styles = StyleSheet.create({
   statusText: {
     fontSize: 10,
     fontWeight: '600',
+    fontFamily: 'Montserrat-Bold',
   },
   orderFooter: {
     flexDirection: 'row',
@@ -226,11 +250,10 @@ const styles = StyleSheet.create({
   riderText: {
     fontSize: 14,
     color: '#4b5563',
+    fontFamily: 'Montserrat-Medium',
   },
   amountText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1f2937',
+    display: 'none',
   },
   emptyCard: {
     backgroundColor: '#f9fafb',
@@ -245,5 +268,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6b7280',
     textAlign: 'center',
+    fontFamily: 'Montserrat-Regular',
   },
 });

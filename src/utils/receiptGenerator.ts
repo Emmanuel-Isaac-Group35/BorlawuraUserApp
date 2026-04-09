@@ -9,9 +9,8 @@ interface OrderDetails {
   address: string;
   wasteType: string;
   bagSize: string;
-  amount: string;
   rider?: string;
-  paymentMethod?: string;
+  status?: string;
 }
 
 export const generateReceipt = async (order: OrderDetails) => {
@@ -21,7 +20,7 @@ export const generateReceipt = async (order: OrderDetails) => {
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Payment Receipt</title>
+      <title>Booking Confirmation</title>
       <style>
         body {
           font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
@@ -66,18 +65,6 @@ export const generateReceipt = async (order: OrderDetails) => {
         .value {
           font-weight: 600;
         }
-        .total-section {
-          border-top: 2px solid #eee;
-          margin-top: 20px;
-          padding-top: 20px;
-        }
-        .total-row {
-          display: flex;
-          justify-content: space-between;
-          font-size: 18px;
-          font-weight: bold;
-          color: #10b981;
-        }
         .footer {
           text-align: center;
           margin-top: 60px;
@@ -89,12 +76,12 @@ export const generateReceipt = async (order: OrderDetails) => {
     <body>
       <div class="header">
         <div class="logo">BORLA WURA</div>
-        <div class="subtitle">Payment Receipt</div>
+        <div class="subtitle">Booking Confirmation</div>
       </div>
 
       <div class="receipt-info">
         <div>
-          <div class="label">Receipt Number</div>
+          <div class="label">Booking Number</div>
           <div class="value">#${order.id}</div>
         </div>
         <div style="text-align: right;">
@@ -130,17 +117,6 @@ export const generateReceipt = async (order: OrderDetails) => {
           <span class="value">${order.rider}</span>
         </div>
         ` : ''}
-        <div class="row">
-          <span class="label">Payment Method</span>
-          <span class="value">${order.paymentMethod || 'Mobile Money'}</span>
-        </div>
-      </div>
-
-      <div class="total-section">
-        <div class="total-row">
-          <span>Total Amount</span>
-          <span>${order.amount}</span>
-        </div>
       </div>
 
       <div class="footer">

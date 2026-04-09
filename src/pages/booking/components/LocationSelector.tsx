@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, StyleSheet, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import * as Location from 'expo-location';
 import { RemixIcon } from '../../../utils/icons';
+import RNAsyncStorage from '@react-native-async-storage/async-storage';
+import { useAuth } from '../../../context/AuthContext';
 
 interface LocationSelectorProps {
   value: string;
@@ -9,9 +11,28 @@ interface LocationSelectorProps {
 }
 
 export const LocationSelector: React.FC<LocationSelectorProps> = ({ value, onChange }) => {
+  const { user } = useAuth();
   const [useCurrentLocation, setUseCurrentLocation] = useState(false);
   const [isDetectingLocation, setIsDetectingLocation] = useState(false);
   const [manualAddress, setManualAddress] = useState(value);
+  const [savedAddresses, setSavedAddresses] = useState<string[]>([]);
+
+  React.useEffect(() => {
+    const loadSavedAddresses = async () => {
+      try {
+        const stored = await RNAsyncStorage.getItem('user_addresses');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          setSavedAddresses(parsed.map((a: any) => a.address));
+        } else if (user?.location) {
+          setSavedAddresses([user.location]);
+        }
+      } catch (e) {
+        console.error("Error loading saved addresses", e);
+      }
+    };
+    loadSavedAddresses();
+  }, [user]);
 
   const handleCurrentLocation = async () => {
     setIsDetectingLocation(true);
@@ -106,10 +127,8 @@ export const LocationSelector: React.FC<LocationSelectorProps> = ({ value, onCha
     setUseCurrentLocation(false);
   };
 
-  const savedAddresses = ['Home - East Legon, Accra', 'Office - Airport City, Accra'];
-
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+    <View style={styles.container}>
       <Text style={styles.title}>Pickup Location</Text>
       <Text style={styles.subtitle}>Where should we collect your waste?</Text>
       
@@ -176,7 +195,7 @@ export const LocationSelector: React.FC<LocationSelectorProps> = ({ value, onCha
           </View>
         </View>
       </View>
-    </ScrollView>
+    </View>
   );
 };
 

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Modal, TouchableOpacity, TextInput, Alert, Linking, FlatList, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Modal, TouchableOpacity, TextInput, Alert, Linking, FlatList, RefreshControl, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Navigation } from '../../components/feature/Navigation';
 import { BottomNavigation } from '../../components/feature/BottomNavigation';
@@ -94,23 +94,45 @@ const OrdersPage: React.FC = () => {
 
       if (error) throw error;
 
-      const formattedOrders = (data || []).map(p => ({
-        id: p.id.slice(0, 8).toUpperCase(),
-        realId: p.id,
-        status: p.status === 'pending' ? 'scheduled' : (p.status === 'in_progress' ? 'in_progress' : p.status),
-        service: p.service_type || 'Waste Pickup',
-        date: new Date(p.created_at).toLocaleDateString('en-GB'),
-        time: p.scheduled_at ? new Date(p.scheduled_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : new Date(p.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
-        address: p.address,
-        latitude: p.pickup_latitude,
-        longitude: p.pickup_longitude,
-        amount: '₵' + (typeof p.amount === 'number' ? p.amount.toFixed(2) : (p.amount || '0.00')),
-        wasteType: p.waste_type || 'General',
-        bagSize: p.waste_size || 'Standard',
-        rider: p.rider_id ? 'Assigned' : null,
-        notes: p.notes || '',
-        paymentMethod: p.payment_method || 'Mobile Money'
-      }));
+      // Fetch rider info separately to avoid join relationship issues
+      const riderIds = [...new Set((data || []).map(p => p.rider_id).filter(id => id))];
+      let ridersMap: { [key: string]: any } = {};
+      
+      if (riderIds.length > 0) {
+        const { data: ridersData } = await supabase
+          .from('riders')
+          .select('id, full_name, first_name, last_name, phone_number, phone')
+          .in('id', riderIds);
+        
+        if (ridersData) {
+          ridersData.forEach(r => {
+            ridersMap[r.id] = r;
+          });
+        }
+      }
+
+      const formattedOrders = (data || []).map(p => {
+        const riderData = p.rider_id ? ridersMap[p.rider_id] : null;
+        const riderName = riderData ? (riderData.full_name || `${riderData.first_name || ''} ${riderData.last_name || ''}`.trim()) : null;
+        
+        return {
+          id: p.id.slice(0, 8).toUpperCase(),
+          realId: p.id,
+          status: p.status === 'pending' ? 'scheduled' : (p.status === 'in_progress' ? 'in_progress' : p.status),
+          service: p.service_type || 'Waste Pickup',
+          date: new Date(p.created_at).toLocaleDateString('en-GB'),
+          time: p.scheduled_at ? new Date(p.scheduled_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : new Date(p.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
+          address: p.address,
+          latitude: p.pickup_latitude,
+          longitude: p.pickup_longitude,
+          wasteType: p.waste_type || 'General',
+          bagSize: p.waste_size || 'Standard',
+          rider: riderName,
+          riderPhone: riderData?.phone_number || riderData?.phone,
+          notes: p.notes || '',
+          paymentMethod: p.payment_method || 'Mobile Money'
+        };
+      });
 
       setOrders(formattedOrders);
     } catch (e) {
@@ -266,9 +288,7 @@ const OrdersPage: React.FC = () => {
         address: order.address,
         wasteType: order.wasteType,
         bagSize: order.bagSize,
-        amount: order.amount,
-        rider: order.rider,
-        paymentMethod: order.paymentMethod
+        rider: order.rider
       });
     } catch (error) {
       Alert.alert('Error', 'Failed to generate receipt');
@@ -378,7 +398,6 @@ const OrdersPage: React.FC = () => {
                         </View>
                       )}
                     </View>
-                    <Text style={styles.orderAmount}>{order.amount}</Text>
                   </View>
 
                   <View style={styles.orderDetails}>
@@ -396,11 +415,11 @@ const OrdersPage: React.FC = () => {
                     </View>
                   </View>
 
-                  {order.status === 'in_progress' && order.rider && (
+                  {((order.status === 'in_progress' || order.status === 'scheduled')) && order.rider && (
                     <View style={styles.riderCard}>
                       <View style={styles.riderHeader}>
-                        <Text style={styles.riderTitle}>Rider Assigned</Text>
-                        <Text style={styles.riderETA}>ETA: {order.estimatedArrival}</Text>
+                        <Text style={styles.riderTitle}>{order.status === 'in_progress' ? 'Rider Assigned' : 'Selected Rider'}</Text>
+                        <Text style={styles.riderETA}>{order.status === 'in_progress' ? `ETA: ${order.estimatedArrival || 'Coming'}` : 'Requested'}</Text>
                       </View>
                       <View style={styles.riderInfo}>
                         <Text style={styles.riderName}>{order.rider}</Text>
@@ -448,7 +467,7 @@ const OrdersPage: React.FC = () => {
                   )}
 
                   <View style={styles.actionButtons}>
-                    {order.status === 'in_progress' && (
+                    {(order.status === 'in_progress' || (order.status === 'scheduled' && order.rider)) && (
                       <TouchableOpacity
                         onPress={() => handleTrackOrder(order.realId)}
                         style={styles.trackButton}
@@ -560,44 +579,49 @@ const OrdersPage: React.FC = () => {
               </TouchableOpacity>
             </View>
 
-            <View style={styles.formContainer}>
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Date</Text>
-                <TextInput
-                  style={styles.formInput}
-                  value={modifiedData.date}
-                  onChangeText={(text) => setModifiedData({...modifiedData, date: text})}
-                  placeholder="Select date"
-                />
-              </View>
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Time</Text>
-                <TextInput
-                  style={styles.formInput}
-                  value={modifiedData.time}
-                  onChangeText={(text) => setModifiedData({...modifiedData, time: text})}
-                  placeholder="Select time"
-                />
-              </View>
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Address</Text>
-                <TextInput
-                  style={[styles.formInput, styles.textArea]}
-                  value={modifiedData.address}
-                  onChangeText={(text) => setModifiedData({...modifiedData, address: text})}
-                  placeholder="Enter address"
-                  multiline
-                  numberOfLines={3}
-                />
-              </View>
-            </View>
-
-            <TouchableOpacity
-              onPress={handleSaveModification}
-              style={styles.saveButton}
+            <KeyboardAvoidingView
+              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+              style={{ width: '100%' }}
             >
-              <Text style={styles.saveButtonText}>Save Changes</Text>
-            </TouchableOpacity>
+              <View style={styles.formContainer}>
+                <View style={styles.formGroup}>
+                  <Text style={styles.formLabel}>Date</Text>
+                  <TextInput
+                    style={styles.formInput}
+                    value={modifiedData.date}
+                    onChangeText={(text) => setModifiedData({...modifiedData, date: text})}
+                    placeholder="Select date"
+                  />
+                </View>
+                <View style={styles.formGroup}>
+                  <Text style={styles.formLabel}>Time</Text>
+                  <TextInput
+                    style={styles.formInput}
+                    value={modifiedData.time}
+                    onChangeText={(text) => setModifiedData({...modifiedData, time: text})}
+                    placeholder="Select time"
+                  />
+                </View>
+                <View style={styles.formGroup}>
+                  <Text style={styles.formLabel}>Address</Text>
+                  <TextInput
+                    style={[styles.formInput, styles.textArea]}
+                    value={modifiedData.address}
+                    onChangeText={(text) => setModifiedData({...modifiedData, address: text})}
+                    placeholder="Enter address"
+                    multiline
+                    numberOfLines={3}
+                  />
+                </View>
+              </View>
+
+              <TouchableOpacity
+                onPress={handleSaveModification}
+                style={styles.saveButton}
+              >
+                <Text style={styles.saveButtonText}>Save Changes</Text>
+              </TouchableOpacity>
+            </KeyboardAvoidingView>
           </View>
         </View>
       </Modal>
@@ -666,10 +690,12 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#1f2937',
     marginBottom: 8,
+    fontFamily: 'Montserrat-Bold',
   },
   subtitle: {
     fontSize: 14,
     color: '#4b5563',
+    fontFamily: 'Montserrat-Regular',
   },
   tabs: {
     flexDirection: 'row',
@@ -697,6 +723,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     color: '#4b5563',
+    fontFamily: 'Montserrat-Medium',
   },
   tabTextActive: {
     color: '#10b981',
@@ -735,6 +762,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#1f2937',
+    fontFamily: 'Montserrat-Bold',
   },
   statusBadge: {
     paddingHorizontal: 8,
@@ -744,15 +772,15 @@ const styles = StyleSheet.create({
   statusText: {
     fontSize: 10,
     fontWeight: '600',
+    fontFamily: 'Montserrat-Bold',
   },
   orderService: {
     fontSize: 14,
     color: '#4b5563',
+    fontFamily: 'Montserrat-SemiBold',
   },
   orderAmount: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#10b981',
+    display: 'none',
   },
   orderDetails: {
     gap: 8,
@@ -767,6 +795,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#4b5563',
     flex: 1,
+    fontFamily: 'Montserrat-Regular',
   },
   riderCard: {
     backgroundColor: '#dbeafe',

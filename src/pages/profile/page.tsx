@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Modal, TouchableOpacity, TextInput, Alert, Image, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Modal, TouchableOpacity, TextInput, Alert, Image, RefreshControl, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Navigation } from '../../components/feature/Navigation';
 import { BottomNavigation } from '../../components/feature/BottomNavigation';
@@ -7,17 +7,17 @@ import { RemixIcon } from '../../utils/icons';
 import { navigateTo } from '../../utils/navigation';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
+import RNAsyncStorage from '@react-native-async-storage/async-storage';
 
 const ProfilePage: React.FC = () => {
-  const { logout, user: authUser } = useAuth();
+  const { logout, refreshUser, user: authUser } = useAuth();
   const [user, setUser] = useState({
     name: authUser?.full_name || authUser?.name || 'Valued User',
     email: authUser?.email || 'No email provided',
     phone: authUser?.phone_number || authUser?.phoneNumber || 'No phone number',
-    avatar: 'https://cdn-icons-png.flaticon.com/512/149/149071.png', // Generic avatar
+    avatar: authUser?.avatar_url || 'https://cdn-icons-png.flaticon.com/512/149/149071.png', // Generic avatar
     joinDate: new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
-    totalOrders: 0, 
-    savedAmount: '₵0'
+    totalOrders: 0
   });
 
   const [isLoading, setIsLoading] = useState(false);
@@ -49,8 +49,8 @@ const ProfilePage: React.FC = () => {
             name: dbUser.full_name || prev.name,
             email: dbUser.email || prev.email,
             phone: dbUser.phone_number || prev.phone,
-            totalOrders: count || 0,
-            savedAmount: `₵${dbUser.balance || 0}`
+            avatar: dbUser.avatar_url || prev.avatar,
+            totalOrders: count || 0
           }));
         }
       } catch (e) {
@@ -101,14 +101,44 @@ const ProfilePage: React.FC = () => {
 
 
 
-  const [addresses, setAddresses] = useState([
-    {
-      id: 1,
-      label: 'Register Location',
-      address: authUser?.location || 'No location set',
-      isDefault: true
+  const [addresses, setAddresses] = useState<any[]>([]);
+
+  useEffect(() => {
+    const loadStoredAddresses = async () => {
+      try {
+        const stored = await RNAsyncStorage.getItem('user_addresses');
+        if (stored) {
+          setAddresses(JSON.parse(stored));
+        } else {
+          // Initialize with register location if nothing stored
+          setAddresses([
+            {
+              id: 1,
+              label: 'Register Location',
+              address: authUser?.location || 'No location set',
+              isDefault: true
+            }
+          ]);
+        }
+      } catch (e) {
+        console.error("Failed to load addresses", e);
+      }
+    };
+    loadStoredAddresses();
+  }, [authUser?.location]);
+
+  useEffect(() => {
+    const saveAddresses = async () => {
+      try {
+        await RNAsyncStorage.setItem('user_addresses', JSON.stringify(addresses));
+      } catch (e) {
+        console.error("Failed to save addresses", e);
+      }
+    };
+    if (addresses.length > 0) {
+      saveAddresses();
     }
-  ]);
+  }, [addresses]);
 
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [showAddAddress, setShowAddAddress] = useState(false);
@@ -117,6 +147,16 @@ const ProfilePage: React.FC = () => {
   const [editName, setEditName] = useState(user.name);
   const [editEmail, setEditEmail] = useState(user.email);
   const [editPhone, setEditPhone] = useState(user.phone);
+  const [editAvatar, setEditAvatar] = useState(user.avatar);
+  const [showAvatarModal, setShowAvatarModal] = useState(false);
+  const suggestedAvatars = [
+    'https://cdn-icons-png.flaticon.com/512/1154/1154444.png',
+    'https://cdn-icons-png.flaticon.com/512/1154/1154448.png',
+    'https://cdn-icons-png.flaticon.com/512/1154/1154452.png',
+    'https://cdn-icons-png.flaticon.com/512/1154/1154454.png',
+    'https://cdn-icons-png.flaticon.com/512/1154/1154456.png',
+    'https://cdn-icons-png.flaticon.com/512/1154/1154460.png'
+  ];
   const [newAddressLabel, setNewAddressLabel] = useState('');
   const [newAddress, setNewAddress] = useState('');
 
@@ -128,22 +168,10 @@ const ProfilePage: React.FC = () => {
       action: () => setShowAddAddress(true)
     },
     {
-      icon: 'ri-credit-card-line',
-      title: 'Payment Methods',
-      subtitle: 'Manage your payment options',
-      action: () => navigateTo('/profile/payment-methods')
-    },
-    {
       icon: 'ri-notification-3-line',
       title: 'Notifications',
       subtitle: 'Customize your alerts',
       action: () => navigateTo('/profile/notifications')
-    },
-    {
-      icon: 'ri-gift-line',
-      title: 'Referral Program',
-      subtitle: 'Invite friends and earn rewards',
-      action: () => navigateTo('/profile/referral')
     },
     {
       icon: 'ri-customer-service-2-line',
@@ -172,14 +200,69 @@ const ProfilePage: React.FC = () => {
     setShowEditProfile(true);
   };
 
-  const handleSaveProfile = () => {
-    setUser({
-      ...user,
-      name: editName,
-      email: editEmail,
-      phone: editPhone,
-    });
-    setShowEditProfile(false);
+  const handleSaveProfile = async () => {
+    setIsLoading(true);
+    try {
+      const searchId = authUser?.supabase_id || authUser?.id;
+      if (searchId && !String(searchId).startsWith('user_')) {
+        const { error } = await supabase
+          .from('users')
+          .update({
+            full_name: editName,
+            email: editEmail,
+            phone_number: editPhone
+          })
+          .eq('id', searchId);
+        
+        if (error) throw error;
+      }
+
+      setUser({
+        ...user,
+        name: editName,
+        email: editEmail,
+        phone: editPhone,
+      });
+      setShowEditProfile(false);
+      Alert.alert("Success", "Profile updated successfully");
+    } catch (e) {
+      console.error("Error saving profile:", e);
+      Alert.alert("Error", "Failed to save profile changes");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleUpdateAvatar = async () => {
+    if (!editAvatar) return;
+    
+    setIsLoading(true);
+    try {
+      const searchId = authUser?.supabase_id || authUser?.id;
+      if (searchId && !String(searchId).startsWith('user_')) {
+        const { error } = await supabase
+          .from('users')
+          .update({
+            avatar_url: editAvatar
+          })
+          .eq('id', searchId);
+        
+        if (error) throw error;
+      }
+
+      setUser(prev => ({
+        ...prev,
+        avatar: editAvatar
+      }));
+      await refreshUser();
+      setShowAvatarModal(false);
+      Alert.alert("Success", "Profile picture updated successfully");
+    } catch (e) {
+      console.error("Error updating avatar:", e);
+      Alert.alert("Error", "Failed to update profile picture");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleAddAddress = () => {
@@ -284,10 +367,21 @@ const ProfilePage: React.FC = () => {
       >
         <View style={styles.profileCard}>
           <View style={styles.profileHeader}>
-            <Image
-              source={{ uri: user.avatar }}
-              style={styles.avatar}
-            />
+            <TouchableOpacity 
+              onPress={() => {
+                setEditAvatar(user.avatar);
+                setShowAvatarModal(true);
+              }}
+              activeOpacity={0.8}
+            >
+              <Image
+                source={{ uri: user.avatar }}
+                style={styles.avatar}
+              />
+              <View style={styles.avatarEditBadge}>
+                <RemixIcon name="ri-camera-line" size={12} color="#fff" />
+              </View>
+            </TouchableOpacity>
             <View style={styles.profileInfo}>
               <Text style={styles.profileName}>{user.name}</Text>
               <Text style={styles.profileEmail}>{user.email}</Text>
@@ -305,10 +399,6 @@ const ProfilePage: React.FC = () => {
             <View style={styles.statCard}>
               <Text style={styles.statValue}>{user.totalOrders}</Text>
               <Text style={styles.statLabel}>Total Orders</Text>
-            </View>
-            <View style={[styles.statCard, styles.statCardBlue]}>
-              <Text style={[styles.statValue, styles.statValueBlue]}>{user.savedAmount}</Text>
-              <Text style={[styles.statLabel, styles.statLabelBlue]}>Money Saved</Text>
             </View>
           </View>
         </View>
@@ -434,45 +524,109 @@ const ProfilePage: React.FC = () => {
               </TouchableOpacity>
             </View>
 
-            <View style={styles.formContainer}>
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Full Name</Text>
-                <TextInput
-                  value={editName}
-                  onChangeText={setEditName}
-                  style={styles.formInput}
-                  placeholder="Enter your full name"
-                />
+            <KeyboardAvoidingView
+              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+              style={{ width: '100%' }}
+            >
+              <View style={styles.formContainer}>
+                <View style={styles.formGroup}>
+                  <Text style={styles.formLabel}>Full Name</Text>
+                  <TextInput
+                    value={editName}
+                    onChangeText={setEditName}
+                    style={styles.formInput}
+                    placeholder="Enter your full name"
+                  />
+                </View>
+                <View style={styles.formGroup}>
+                  <Text style={styles.formLabel}>Email</Text>
+                  <TextInput
+                    value={editEmail}
+                    onChangeText={setEditEmail}
+                    style={styles.formInput}
+                    placeholder="Enter your email"
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                  />
+                </View>
+                <View style={styles.formGroup}>
+                  <Text style={styles.formLabel}>Phone</Text>
+                  <TextInput
+                    value={editPhone}
+                    onChangeText={setEditPhone}
+                    style={styles.formInput}
+                    placeholder="Enter your phone number"
+                    keyboardType="phone-pad"
+                  />
+                </View>
               </View>
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Email</Text>
-                <TextInput
-                  value={editEmail}
-                  onChangeText={setEditEmail}
-                  style={styles.formInput}
-                  placeholder="Enter your email"
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                />
-              </View>
-              <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Phone</Text>
-                <TextInput
-                  value={editPhone}
-                  onChangeText={setEditPhone}
-                  style={styles.formInput}
-                  placeholder="Enter your phone number"
-                  keyboardType="phone-pad"
-                />
-              </View>
+
+              <TouchableOpacity
+                onPress={handleSaveProfile}
+                style={styles.saveButton}
+              >
+                <Text style={styles.saveButtonText}>Save Changes</Text>
+              </TouchableOpacity>
+            </KeyboardAvoidingView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Avatar Modal */}
+      <Modal
+        visible={showAvatarModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowAvatarModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Update Profile Picture</Text>
+            <Text style={styles.modalSubtitle}>Choose a suggested avatar or enter a URL</Text>
+            
+            <View style={styles.avatarPreviewContainer}>
+              <Image source={{ uri: editAvatar }} style={styles.avatarPreview} />
             </View>
 
-            <TouchableOpacity
-              onPress={handleSaveProfile}
-              style={styles.saveButton}
-            >
-              <Text style={styles.saveButtonText}>Save Changes</Text>
-            </TouchableOpacity>
+            <View style={styles.suggestedGrid}>
+              {suggestedAvatars.map((url, idx) => (
+                <TouchableOpacity 
+                  key={idx} 
+                  onPress={() => setEditAvatar(url)}
+                  style={[styles.suggestedItem, editAvatar === url && styles.suggestedItemActive]}
+                >
+                  <Image source={{ uri: url }} style={styles.suggestedImage} />
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <View style={styles.dividerRow}>
+              <View style={styles.line} />
+              <Text style={styles.dividerText}>OR URL</Text>
+              <View style={styles.line} />
+            </View>
+
+            <TextInput
+              value={editAvatar}
+              onChangeText={setEditAvatar}
+              style={styles.formInput}
+              placeholder="https://example.com/photo.jpg"
+            />
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                onPress={() => setShowAvatarModal(false)}
+                style={styles.modalCancelButton}
+              >
+                <Text style={styles.modalCancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleUpdateAvatar}
+                style={styles.modalSubmitButton}
+              >
+                <Text style={styles.modalSubmitButtonText}>Update</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -577,6 +731,30 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
+    backgroundColor: '#f3f4f6',
+  },
+  avatarEditBadge: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 20,
+    height: 20,
+    backgroundColor: '#10b981',
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: '#ffffff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarPreviewContainer: {
+    alignItems: 'center',
+    marginVertical: 20,
+  },
+  avatarPreview: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: '#f3f4f6',
   },
   profileInfo: {
     flex: 1,
@@ -885,5 +1063,88 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     color: '#ffffff',
+  },
+  modalContent: {
+    backgroundColor: '#ffffff',
+    borderRadius: 24,
+    padding: 24,
+    width: '90%',
+    maxWidth: 400,
+    alignSelf: 'center',
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: '#6b7280',
+    marginTop: 8,
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 24,
+  },
+  modalCancelButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: '#f3f4f6',
+    alignItems: 'center',
+  },
+  modalCancelButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#4b5563',
+  },
+  modalSubmitButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: '#10b981',
+    alignItems: 'center',
+  },
+  modalSubmitButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#ffffff',
+  },
+  suggestedGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+  suggestedItem: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    borderWidth: 2,
+    borderColor: 'transparent',
+    padding: 2,
+  },
+  suggestedItemActive: {
+    borderColor: '#10b981',
+  },
+  suggestedImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 28,
+  },
+  dividerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 16,
+  },
+  line: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#e5e7eb',
+  },
+  dividerText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#9ca3af',
   },
 });

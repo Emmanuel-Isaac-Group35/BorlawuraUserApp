@@ -12,7 +12,6 @@ export const BottomNavigation: React.FC = () => {
     { path: '/', icon: 'ri-home-5-line', label: 'Home' },
     { path: '/booking', icon: 'ri-calendar-check-line', label: 'Book' },
     { path: '/orders', icon: 'ri-file-list-3-line', label: 'Orders' },
-    { path: '/services', icon: 'ri-customer-service-2-line', label: 'Services' },
     { path: '/profile', icon: 'ri-user-3-line', label: 'Profile' }
   ];
 
@@ -26,7 +25,6 @@ export const BottomNavigation: React.FC = () => {
       'Home': '/',
       'Booking': '/booking',
       'Orders': '/orders',
-      'Services': '/services',
       'Profile': '/profile',
     };
     return routeMap[routeName] || '/';
@@ -98,6 +96,7 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 12,
     fontWeight: '500',
+    fontFamily: 'Montserrat-Medium',
   },
   labelActive: {
     color: '#10b981',

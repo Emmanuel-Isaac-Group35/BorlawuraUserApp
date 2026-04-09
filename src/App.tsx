@@ -20,7 +20,6 @@ import SupportChatPage from './pages/support/chat';
 import TrackOrderPage from './pages/track-order/page';
 import PaymentMethodsPage from './pages/profile/payment-methods/page';
 import NotificationsPage from './pages/profile/notifications/page';
-import ReferralPage from './pages/profile/referral/page';
 import TermsPage from './pages/profile/terms/page';
 import AboutPage from './pages/profile/about/page';
 import NotFound from './pages/NotFound';
@@ -64,7 +63,6 @@ function AppNavigator() {
             <Stack.Screen name="TrackOrder" component={TrackOrderPage} />
             <Stack.Screen name="PaymentMethods" component={PaymentMethodsPage} />
             <Stack.Screen name="Notifications" component={NotificationsPage} />
-            <Stack.Screen name="Referral" component={ReferralPage} />
             <Stack.Screen name="Terms" component={TermsPage} />
             <Stack.Screen name="About" component={AboutPage} />
             <Stack.Screen name="Chatbot" component={ChatbotPage} />

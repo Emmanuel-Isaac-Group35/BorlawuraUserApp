@@ -30,9 +30,9 @@ export const WasteTypeSelector: React.FC<WasteTypeSelectorProps> = ({
   ];
 
   const bagSizes = [
-    { id: 'small', title: 'Small Bag', description: '1-2 bags', price: '+₵0' },
-    { id: 'medium', title: 'Medium Bin', description: '3-5 bags', price: '+₵5' },
-    { id: 'large', title: 'Large Sack', description: '6+ bags', price: '+₵10' }
+    { id: 'small', title: 'Small Bag', description: '1-2 bags' },
+    { id: 'medium', title: 'Medium Bin', description: '3-5 bags' },
+    { id: 'large', title: 'Large Sack', description: '6+ bags' }
   ];
 
   const toggleWasteType = (typeId: string) => {
@@ -44,7 +44,7 @@ export const WasteTypeSelector: React.FC<WasteTypeSelectorProps> = ({
   };
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+    <View style={styles.container}>
       <Text style={styles.title}>Waste Details</Text>
       <Text style={styles.subtitle}>What type of waste do you have?</Text>
       
@@ -104,7 +104,6 @@ export const WasteTypeSelector: React.FC<WasteTypeSelectorProps> = ({
                       <Text style={styles.bagSizeTitle}>{size.title}</Text>
                       <Text style={styles.bagSizeDescription}>{size.description}</Text>
                     </View>
-                    <Text style={styles.bagSizePrice}>{size.price}</Text>
                   </View>
                 </TouchableOpacity>
               );
@@ -127,7 +126,7 @@ export const WasteTypeSelector: React.FC<WasteTypeSelectorProps> = ({
           <Text style={styles.characterCount}>{notes.length}/500 characters</Text>
         </View>
       </View>
-    </ScrollView>
+    </View>
   );
 };
 
@@ -140,11 +139,13 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#1f2937',
     marginBottom: 8,
+    fontFamily: 'Montserrat-Bold',
   },
   subtitle: {
     fontSize: 14,
     color: '#4b5563',
     marginBottom: 24,
+    fontFamily: 'Montserrat-Regular',
   },
   content: {
     gap: 24,
@@ -156,6 +157,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
     color: '#1f2937',
+    fontFamily: 'Montserrat-SemiBold',
   },
   wasteTypesList: {
     gap: 12,
@@ -197,10 +199,12 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: '#1f2937',
     marginBottom: 4,
+    fontFamily: 'Montserrat-SemiBold',
   },
   wasteTypeDescription: {
     fontSize: 14,
     color: '#6b7280',
+    fontFamily: 'Montserrat-Regular',
   },
   checkContainer: {
     width: 20,
@@ -236,15 +240,12 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: '#1f2937',
     marginBottom: 4,
+    fontFamily: 'Montserrat-SemiBold',
   },
   bagSizeDescription: {
     fontSize: 14,
     color: '#6b7280',
-  },
-  bagSizePrice: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#10b981',
+    fontFamily: 'Montserrat-Regular',
   },
   notesInput: {
     width: '100%',
@@ -256,11 +257,13 @@ const styles = StyleSheet.create({
     color: '#1f2937',
     minHeight: 80,
     textAlignVertical: 'top',
+    fontFamily: 'Montserrat-Regular',
   },
   characterCount: {
     fontSize: 12,
     color: '#6b7280',
     marginTop: 4,
     textAlign: 'right',
+    fontFamily: 'Montserrat-Regular',
   },
 });

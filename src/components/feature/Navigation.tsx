@@ -61,7 +61,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     color: '#1f2937',
-    fontFamily: 'Pacifico',
+    fontFamily: 'Montserrat-Bold',
   },
 
 });

@@ -13,7 +13,6 @@ const ServicesPage: React.FC = () => {
     id: number;
     title: string;
     description: string;
-    price: string;
     icon: string;
     category: string;
     features: string[];
@@ -22,7 +21,6 @@ const ServicesPage: React.FC = () => {
       id: 1,
       title: 'Instant Pickup',
       description: 'Get your waste collected within 30 minutes',
-      price: '₵15',
       icon: 'ri-flashlight-line',
       category: 'pickup',
       features: ['30-minute response', 'Real-time tracking', 'Professional handling']
@@ -31,7 +29,6 @@ const ServicesPage: React.FC = () => {
       id: 2,
       title: 'Scheduled Pickup',
       description: 'Plan your waste collection in advance',
-      price: '₵12',
       icon: 'ri-calendar-schedule-line',
       category: 'pickup',
       features: ['Flexible timing', 'Recurring options', 'Cost effective']
@@ -40,7 +37,6 @@ const ServicesPage: React.FC = () => {
       id: 5,
       title: 'Bulk Collection',
       description: 'Large volume waste collection service',
-      price: '₵25',
       icon: 'ri-truck-line',
       category: 'bulk',
       features: ['Large capacity', 'Multiple bags', 'Special handling']
@@ -119,7 +115,6 @@ const ServicesPage: React.FC = () => {
                 <View style={styles.serviceInfo}>
                   <View style={styles.serviceTitleRow}>
                     <Text style={styles.serviceTitle}>{service.title}</Text>
-                    <Text style={styles.servicePrice}>{service.price}</Text>
                   </View>
                   
                   <Text style={styles.serviceDescription}>{service.description}</Text>

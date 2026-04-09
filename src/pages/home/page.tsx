@@ -5,7 +5,6 @@ import { Navigation } from '../../components/feature/Navigation';
 import { BottomNavigation } from '../../components/feature/BottomNavigation';
 import { ChatFloatingButton } from '../../components/feature/ChatFloatingButton';
 import { NewsSlider } from './components/NewsSlider';
-import { ServiceCategories } from './components/ServiceCategories';
 import { QuickActions } from './components/QuickActions';
 import { RecentOrders } from './components/RecentOrders';
 
@@ -38,7 +37,6 @@ export function HomePage() {
         }
       >
         <NewsSlider />
-        <ServiceCategories />
         <QuickActions />
         <RecentOrders />
       </ScrollView>

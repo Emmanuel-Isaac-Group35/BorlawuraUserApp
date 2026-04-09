@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Modal, TouchableOpacity, Alert, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Modal, TouchableOpacity, Alert, Image, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Navigation } from '../../components/feature/Navigation';
 import { BottomNavigation } from '../../components/feature/BottomNavigation';
 import { LocationSelector } from './components/LocationSelector';
 import { ServiceSelector } from './components/ServiceSelector';
 import { WasteTypeSelector } from './components/WasteTypeSelector';
+import { RiderSelector } from './components/RiderSelector';
 import { PricingSummary } from './components/PricingSummary';
 import { FindingRider } from './components/FindingRider';
 import { Button } from '../../components/base/Button';
@@ -27,7 +28,8 @@ const BookingPage: React.FC = () => {
     wasteTypes: [] as string[],
     bagSize: '',
     scheduledTime: '',
-    notes: ''
+    notes: '',
+    riderId: null as string | null
   });
 
   const [completedOrder, setCompletedOrder] = useState<any>(null);
@@ -42,7 +44,7 @@ const BookingPage: React.FC = () => {
   };
 
   const nextStep = () => {
-    if (step < 4) setStep(step + 1);
+    if (step < 5) setStep(step + 1);
   };
 
   const prevStep = () => {
@@ -52,12 +54,6 @@ const BookingPage: React.FC = () => {
   const { user } = useAuth();
   
   const handleBooking = async () => {
-    // Calculate price based on the same logic as PricingSummary
-    const basePrice = bookingData.serviceType === 'instant' ? 15 : 12;
-    const sizePrice = bookingData.bagSize === 'medium' ? 5 : (bookingData.bagSize === 'large' ? 10 : 0);
-    const serviceFee = 2;
-    const finalPrice = basePrice + sizePrice + serviceFee;
-
     const newOrder = {
       id: `BWS-${Date.now().toString().slice(-6)}`,
       service: bookingData.serviceType === 'instant' ? 'Instant Pickup' : 'Scheduled Pickup',
@@ -65,9 +61,7 @@ const BookingPage: React.FC = () => {
       time: bookingData.scheduledTime || new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
       address: bookingData.location,
       wasteType: bookingData.wasteTypes.join(', '),
-      bagSize: bookingData.bagSize,
-      amount: `₵${finalPrice.toFixed(2)}`,
-      paymentMethod: 'Mobile Money'
+      bagSize: bookingData.bagSize
     };
 
     try {
@@ -113,8 +107,8 @@ const BookingPage: React.FC = () => {
           waste_size: bookingData.bagSize,
           notes: `${bookingData.notes || ''} [Phone: ${user?.phone_number || user?.phoneNumber || ''}]`.trim(),
           status: 'pending',
-          amount: finalPrice,
-          scheduled_at: bookingData.scheduledTime ? new Date().toISOString() : null
+          scheduled_at: bookingData.scheduledTime ? new Date().toISOString() : null,
+          rider_id: bookingData.riderId
         }]).select('id').single();
         
         if (error || !insertedOrderData) {
@@ -150,7 +144,8 @@ const BookingPage: React.FC = () => {
       wasteTypes: [],
       bagSize: '',
       scheduledTime: '',
-      notes: ''
+      notes: '',
+      riderId: null
     });
   };
 
@@ -173,6 +168,7 @@ const BookingPage: React.FC = () => {
           userLat={bookingData.latitude}
           userLng={bookingData.longitude}
           orderId={completedOrder?.id}
+          selectedRiderId={bookingData.riderId}
           onRiderFound={handleRiderFound}
           onCancel={handleCancelSearching}
         />
@@ -193,10 +189,10 @@ const BookingPage: React.FC = () => {
           <View style={styles.receiptContainer}>
             <View style={styles.successContainer}>
               <View style={styles.successIcon}>
-                <RemixIcon name="ri-check-line" size={32} color="#10b981" />
+                <RemixIcon name="ri-calendar-check-line" size={32} color="#10b981" />
               </View>
-              <Text style={styles.successTitle}>Payment Successful!</Text>
-              <Text style={styles.successSubtitle}>Your waste collection has been scheduled</Text>
+              <Text style={styles.successTitle}>Booking Confirmed!</Text>
+              <Text style={styles.successSubtitle}>Your waste collection has been successfully scheduled</Text>
             </View>
 
             <View style={styles.receiptCard}>
@@ -245,10 +241,9 @@ const BookingPage: React.FC = () => {
                     </View>
                   </View>
                 )}
-                <View style={styles.receiptDivider} />
-                <View style={styles.receiptRow}>
-                  <Text style={styles.receiptTotalLabel}>Total Paid:</Text>
-                  <Text style={styles.receiptTotalValue}>₵25.00</Text>
+                <View style={[styles.receiptRow, { justifyContent: 'center' }]}>
+                  <Text style={styles.receiptLabel}>Status: </Text>
+                  <Text style={[styles.receiptValue, { color: '#10b981', textAlign: 'left', flex: 0 }]}>Confirmed</Text>
                 </View>
               </View>
 
@@ -298,21 +293,25 @@ const BookingPage: React.FC = () => {
   return (
     <SafeAreaView style={styles.container}>
       <Navigation />
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
+      <KeyboardAvoidingView 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1 }}
       >
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+        >
         <View style={styles.progressContainer}>
           <View style={styles.progressHeader}>
-            <Text style={styles.progressText}>Step {step} of 4</Text>
-            <Text style={styles.progressPercent}>{Math.round((step / 4) * 100)}%</Text>
+            <Text style={styles.progressText}>Step {step} of 5</Text>
+            <Text style={styles.progressPercent}>{Math.round((step / 5) * 100)}%</Text>
           </View>
           <View style={styles.progressBar}>
             <View
               style={[
                 styles.progressFill,
-                { width: `${(step / 4) * 100}%` }
+                { width: `${(step / 5) * 100}%` }
               ]}
             />
           </View>
@@ -361,6 +360,13 @@ const BookingPage: React.FC = () => {
           )}
 
           {step === 4 && (
+            <RiderSelector
+              selectedRiderId={bookingData.riderId}
+              onSelect={(id) => updateBookingData('riderId', id)}
+            />
+          )}
+
+          {step === 5 && (
             <PricingSummary
               bookingData={bookingData}
             />
@@ -381,7 +387,7 @@ const BookingPage: React.FC = () => {
             </Button>
           )}
 
-          {step < 4 ? (
+          {step < 5 ? (
             <Button
               variant="primary"
               onPress={nextStep}
@@ -389,7 +395,8 @@ const BookingPage: React.FC = () => {
               disabled={
                 (step === 1 && !bookingData.location) ||
                 (step === 2 && !bookingData.serviceType) ||
-                (step === 3 && bookingData.wasteTypes.length === 0)
+                (step === 3 && bookingData.wasteTypes.length === 0) ||
+                (step === 4 && !bookingData.riderId)
               }
             >
               <View style={styles.buttonContent}>
@@ -405,12 +412,13 @@ const BookingPage: React.FC = () => {
             >
               <View style={styles.buttonContent}>
                 <RemixIcon name="ri-check-line" size={18} color="#fff" />
-                <Text style={styles.buttonText}>Confirm & Pay</Text>
+                <Text style={styles.buttonText}>Confirm Booking</Text>
               </View>
             </Button>
           )}
         </View>
       </ScrollView>
+      </KeyboardAvoidingView>
       <BottomNavigation />
     </SafeAreaView>
   );
@@ -444,10 +452,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     color: '#4b5563',
+    fontFamily: 'Montserrat-Medium',
   },
   progressPercent: {
     fontSize: 14,
     color: '#6b7280',
+    fontFamily: 'Montserrat-Regular',
   },
   progressBar: {
     width: '100%',
@@ -464,8 +474,8 @@ const styles = StyleSheet.create({
   stepCard: {
     backgroundColor: '#ffffff',
     borderRadius: 16,
-    padding: 24,
-    marginBottom: 24,
+    padding: 16,
+    marginBottom: 20,
     borderWidth: 1,
     borderColor: '#f3f4f6',
     shadowColor: '#000',
@@ -490,6 +500,7 @@ const styles = StyleSheet.create({
   buttonText: {
     color: '#ffffff',
     fontWeight: '500',
+    fontFamily: 'Montserrat-SemiBold',
   },
   buttonTextOutline: {
     color: '#10b981',
@@ -579,9 +590,7 @@ const styles = StyleSheet.create({
     color: '#1f2937',
   },
   receiptTotalValue: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#10b981',
+    display: 'none',
   },
   infoCard: {
     flexDirection: 'row',
@@ -650,5 +659,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#10b981',
     fontWeight: '600',
+  },
+  paymentMethodLabel: {
+    fontSize: 12,
+    color: '#6b7280',
+    textAlign: 'right',
+    marginTop: 4,
+    fontStyle: 'italic',
   },
 });

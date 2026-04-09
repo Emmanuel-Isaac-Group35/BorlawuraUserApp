@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Image, Animated, Dimensions, Alert } from 'react-native';
+import { View, Text, StyleSheet, Image, Animated, useWindowDimensions, Alert } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { RemixIcon } from '../../../utils/icons';
 import { Button } from '../../../components/base/Button';
 import { supabase } from '../../../lib/supabase';
 
-const { width, height } = Dimensions.get('window');
+
 
 const getMapHtml = (userLat: number, userLng: number, riders: any[]) => `
 <!DOCTYPE html>
@@ -106,36 +106,60 @@ interface FindingRiderProps {
   userLat: number | null;
   userLng: number | null;
   orderId?: string;
+  selectedRiderId?: string | null;
   onRiderFound: (rider: Rider) => void;
   onCancel: () => void;
 }
 
-export const FindingRider: React.FC<FindingRiderProps> = ({ userLat, userLng, orderId, onRiderFound, onCancel }) => {
-  const [status, setStatus] = useState<'searching' | 'connecting' | 'found'>('searching');
+export const FindingRider: React.FC<FindingRiderProps> = ({ userLat, userLng, orderId, selectedRiderId, onRiderFound, onCancel }) => {
+  const { width, height } = useWindowDimensions();
+  const [status, setStatus] = useState<'searching' | 'connecting' | 'found'>(selectedRiderId ? 'connecting' : 'searching');
   const [localRider, setLocalRider] = useState<Rider | null>(null);
   const [pulseAnim] = useState(new Animated.Value(1));
   const [searchAttempt, setSearchAttempt] = useState(0);
+  const [targetRider, setTargetRider] = useState<any>(null);
   
   // Use provided coordinates or fallback to Accra center
   const lat = userLat || 5.6037;
   const lng = userLng || -0.1870;
   
-  // Mock online riders generated relative to user location
-  const initialRiders = [
-    { id: '1', lat: lat + 0.005, lng: lng + 0.005 },
-    { id: '2', lat: lat - 0.005, lng: lng - 0.005 },
-    { id: '3', lat: lat + 0.008, lng: lng - 0.004 },
-    { id: '4', lat: lat - 0.003, lng: lng + 0.007 },
-  ];
+  const [onlineRiders, setOnlineRiders] = useState<{id: string, lat: number, lng: number}[]>([]);
+
+  useEffect(() => {
+    const fetchOnlineRidersForMap = async () => {
+      if (selectedRiderId) return;
+      
+      const { data } = await supabase
+        .from('riders')
+        .select('id, latitude, longitude')
+        .eq('status', 'active')
+        .eq('is_online', true)
+        .limit(10);
+        
+      if (data && data.length > 0) {
+        setOnlineRiders(data.map((r, i) => ({
+          id: r.id,
+          // Fallback slightly around user if rider has no strict GPS
+          lat: r.latitude || lat + (Math.random() - 0.5) * 0.02,
+          lng: r.longitude || lng + (Math.random() - 0.5) * 0.02
+        })));
+      }
+    };
+    
+    fetchOnlineRidersForMap();
+  }, [selectedRiderId, lat, lng]);
 
   useEffect(() => {
     let timeoutId: NodeJS.Timeout;
 
-    if (status === 'searching') {
+    if (status === 'searching' || status === 'connecting') {
+      const waitTime = selectedRiderId ? 60 * 1000 : 3 * 60 * 1000;
       timeoutId = setTimeout(() => {
         Alert.alert(
-          'No Riders Available',
-          'All riders are currently busy or not available at the moment. Would you like to cancel or keep searching?',
+          selectedRiderId ? 'Rider Not Responding' : 'No Riders Available',
+          selectedRiderId 
+            ? 'Your selected rider is not responding. Would you like to keep waiting or cancel?' 
+            : 'All riders are currently busy or not available at the moment. Would you like to cancel or keep searching?',
           [
             { 
               text: 'Cancel', 
@@ -143,12 +167,12 @@ export const FindingRider: React.FC<FindingRiderProps> = ({ userLat, userLng, or
               style: 'cancel' 
             },
             { 
-              text: 'Search Again', 
+              text: selectedRiderId ? 'Keep Waiting' : 'Search Again', 
               onPress: () => setSearchAttempt(prev => prev + 1)
             }
           ]
         );
-      }, 3 * 60 * 1000); // 3 minutes
+      }, waitTime);
     }
 
     return () => {
@@ -156,7 +180,7 @@ export const FindingRider: React.FC<FindingRiderProps> = ({ userLat, userLng, or
         clearTimeout(timeoutId);
       }
     };
-  }, [status, searchAttempt, onCancel]);
+  }, [status, searchAttempt, onCancel, selectedRiderId]);
 
   useEffect(() => {
     Animated.loop(
@@ -174,10 +198,61 @@ export const FindingRider: React.FC<FindingRiderProps> = ({ userLat, userLng, or
       ])
     ).start();
 
+    const fetchTargetRider = async () => {
+      if (selectedRiderId) {
+        const { data } = await supabase
+          .from('riders')
+          .select('*')
+          .eq('id', selectedRiderId)
+          .single();
+        if (data) setTargetRider(data);
+      }
+    };
+
+    const checkInitialRider = async () => {
+      const { data: orderData, error: orderError } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('id', orderId)
+        .single();
+      
+      if (!orderError && orderData && (orderData.status === 'accepted' || orderData.rider_id)) {
+        // Fetch rider info separately
+        const { data: riderData } = await supabase
+          .from('riders')
+          .select('*')
+          .eq('id', orderData.rider_id)
+          .single();
+        const riderPhone = riderData?.phone_number || riderData?.phone || '+233 24 000 0000';
+        const riderName = riderData?.full_name || (riderData?.first_name ? `${riderData.first_name} ${riderData.last_name || ''}`.trim() : 'Your Rider');
+        const riderPhoto = riderData?.avatar_url || 'https://readdy.ai/api/search-image?query=Professional%20African%20male%20waste%20collection%20worker&width=100&height=100&seq=rider_found';
+
+        const rating = riderData?.rating ? parseFloat(riderData.rating) : 5.0;
+
+        const realRider: Rider = {
+          id: orderData.rider_id || 'RDR-001',
+          name: riderName,
+          rating: rating,
+          phone: riderPhone,
+          photo: riderPhoto,
+          distance: 'Ready for pickup',
+          lat: riderData?.latitude || lat + 0.002,
+          lng: riderData?.longitude || lng + 0.002
+        };
+
+        setLocalRider(realRider);
+        setStatus('found');
+        setTimeout(() => onRiderFound(realRider), 1500);
+      }
+    };
+
     if (!orderId) {
       console.warn("FindingRider: No orderId provided, cannot listen for rider changes.");
       return;
     }
+
+    fetchTargetRider();
+    checkInitialRider();
 
     const channel = supabase
       .channel(`order-${orderId}`)
@@ -242,7 +317,7 @@ export const FindingRider: React.FC<FindingRiderProps> = ({ userLat, userLng, or
     <View style={styles.container}>
       <View style={styles.mapContainer}>
         <WebView
-          source={{ html: getMapHtml(lat, lng, initialRiders) }}
+          source={{ html: getMapHtml(lat, lng, onlineRiders) }}
           style={styles.map}
           scrollEnabled={false}
         />
@@ -251,7 +326,7 @@ export const FindingRider: React.FC<FindingRiderProps> = ({ userLat, userLng, or
             <View style={styles.pulseDot} />
             <Text style={styles.statusText}>
               {status === 'searching' ? 'Searching for riders...' : 
-               status === 'connecting' ? 'Connecting to rider...' : 
+               status === 'connecting' ? (selectedRiderId ? `Notifying ${targetRider?.full_name || 'rider'}...` : 'Connecting to rider...') : 
                'Rider found!'}
             </Text>
           </View>
@@ -264,9 +339,11 @@ export const FindingRider: React.FC<FindingRiderProps> = ({ userLat, userLng, or
             <Animated.View style={[styles.searchingIcon, { transform: [{ scale: pulseAnim }] }]}>
               <RemixIcon name="ri-radar-line" size={40} color="#10b981" />
             </Animated.View>
-            <Text style={styles.title}>Finding Your Rider</Text>
+            <Text style={styles.title}>{selectedRiderId ? 'Requesting Rider' : 'Finding Your Rider'}</Text>
             <Text style={styles.subtitle}>
-              Connecting you with the nearest Borla Wura rider for quick pickup
+              {selectedRiderId 
+                ? `Sending your pickup request to ${targetRider?.full_name || 'the selected rider'}. Please wait for a response.`
+                : 'Connecting you with the nearest Borla Wura rider for quick pickup'}
             </Text>
             <View style={styles.tipCard}>
               <RemixIcon name="ri-lightbulb-line" size={18} color="#065f46" />

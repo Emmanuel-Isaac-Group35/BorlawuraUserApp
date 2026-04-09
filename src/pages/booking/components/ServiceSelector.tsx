@@ -35,7 +35,6 @@ export const ServiceSelector: React.FC<ServiceSelectorProps> = ({ value, onChang
       title: 'Instant Pickup',
       description: 'Get your waste collected within 30 minutes',
       icon: 'ri-flashlight-line',
-      price: '₵15',
       badge: 'Fast'
     },
     {
@@ -43,8 +42,7 @@ export const ServiceSelector: React.FC<ServiceSelectorProps> = ({ value, onChang
       title: 'Scheduled Pickup',
       description: 'Choose your preferred date and time',
       icon: 'ri-calendar-line',
-      price: '₵12',
-      badge: 'Save'
+      badge: 'Standard'
     }
   ];
 
@@ -81,7 +79,7 @@ export const ServiceSelector: React.FC<ServiceSelectorProps> = ({ value, onChang
   };
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+    <View style={styles.container}>
       <Text style={styles.title}>Service Type</Text>
       <Text style={styles.subtitle}>When do you need your waste collected?</Text>
       
@@ -111,7 +109,6 @@ export const ServiceSelector: React.FC<ServiceSelectorProps> = ({ value, onChang
                   <Text style={styles.serviceDescription}>{service.description}</Text>
                 </View>
               </View>
-              <Text style={styles.servicePrice}>{service.price}</Text>
             </View>
           </TouchableOpacity>
         ))}
@@ -220,7 +217,7 @@ export const ServiceSelector: React.FC<ServiceSelectorProps> = ({ value, onChang
           </TouchableOpacity>
         </Modal>
       </View>
-    </ScrollView>
+    </View>
   );
 };
 
@@ -233,11 +230,13 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#1f2937',
     marginBottom: 8,
+    fontFamily: 'Montserrat-Bold',
   },
   subtitle: {
     fontSize: 14,
     color: '#4b5563',
     marginBottom: 24,
+    fontFamily: 'Montserrat-Regular',
   },
   content: {
     gap: 16,
@@ -286,6 +285,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
     color: '#1f2937',
+    fontFamily: 'Montserrat-SemiBold',
   },
   badge: {
     paddingHorizontal: 8,
@@ -297,15 +297,18 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '600',
     color: '#065f46',
+    fontFamily: 'Montserrat-Bold',
   },
   serviceDescription: {
     fontSize: 14,
     color: '#6b7280',
+    fontFamily: 'Montserrat-Regular',
   },
   servicePrice: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#10b981',
+    fontFamily: 'Montserrat-Bold',
   },
   scheduleSection: {
     marginTop: 24,
@@ -318,6 +321,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
     color: '#1f2937',
+    fontFamily: 'Montserrat-Bold',
   },
   dateTimeContainer: {
     gap: 16,
@@ -329,6 +333,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     color: '#374151',
+    fontFamily: 'Montserrat-Medium',
   },
   dateInput: {
     flexDirection: 'row',
@@ -343,6 +348,7 @@ const styles = StyleSheet.create({
   dateInputText: {
     fontSize: 14,
     color: '#1f2937',
+    fontFamily: 'Montserrat-Medium',
   },
   timeSlotsContainer: {
     gap: 8,
@@ -364,6 +370,7 @@ const styles = StyleSheet.create({
   timeSlotText: {
     fontSize: 14,
     color: '#374151',
+    fontFamily: 'Montserrat-Medium',
   },
   timeSlotTextActive: {
     color: '#065f46',
@@ -394,6 +401,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     color: '#1f2937',
+    fontFamily: 'Montserrat-Bold',
   },
   closeButton: {
     padding: 4,
@@ -442,6 +450,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#374151',
     fontWeight: '500',
+    fontFamily: 'Montserrat-Medium',
   },
   dateOptionTextActive: {
     color: '#065f46',
@@ -454,5 +463,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 12,
+    fontFamily: 'Montserrat-Bold',
   },
 });

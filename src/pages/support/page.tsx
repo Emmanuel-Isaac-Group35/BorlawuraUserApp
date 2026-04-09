@@ -24,7 +24,7 @@ const SupportPage: React.FC = () => {
     {
       id: 3,
       question: 'How is pricing calculated?',
-      answer: 'Pricing is based on service type (Instant vs Scheduled), bag size, and waste category. Instant Pickup starts at ₵15, while Scheduled Pickup starts at ₵12. Bulk collection has special rates.',
+      answer: 'Pricing is based on service type (Instant vs Scheduled), bag size, and waste category. Detailed service descriptions are available in the Services section.',
     },
     {
       id: 4,

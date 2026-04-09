@@ -133,7 +133,6 @@ const TrackOrderPage: React.FC = () => {
           latitude: orderData.pickup_latitude,
           longitude: orderData.pickup_longitude,
           rider: riderObj,
-          amount: '₵' + (typeof orderData.amount === 'number' ? orderData.amount.toFixed(2) : (orderData.amount || '0.00')),
           wasteType: orderData.waste_type || 'General Household',
           bagSize: (orderData.waste_size || 'Standard').charAt(0).toUpperCase() + (orderData.waste_size || 'Standard').slice(1),
           estimatedArrival: riderObj ? '12 mins' : 'Calculating...',
@@ -167,15 +166,37 @@ const TrackOrderPage: React.FC = () => {
           console.log('Order status update received:', payload);
           const { data: orderData, error } = await supabase
             .from('orders')
-            .select('*, riders(*)')
+            .select('*')
             .eq('id', orderId)
             .single();
           
           if (!error && orderData) {
+            let riderObj = order?.rider;
+            if (orderData.rider_id && (!riderObj || orderData.rider_id !== order?.rider_id)) {
+              const { data: riderData } = await supabase
+                .from('riders')
+                .select('*')
+                .eq('id', orderData.rider_id)
+                .single();
+              
+              if (riderData) {
+                riderObj = {
+                  name: riderData.full_name || (riderData.first_name ? `${riderData.first_name} ${riderData.last_name || ''}`.trim() : 'Your Rider'),
+                  phone: riderData.phone_number || riderData.phone || '+233 24 000 0000',
+                  rating: riderData.rating ? parseFloat(riderData.rating) : 4.8,
+                  vehicle: riderData.vehicle_info || 'Tricycle',
+                  photo: riderData.avatar_url || 'https://readdy.ai/api/search-image?query=Professional%20African%20male%20waste%20collection%20worker&width=100&height=100&seq=rider_found',
+                  lat: riderData.latitude,
+                  lng: riderData.longitude
+                };
+              }
+            }
+
             setOrder((prev: any) => ({
               ...prev,
               status: orderData.status,
               rider_id: orderData.rider_id,
+              rider: riderObj,
               currentLocation: orderData.status === 'in_progress' ? 'Rider approaching' : prev?.currentLocation
             }));
           }
@@ -533,11 +554,6 @@ const TrackOrderPage: React.FC = () => {
             <View style={styles.orderDetailRow}>
               <Text style={styles.orderDetailLabel}>Pickup Address</Text>
               <Text style={[styles.orderDetailValue, styles.orderDetailValueRight]}>{order.address}</Text>
-            </View>
-            <View style={styles.orderDetailDivider} />
-            <View style={styles.orderDetailRow}>
-              <Text style={styles.orderTotalLabel}>Total Amount</Text>
-              <Text style={styles.orderTotalValue}>{order.amount}</Text>
             </View>
           </View>
         </View>

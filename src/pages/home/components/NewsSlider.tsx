@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Image, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
+import { View, Text, Image, StyleSheet, ScrollView, TouchableOpacity, useWindowDimensions } from 'react-native';
 import { Button } from '../../../components/base/Button';
 import { RemixIcon } from '../../../utils/icons';
 import { navigateTo } from '../../../utils/navigation';
@@ -17,7 +17,8 @@ interface NewsItem {
 
 export const NewsSlider: React.FC = () => {
   const [currentSlide, setCurrentSlide] = useState(0);
-  const { width } = Dimensions.get('window');
+  const { width: windowWidth } = useWindowDimensions();
+  const slideWidth = windowWidth - 32; // Account for 16px padding on each side of the container
 
   const handleBookingClick = () => {
     navigateTo('/booking');
@@ -27,7 +28,7 @@ export const NewsSlider: React.FC = () => {
     {
       id: 2,
       title: "Service Update",
-      content: "New pickup zones added in East Legon and Cantonments. Book your instant pickup now with 25-minute guarantee!",
+      content: "New pickup zones added in local neighborhoods. Book your instant pickup now with quick guarantee!",
       category: 'news',
       icon: 'ri-map-pin-line',
       bgColor: '#eff6ff',
@@ -120,14 +121,14 @@ export const NewsSlider: React.FC = () => {
           pagingEnabled
           showsHorizontalScrollIndicator={false}
           onMomentumScrollEnd={(e) => {
-            const index = Math.round(e.nativeEvent.contentOffset.x / width);
+            const index = Math.round(e.nativeEvent.contentOffset.x / slideWidth);
             setCurrentSlide(index);
           }}
           style={styles.slider}
-          contentOffset={{ x: currentSlide * width, y: 0 }}
+          contentOffset={{ x: currentSlide * slideWidth, y: 0 }}
         >
           {newsItems.map((item) => (
-            <View key={item.id} style={[styles.slide, { width, backgroundColor: item.bgColor }]}>
+            <View key={item.id} style={[styles.slide, { width: slideWidth, backgroundColor: item.bgColor }]}>
               <View style={styles.imageContainer}>
                 <Image source={{ uri: item.image }} style={styles.image} resizeMode="cover" />
                 <View style={styles.badgeContainer}>
