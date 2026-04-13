@@ -15,6 +15,7 @@ import { generateReceipt } from '../../utils/receiptGenerator';
 import { navigateTo } from '../../utils/navigation';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
+import { typography } from '../../utils/typography';
 
 const BookingPage: React.FC = () => {
   const [step, setStep] = useState(1);
@@ -185,6 +186,7 @@ const BookingPage: React.FC = () => {
           style={styles.scrollView}
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
           <View style={styles.receiptContainer}>
             <View style={styles.successContainer}>
@@ -301,6 +303,7 @@ const BookingPage: React.FC = () => {
           style={styles.scrollView}
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
         <View style={styles.progressContainer}>
           <View style={styles.progressHeader}>
@@ -450,14 +453,13 @@ const styles = StyleSheet.create({
   },
   progressText: {
     fontSize: 14,
-    fontWeight: '500',
+    fontFamily: typography.medium,
     color: '#4b5563',
-    fontFamily: 'Montserrat-Medium',
   },
   progressPercent: {
     fontSize: 14,
     color: '#6b7280',
-    fontFamily: 'Montserrat-Regular',
+    fontFamily: typography.regular,
   },
   progressBar: {
     width: '100%',
@@ -499,8 +501,7 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     color: '#ffffff',
-    fontWeight: '500',
-    fontFamily: 'Montserrat-SemiBold',
+    fontFamily: typography.semiBold,
   },
   buttonTextOutline: {
     color: '#10b981',
@@ -525,12 +526,13 @@ const styles = StyleSheet.create({
   },
   successTitle: {
     fontSize: 20,
-    fontWeight: '600',
+    fontFamily: typography.semiBold,
     color: '#1f2937',
     marginBottom: 8,
   },
   successSubtitle: {
     fontSize: 14,
+    fontFamily: typography.regular,
     color: '#4b5563',
   },
   receiptCard: {
@@ -552,12 +554,13 @@ const styles = StyleSheet.create({
   },
   receiptTitle: {
     fontSize: 18,
-    fontWeight: '600',
+    fontFamily: typography.semiBold,
     color: '#1f2937',
     marginBottom: 8,
   },
   receiptNumber: {
     fontSize: 14,
+    fontFamily: typography.regular,
     color: '#6b7280',
   },
   receiptDetails: {
@@ -570,11 +573,12 @@ const styles = StyleSheet.create({
   },
   receiptLabel: {
     fontSize: 14,
+    fontFamily: typography.regular,
     color: '#4b5563',
   },
   receiptValue: {
     fontSize: 14,
-    fontWeight: '500',
+    fontFamily: typography.medium,
     color: '#1f2937',
     flex: 1,
     textAlign: 'right',
@@ -586,7 +590,7 @@ const styles = StyleSheet.create({
   },
   receiptTotalLabel: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontFamily: typography.bold,
     color: '#1f2937',
   },
   receiptTotalValue: {
@@ -605,12 +609,13 @@ const styles = StyleSheet.create({
   },
   infoTitle: {
     fontSize: 14,
-    fontWeight: '600',
+    fontFamily: typography.semiBold,
     color: '#065f46',
     marginBottom: 4,
   },
   infoText: {
     fontSize: 14,
+    fontFamily: typography.regular,
     color: '#047857',
     lineHeight: 20,
   },
@@ -622,7 +627,7 @@ const styles = StyleSheet.create({
   },
   riderSummaryTitle: {
     fontSize: 14,
-    fontWeight: '600',
+    fontFamily: typography.semiBold,
     color: '#1f2937',
     marginBottom: 12,
   },
@@ -641,13 +646,13 @@ const styles = StyleSheet.create({
   },
   riderSummaryName: {
     fontSize: 14,
-    fontWeight: '600',
+    fontFamily: typography.semiBold,
     color: '#1f2937',
   },
   riderSummaryStatus: {
     fontSize: 12,
+    fontFamily: typography.medium,
     color: '#10b981',
-    fontWeight: '500',
   },
   trackBtn: {
     paddingHorizontal: 12,
@@ -657,11 +662,12 @@ const styles = StyleSheet.create({
   },
   trackBtnText: {
     fontSize: 12,
+    fontFamily: typography.semiBold,
     color: '#10b981',
-    fontWeight: '600',
   },
   paymentMethodLabel: {
     fontSize: 12,
+    fontFamily: typography.regular,
     color: '#6b7280',
     textAlign: 'right',
     marginTop: 4,

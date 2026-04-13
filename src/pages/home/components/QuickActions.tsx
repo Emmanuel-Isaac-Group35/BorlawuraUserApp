@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Animated, Pressable } from 'react-native';
 import { RemixIcon } from '../../../utils/icons';
 import { navigateTo } from '../../../utils/navigation';
 
@@ -44,24 +44,47 @@ export const QuickActions: React.FC = () => {
     <View style={styles.container}>
       <Text style={styles.title}>Quick Actions</Text>
       <View style={styles.grid}>
-        {actions.map((action, index) => (
-          <TouchableOpacity
-            key={index}
-            onPress={() => handleActionClick(action.path)}
-            style={styles.actionCard}
-            activeOpacity={0.8}
-          >
-            <View style={styles.actionContent}>
-              <View style={[styles.iconContainer, { backgroundColor: action.color }]}>
-                <RemixIcon name={action.icon} size={24} color="#fff" />
+        {actions.map((action, index) => {
+          const scale = new Animated.Value(1);
+          const handlePressIn = () => {
+            Animated.spring(scale, {
+              toValue: 0.97,
+              useNativeDriver: true,
+              speed: 30,
+              bounciness: 8,
+            }).start();
+          };
+          const handlePressOut = () => {
+            Animated.spring(scale, {
+              toValue: 1,
+              useNativeDriver: true,
+              speed: 30,
+              bounciness: 8,
+            }).start();
+          };
+          return (
+            <Pressable
+              key={index}
+              onPress={() => handleActionClick(action.path)}
+              onPressIn={handlePressIn}
+              onPressOut={handlePressOut}
+              style={({ pressed }) => [
+                styles.actionCard,
+                pressed && { transform: [{ scale: 0.97 }], opacity: 0.96 },
+              ]}
+            >
+              <View style={styles.actionContent}>
+                <View style={[styles.iconContainer, { backgroundColor: action.color, shadowColor: action.color }]}> 
+                  <RemixIcon name={action.icon} size={28} color="#fff" />
+                </View>
+                <View style={styles.textContainer}>
+                  <Text style={styles.actionTitle}>{action.title}</Text>
+                  <Text style={styles.actionSubtitle}>{action.subtitle}</Text>
+                </View>
               </View>
-              <View style={styles.textContainer}>
-                <Text style={styles.actionTitle}>{action.title}</Text>
-                <Text style={styles.actionSubtitle}>{action.subtitle}</Text>
-              </View>
-            </View>
-          </TouchableOpacity>
-        ))}
+            </Pressable>
+          );
+        })}
       </View>
     </View>
   );
@@ -81,21 +104,27 @@ const styles = StyleSheet.create({
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
-    paddingHorizontal: 16,
+    justifyContent: 'space-between',
+    gap: 14,
+    paddingHorizontal: 10,
   },
   actionCard: {
-    width: '47%',
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#f3f4f6',
+    width: '48%',
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    paddingVertical: 22,
+    paddingHorizontal: 14,
+    borderWidth: 0,
+    marginBottom: 10,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.10,
+    shadowRadius: 12,
+    elevation: 6,
+    minHeight: 90,
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+    transition: 'all 0.15s',
   },
   actionContent: {
     flexDirection: 'row',
@@ -103,23 +132,31 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   iconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
+    width: 54,
+    height: 54,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
+    marginRight: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
+    elevation: 8,
   },
   textContainer: {
     flex: 1,
   },
   actionTitle: {
-    fontSize: 14,
-    fontWeight: '500',
+    fontSize: 15,
+    fontWeight: '600',
     color: '#1f2937',
-    marginBottom: 4,
+    marginBottom: 2,
+    fontFamily: 'Montserrat-SemiBold',
   },
   actionSubtitle: {
     fontSize: 12,
     color: '#6b7280',
+    fontFamily: 'Montserrat-Regular',
   },
 });

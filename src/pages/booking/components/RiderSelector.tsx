@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, FlatList, ActivityIndicator } from 'react-native';
 import { RemixIcon } from '../../../utils/icons';
 import { supabase } from '../../../lib/supabase';
+import { typography } from '../../../utils/typography';
 
 interface Rider {
   id: string;
@@ -80,6 +81,7 @@ export const RiderSelector: React.FC<RiderSelectorProps> = ({ selectedRiderId, o
 
   const renderRider = ({ item }: { item: Rider }) => (
     <TouchableOpacity
+      key={item.id}
       style={[
         styles.riderCard,
         selectedRiderId === item.id && styles.riderCardSelected
@@ -142,12 +144,13 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 20,
-    fontWeight: 'bold',
+    fontFamily: typography.bold,
     color: '#1f2937',
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 14,
+    fontFamily: typography.regular,
     color: '#4b5563',
     marginBottom: 24,
   },
@@ -156,6 +159,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 14,
+    fontFamily: typography.regular,
     color: '#6b7280',
     textAlign: 'center',
     marginTop: 20,
@@ -205,7 +209,7 @@ const styles = StyleSheet.create({
   },
   name: {
     fontSize: 16,
-    fontWeight: '600',
+    fontFamily: typography.semiBold,
     color: '#1f2937',
     marginBottom: 4,
   },
@@ -216,8 +220,8 @@ const styles = StyleSheet.create({
   },
   rating: {
     fontSize: 14,
+    fontFamily: typography.medium,
     color: '#4b5563',
-    fontWeight: '500',
   },
   dot: {
     width: 3,
@@ -228,6 +232,7 @@ const styles = StyleSheet.create({
   },
   distance: {
     fontSize: 14,
+    fontFamily: typography.regular,
     color: '#6b7280',
   },
   selectionCircle: {
@@ -251,6 +256,7 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 12,
     fontSize: 14,
+    fontFamily: typography.medium,
     color: '#6b7280',
   },
 });

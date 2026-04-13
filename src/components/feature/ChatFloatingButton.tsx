@@ -12,10 +12,10 @@ export const ChatFloatingButton: React.FC = () => {
         <TouchableOpacity
             onPress={handlePress}
             style={styles.container}
-            activeOpacity={0.8}
+            activeOpacity={0.85}
         >
             <View style={styles.bubble}>
-                <RemixIcon name="ri-customer-service-2-fill" size={28} color="#ffffff" />
+                <RemixIcon name="ri-customer-service-2-fill" size={32} color="#ffffff" />
             </View>
         </TouchableOpacity>
     );
@@ -24,21 +24,23 @@ export const ChatFloatingButton: React.FC = () => {
 const styles = StyleSheet.create({
     container: {
         position: 'absolute',
-        bottom: 90, // Slightly higher to avoid overlap with bottom navigation on some devices
-        right: 20,
+        bottom: 100,
+        right: 24,
         zIndex: 100,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.18,
+        shadowRadius: 16,
+        elevation: 16,
     },
     bubble: {
-        width: 56,
-        height: 56,
-        borderRadius: 20, // Rounded square as per screenshot
-        backgroundColor: '#10b981', // Borla Wura Green
+        width: 64,
+        height: 64,
+        borderRadius: 32,
+        backgroundColor: '#10b981',
         alignItems: 'center',
         justifyContent: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.2,
-        shadowRadius: 6,
-        elevation: 8,
+        borderWidth: 2,
+        borderColor: '#fff',
     },
 });

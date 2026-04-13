@@ -2,24 +2,24 @@ import { StyleSheet, Platform } from 'react-native';
 
 export const typography = {
   regular: Platform.select({
-    ios: 'Montserrat-Regular',
-    android: 'Montserrat-Regular',
-    default: 'Montserrat',
+    ios: 'System',
+    android: 'sans-serif',
+    default: 'sans-serif',
   }),
   medium: Platform.select({
-    ios: 'Montserrat-Medium',
-    android: 'Montserrat-Medium',
-    default: 'Montserrat',
+    ios: 'System',
+    android: 'sans-serif-medium',
+    default: 'sans-serif',
   }),
   bold: Platform.select({
-    ios: 'Montserrat-Bold',
-    android: 'Montserrat-Bold',
-    default: 'Montserrat',
+    ios: 'System',
+    android: 'sans-serif-medium',
+    default: 'sans-serif',
   }),
   semiBold: Platform.select({
-    ios: 'Montserrat-SemiBold',
-    android: 'Montserrat-SemiBold',
-    default: 'Montserrat',
+    ios: 'System',
+    android: 'sans-serif-medium',
+    default: 'sans-serif',
   }),
 };
 

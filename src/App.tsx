@@ -5,6 +5,13 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import SplashView from './components/SplashView';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { 
+  useFonts, 
+  Montserrat_400Regular, 
+  Montserrat_500Medium, 
+  Montserrat_600SemiBold, 
+  Montserrat_700Bold 
+} from '@expo-google-fonts/montserrat';
 
 // Import pages
 import HomePage from './pages/home/page';
@@ -86,7 +93,15 @@ function App() {
     return () => clearTimeout(timer);
   }, []);
 
-  if (showSplash) {
+  const [fontsLoaded] = useFonts({
+    'Montserrat-Regular': Montserrat_400Regular,
+    'Montserrat-Medium': Montserrat_500Medium,
+    'Montserrat-SemiBold': Montserrat_600SemiBold,
+    'Montserrat-Bold': Montserrat_700Bold,
+    'Montserrat': Montserrat_400Regular, // Default fallback
+  });
+
+  if (showSplash || !fontsLoaded) {
     return <SplashView />;
   }
 

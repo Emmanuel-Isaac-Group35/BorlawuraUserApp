@@ -19,18 +19,40 @@ const getMapHtml = (riderLat: number, riderLng: number, userLat?: number, userLn
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
     body { margin: 0; padding: 0; }
-    #map { width: 100%; height: 100vh; }
+    #map { width: 100%; height: 100vh; background: #f0f2f5; }
+    .rider-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .rider-pulse {
+      width: 40px;
+      height: 40px;
+      background: rgba(59, 130, 246, 0.2);
+      border-radius: 50%;
+      position: absolute;
+      animation: pulse 2s infinite;
+    }
     .rider-icon {
-      background-color: #3b82f6;
+      width: 24px;
+      height: 24px;
+      background: #3b82f6;
       border-radius: 50%;
       border: 3px solid #ffffff;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+      box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+      z-index: 10;
     }
     .user-icon {
-      background-color: #10b981;
+      width: 20px;
+      height: 20px;
+      background: #10b981;
       border-radius: 50%;
       border: 3px solid #ffffff;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+      box-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
+    }
+    @keyframes pulse {
+      0% { transform: scale(1); opacity: 0.8; }
+      100% { transform: scale(2.5); opacity: 0; }
     }
   </style>
 </head>
@@ -43,13 +65,14 @@ const getMapHtml = (riderLat: number, riderLng: number, userLat?: number, userLn
     });
 
     L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-      attribution: 'OpenStreetMap'
+      maxZoom: 20
     }).addTo(map);
 
     const riderIcon = L.divIcon({
-      className: 'rider-icon',
-      iconSize: [16, 16],
-      iconAnchor: [8, 8]
+      className: 'rider-container',
+      html: '<div class="rider-pulse"></div><div class="rider-icon"></div>',
+      iconSize: [40, 40],
+      iconAnchor: [20, 20]
     });
 
     const userIcon = L.divIcon({
@@ -58,16 +81,16 @@ const getMapHtml = (riderLat: number, riderLng: number, userLat?: number, userLn
       iconAnchor: [10, 10]
     });
 
-    const markers = [];
-    const riderMarker = L.marker([${riderLat}, ${riderLng}], { icon: riderIcon, title: 'Rider' }).addTo(map);
-    markers.push([${riderLat}, ${riderLng}]);
+    const riderMarker = L.marker([${riderLat}, ${riderLng}], { icon: riderIcon }).addTo(map);
+    const markers = [[${riderLat}, ${riderLng}]];
 
     if (${!!(userLat && userLng)}) {
-      L.marker([${userLat || 0}, ${userLng || 0}], { icon: userIcon, title: 'Your Location' }).addTo(map);
+      L.marker([${userLat || 0}, ${userLng || 0}], { icon: userIcon }).addTo(map);
       markers.push([${userLat || 0}, ${userLng || 0}]);
-      map.fitBounds(L.latLngBounds(markers), { padding: [50, 50] });
+      const bounds = L.latLngBounds(markers);
+      map.fitBounds(bounds, { padding: [70, 70], maxZoom: 16 });
     } else {
-      map.setView([${riderLat}, ${riderLng}], 15);
+      map.setView([${riderLat}, ${riderLng}], 16);
     }
   </script>
 </body>
@@ -114,6 +137,7 @@ const TrackOrderPage: React.FC = () => {
               phone: riderData.phone_number || riderData.phone || '+233 24 000 0000',
               rating: riderData.rating ? parseFloat(riderData.rating) : 4.8,
               vehicle: riderData.vehicle_info || 'Tricycle',
+              vehicleNumber: riderData.vehicle_number || 'TRC-2024-GH',
               photo: riderData.avatar_url || 'https://readdy.ai/api/search-image?query=Professional%20African%20male%20waste%20collection%20worker%2C%20friendly%20smile%2C%20uniform%2C%20safety%20equipment%2C%20confident%20expression%2C%20clean%20background%2C%20high-quality%20portrait%20photography&width=100&height=100&seq=rider_found&orientation=squarish',
               lat: riderData.latitude || 5.6037,
               lng: riderData.longitude || -0.1870
@@ -185,6 +209,7 @@ const TrackOrderPage: React.FC = () => {
                   phone: riderData.phone_number || riderData.phone || '+233 24 000 0000',
                   rating: riderData.rating ? parseFloat(riderData.rating) : 4.8,
                   vehicle: riderData.vehicle_info || 'Tricycle',
+                  vehicleNumber: riderData.vehicle_number || 'TRC-2024-GH',
                   photo: riderData.avatar_url || 'https://readdy.ai/api/search-image?query=Professional%20African%20male%20waste%20collection%20worker&width=100&height=100&seq=rider_found',
                   lat: riderData.latitude,
                   lng: riderData.longitude
@@ -423,15 +448,7 @@ const TrackOrderPage: React.FC = () => {
 
         {order.rider && (
         <View style={styles.riderCard}>
-          <View style={styles.riderHeader}>
-            <Text style={styles.riderCardTitle}>Your Rider</Text>
-            <View style={styles.onlineIndicator}>
-              <View style={styles.onlineDot} />
-              <Text style={styles.onlineText}>Online</Text>
-            </View>
-          </View>
-
-          <View style={styles.riderInfo}>
+          <View style={styles.riderTopSection}>
             <View style={styles.riderImageContainer}>
               <Image
                 source={{ uri: order.rider.photo }}
@@ -442,33 +459,34 @@ const TrackOrderPage: React.FC = () => {
                 <RemixIcon name="ri-check-line" size={12} color="#ffffff" />
               </View>
             </View>
-
-            <View style={styles.riderDetails}>
+            <View style={styles.riderMainInfo}>
               <View style={styles.riderNameRow}>
                 <Text style={styles.riderName}>{order.rider.name}</Text>
-                <View style={styles.ratingContainer}>
-                  <RemixIcon name="ri-star-fill" size={14} color="#fbbf24" />
-                  <Text style={styles.rating}>{order.rider.rating}</Text>
+                <View style={styles.ratingBadge}>
+                  <RemixIcon name="ri-star-fill" size={12} color="#fbbf24" />
+                  <Text style={styles.ratingText}>{order.rider.rating}</Text>
                 </View>
               </View>
-              <Text style={styles.riderVehicle}>{order.rider.vehicle}</Text>
-              <Text style={styles.riderPhone}>{order.rider.phone}</Text>
+              <View style={styles.vehicleInfoRow}>
+                <RemixIcon name="ri-truck-fill" size={16} color="#10b981" />
+                <Text style={styles.vehiclePlateText}>{order.rider.vehicleNumber}</Text>
+                <View style={styles.dotSeparator} />
+                <Text style={styles.vehicleTypeText}>{order.rider.vehicle}</Text>
+              </View>
             </View>
+            <TouchableOpacity onPress={handleCallRider} style={styles.quickCallButton}>
+              <RemixIcon name="ri-phone-fill" size={24} color="#10b981" />
+            </TouchableOpacity>
+          </View>
 
-            <View style={styles.riderActions}>
-              <TouchableOpacity
-                onPress={handleCallRider}
-                style={styles.callRiderButton}
-              >
-                <RemixIcon name="ri-phone-line" size={20} color="#ffffff" />
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => navigateTo('/chat-rider')}
-                style={styles.chatRiderButton}
-              >
-                <RemixIcon name="ri-chat-3-line" size={20} color="#ffffff" />
-              </TouchableOpacity>
-            </View>
+          <View style={styles.riderContactRow}>
+            <TouchableOpacity
+              onPress={() => navigateTo('/chat-rider')}
+              style={styles.chatButtonLarge}
+            >
+              <RemixIcon name="ri-chat-3-line" size={20} color="#6b7280" />
+              <Text style={styles.chatButtonText}>Send a message...</Text>
+            </TouchableOpacity>
           </View>
         </View>
         )}
@@ -817,6 +835,11 @@ const styles = StyleSheet.create({
   riderVehicle: {
     fontSize: 14,
     color: '#4b5563',
+  },
+  vehicleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     marginBottom: 4,
   },
   riderPhone: {

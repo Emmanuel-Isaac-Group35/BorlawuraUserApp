@@ -33,52 +33,67 @@ export const BottomNavigation: React.FC = () => {
   const currentPath = getRouteName();
 
   return (
-    <View style={styles.nav}>
-      <View style={styles.navGrid}>
-        {navItems.map((item) => {
-          const isActive = currentPath === item.path;
-          return (
-            <TouchableOpacity
-              key={item.path}
-              onPress={() => handleNavigate(item.path)}
-              style={styles.navItem}
-            >
-              <View style={styles.iconContainer}>
-                <RemixIcon 
-                  name={item.icon} 
-                  size={24} 
-                  color={isActive ? '#10b981' : '#9ca3af'} 
-                />
-              </View>
-              <Text style={[
-                styles.label,
-                isActive ? styles.labelActive : styles.labelInactive
-              ]}>
-                {item.label}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
+    <View style={styles.navWrapper}>
+      <View style={styles.nav}>
+        <View style={styles.navGrid}>
+          {navItems.map((item) => {
+            const isActive = currentPath === item.path;
+            return (
+              <TouchableOpacity
+                key={item.path}
+                onPress={() => handleNavigate(item.path)}
+                style={styles.navItem}
+                activeOpacity={0.85}
+              >
+                <View style={styles.iconContainer}>
+                  <RemixIcon 
+                    name={item.icon} 
+                    size={28} 
+                    color={isActive ? '#10b981' : '#9ca3af'} 
+                  />
+                </View>
+                <Text style={[
+                  styles.label,
+                  isActive ? styles.labelActive : styles.labelInactive
+                ]}>
+                  {item.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
       </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  nav: {
+  navWrapper: {
     position: 'absolute',
-    bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: '#ffffff',
-    borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
+    bottom: 16,
+    alignItems: 'center',
     zIndex: 40,
-    height: 64,
+  },
+  nav: {
+    backgroundColor: '#fff',
+    borderRadius: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 10,
+    width: '94%',
+    alignSelf: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 8,
   },
   navGrid: {
     flexDirection: 'row',
-    height: '100%',
+    height: 56,
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   navItem: {
     flex: 1,
@@ -86,17 +101,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
+    paddingVertical: 4,
+    borderRadius: 16,
   },
   iconContainer: {
-    width: 24,
-    height: 24,
+    width: 32,
+    height: 32,
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: 2,
   },
   label: {
-    fontSize: 12,
-    fontWeight: '500',
+    fontSize: 13,
+    fontWeight: '600',
     fontFamily: 'Montserrat-Medium',
+    marginTop: 2,
   },
   labelActive: {
     color: '#10b981',

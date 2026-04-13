@@ -113,7 +113,7 @@ interface FindingRiderProps {
 
 export const FindingRider: React.FC<FindingRiderProps> = ({ userLat, userLng, orderId, selectedRiderId, onRiderFound, onCancel }) => {
   const { width, height } = useWindowDimensions();
-  const [status, setStatus] = useState<'searching' | 'connecting' | 'found'>(selectedRiderId ? 'connecting' : 'searching');
+  const [status, setStatus] = useState<'searching' | 'connecting' | 'waiting' | 'found'>(selectedRiderId ? 'connecting' : 'searching');
   const [localRider, setLocalRider] = useState<Rider | null>(null);
   const [pulseAnim] = useState(new Animated.Value(1));
   const [searchAttempt, setSearchAttempt] = useState(0);
@@ -152,7 +152,7 @@ export const FindingRider: React.FC<FindingRiderProps> = ({ userLat, userLng, or
   useEffect(() => {
     let timeoutId: NodeJS.Timeout;
 
-    if (status === 'searching' || status === 'connecting') {
+    if (status === 'searching' || status === 'connecting' || status === 'waiting') {
       const waitTime = selectedRiderId ? 60 * 1000 : 3 * 60 * 1000;
       timeoutId = setTimeout(() => {
         Alert.alert(
@@ -216,7 +216,7 @@ export const FindingRider: React.FC<FindingRiderProps> = ({ userLat, userLng, or
         .eq('id', orderId)
         .single();
       
-      if (!orderError && orderData && (orderData.status === 'accepted' || orderData.rider_id)) {
+      if (!orderError && orderData && orderData.rider_id) {
         // Fetch rider info separately
         const { data: riderData } = await supabase
           .from('riders')
@@ -235,14 +235,19 @@ export const FindingRider: React.FC<FindingRiderProps> = ({ userLat, userLng, or
           rating: rating,
           phone: riderPhone,
           photo: riderPhoto,
-          distance: 'Ready for pickup',
+          distance: orderData.status === 'accepted' ? 'Ready for pickup' : 'Notified',
           lat: riderData?.latitude || lat + 0.002,
           lng: riderData?.longitude || lng + 0.002
         };
 
         setLocalRider(realRider);
-        setStatus('found');
-        setTimeout(() => onRiderFound(realRider), 1500);
+        
+        if (orderData.status === 'accepted' || orderData.status === 'active' || orderData.status === 'in_progress') {
+          setStatus('found');
+          setTimeout(() => onRiderFound(realRider), 1500);
+        } else {
+          setStatus('waiting');
+        }
       }
     };
 
@@ -267,7 +272,7 @@ export const FindingRider: React.FC<FindingRiderProps> = ({ userLat, userLng, or
         async (payload: any) => {
           console.log('Order status update in FindingRider:', payload);
           const updatedOrder = payload.new;
-          if (updatedOrder.status === 'accepted' || updatedOrder.rider_id) {
+          if (updatedOrder.rider_id) {
             
             // Try fetching from riders table
             const { data: riderData, error } = await supabase
@@ -292,17 +297,19 @@ export const FindingRider: React.FC<FindingRiderProps> = ({ userLat, userLng, or
               rating: rating,
               phone: riderPhone,
               photo: riderPhoto,
-              distance: 'On the way',
+              distance: updatedOrder.status === 'accepted' ? 'On the way' : 'Notified',
               lat: riderData?.latitude || lat + 0.002,
               lng: riderData?.longitude || lng + 0.002
             };
 
             setLocalRider(realRider);
-            setStatus('connecting');
-            setTimeout(() => {
+            
+            if (updatedOrder.status === 'accepted' || updatedOrder.status === 'active' || updatedOrder.status === 'in_progress') {
               setStatus('found');
               setTimeout(() => onRiderFound(realRider), 1500);
-            }, 1000);
+            } else {
+              setStatus('waiting');
+            }
           }
         }
       )
@@ -327,6 +334,7 @@ export const FindingRider: React.FC<FindingRiderProps> = ({ userLat, userLng, or
             <Text style={styles.statusText}>
               {status === 'searching' ? 'Searching for riders...' : 
                status === 'connecting' ? (selectedRiderId ? `Notifying ${targetRider?.full_name || 'rider'}...` : 'Connecting to rider...') : 
+               status === 'waiting' ? 'Waiting for rider to accept...' :
                'Rider found!'}
             </Text>
           </View>
@@ -334,7 +342,7 @@ export const FindingRider: React.FC<FindingRiderProps> = ({ userLat, userLng, or
       </View>
 
       <View style={styles.bottomSheet}>
-        {status !== 'found' ? (
+        {status !== 'found' && status !== 'waiting' ? (
           <View style={styles.loadingContent}>
             <Animated.View style={[styles.searchingIcon, { transform: [{ scale: pulseAnim }] }]}>
               <RemixIcon name="ri-radar-line" size={40} color="#10b981" />
@@ -358,8 +366,14 @@ export const FindingRider: React.FC<FindingRiderProps> = ({ userLat, userLng, or
         ) : (
           <View style={styles.foundContent}>
             <View style={styles.foundHeader}>
-              <RemixIcon name="ri-checkbox-circle-fill" size={24} color="#10b981" />
-              <Text style={styles.foundTitle}>Rider Accepted!</Text>
+              <RemixIcon 
+                name={status === 'waiting' ? "ri-time-line" : "ri-checkbox-circle-fill"} 
+                size={24} 
+                color={status === 'waiting' ? "#f59e0b" : "#10b981"} 
+              />
+              <Text style={[styles.foundTitle, status === 'waiting' && { color: '#f59e0b' }]}>
+                {status === 'waiting' ? 'Waiting for Acceptance...' : 'Rider Accepted!'}
+              </Text>
             </View>
             <View style={styles.riderInfo}>
               {localRider && (
@@ -377,11 +391,20 @@ export const FindingRider: React.FC<FindingRiderProps> = ({ userLat, userLng, or
                 </>
               )}
               <View style={styles.riderActions}>
-                <View style={styles.actionIcon}>
-                  <RemixIcon name="ri-phone-line" size={20} color="#10b981" />
+                <View style={[styles.actionIcon, status === 'waiting' && { backgroundColor: '#fef3c7' }]}>
+                  <RemixIcon 
+                    name={status === 'waiting' ? "ri-loader-4-line" : "ri-phone-line"} 
+                    size={20} 
+                    color={status === 'waiting' ? "#f59e0b" : "#10b981"} 
+                  />
                 </View>
               </View>
             </View>
+            {status === 'waiting' && (
+              <Button variant="outline" onPress={onCancel} fullWidth style={[styles.cancelBtn, { marginTop: 16 }]}>
+                Cancel Request
+              </Button>
+            )}
           </View>
         )}
       </View>

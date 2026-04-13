@@ -8,6 +8,7 @@ import { navigateTo } from '../../utils/navigation';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import RNAsyncStorage from '@react-native-async-storage/async-storage';
+import * as ImagePicker from 'expo-image-picker';
 
 const ProfilePage: React.FC = () => {
   const { logout, refreshUser, user: authUser } = useAuth();
@@ -149,16 +150,40 @@ const ProfilePage: React.FC = () => {
   const [editPhone, setEditPhone] = useState(user.phone);
   const [editAvatar, setEditAvatar] = useState(user.avatar);
   const [showAvatarModal, setShowAvatarModal] = useState(false);
-  const suggestedAvatars = [
-    'https://cdn-icons-png.flaticon.com/512/1154/1154444.png',
-    'https://cdn-icons-png.flaticon.com/512/1154/1154448.png',
-    'https://cdn-icons-png.flaticon.com/512/1154/1154452.png',
-    'https://cdn-icons-png.flaticon.com/512/1154/1154454.png',
-    'https://cdn-icons-png.flaticon.com/512/1154/1154456.png',
-    'https://cdn-icons-png.flaticon.com/512/1154/1154460.png'
-  ];
   const [newAddressLabel, setNewAddressLabel] = useState('');
   const [newAddress, setNewAddress] = useState('');
+
+  const pickImage = async () => {
+    let result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+
+    if (!result.canceled) {
+      setEditAvatar(result.assets[0].uri);
+    }
+  };
+
+  const takePhoto = async () => {
+    const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
+    
+    if (permissionResult.granted === false) {
+      Alert.alert("Permission Required", "You've refused to allow this app to access your camera!");
+      return;
+    }
+
+    let result = await ImagePicker.launchCameraAsync({
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+
+    if (!result.canceled) {
+      setEditAvatar(result.assets[0].uri);
+    }
+  };
 
   const menuItems = [
     {
@@ -582,36 +607,23 @@ const ProfilePage: React.FC = () => {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Update Profile Picture</Text>
-            <Text style={styles.modalSubtitle}>Choose a suggested avatar or enter a URL</Text>
+            <Text style={styles.modalSubtitle}>Upload a photo from your device</Text>
             
             <View style={styles.avatarPreviewContainer}>
               <Image source={{ uri: editAvatar }} style={styles.avatarPreview} />
             </View>
 
-            <View style={styles.suggestedGrid}>
-              {suggestedAvatars.map((url, idx) => (
-                <TouchableOpacity 
-                  key={idx} 
-                  onPress={() => setEditAvatar(url)}
-                  style={[styles.suggestedItem, editAvatar === url && styles.suggestedItemActive]}
-                >
-                  <Image source={{ uri: url }} style={styles.suggestedImage} />
-                </TouchableOpacity>
-              ))}
-            </View>
+            <View style={{ flexDirection: 'row', gap: 12, marginBottom: 24, width: '100%', justifyContent: 'center' }}>
+              <TouchableOpacity onPress={takePhoto} style={styles.imagePickerBtn}>
+                <RemixIcon name="ri-camera-fill" size={24} color="#10b981" />
+                <Text style={styles.imagePickerText}>Camera</Text>
+              </TouchableOpacity>
 
-            <View style={styles.dividerRow}>
-              <View style={styles.line} />
-              <Text style={styles.dividerText}>OR URL</Text>
-              <View style={styles.line} />
+              <TouchableOpacity onPress={pickImage} style={styles.imagePickerBtn}>
+                <RemixIcon name="ri-image-add-fill" size={24} color="#10b981" />
+                <Text style={styles.imagePickerText}>Gallery</Text>
+              </TouchableOpacity>
             </View>
-
-            <TextInput
-              value={editAvatar}
-              onChangeText={setEditAvatar}
-              style={styles.formInput}
-              placeholder="https://example.com/photo.jpg"
-            />
 
             <View style={styles.modalButtons}>
               <TouchableOpacity
@@ -1078,6 +1090,23 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginBottom: 16,
     textAlign: 'center',
+  },
+  imagePickerBtn: {
+    backgroundColor: '#ecfdf5',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#a7f3d0'
+  },
+  imagePickerText: {
+    color: '#10b981',
+    fontWeight: '600',
+    fontSize: 14,
   },
   modalButtons: {
     flexDirection: 'row',
