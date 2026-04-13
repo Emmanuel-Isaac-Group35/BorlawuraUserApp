@@ -31,14 +31,6 @@ export const PricingSummary: React.FC<PricingSummaryProps> = ({ bookingData }) =
             name: data.full_name || `${data.first_name || ''} ${data.last_name || ''}`.trim(),
             avatar: data.avatar_url
           });
-        } else if (bookingData.riderId && bookingData.riderId.startsWith('mock-')) {
-            // Hardcoded mocks for the demo if not in DB
-            const mocks: any = {
-                'mock-1': { name: 'Kofi Mensah' },
-                'mock-2': { name: 'Amara Okafor' },
-                'mock-3': { name: 'Kwame Boateng' }
-            };
-            setRiderInfo(mocks[bookingData.riderId]);
         }
       };
       fetchRider();

@@ -46,27 +46,7 @@ export const RiderSelector: React.FC<RiderSelectorProps> = ({ selectedRiderId, o
           }));
           setRiders(formatted);
         } else {
-          // Fallback mocks if no riders in DB
-          setRiders([
-            {
-              id: 'mock-1',
-              name: 'Kofi Mensah',
-              rating: 4.9,
-              phone: '024 123 4567',
-              photo: 'https://readdy.ai/api/search-image?query=African%20man%20friendly%20smile%20uniform&width=100&height=100&seq=1',
-              isOnline: true,
-              distance: '0.8 km away'
-            },
-            {
-              id: 'mock-2',
-              name: 'Amara Okafor',
-              rating: 4.8,
-              phone: '027 987 6543',
-              photo: 'https://readdy.ai/api/search-image?query=African%20woman%20smiling%20uniform%20professional&width=100&height=100&seq=2',
-              isOnline: true,
-              distance: '1.2 km away'
-            }
-          ]);
+          setRiders([]);
         }
       } catch (err) {
         console.error('Error fetching riders:', err);
@@ -146,7 +126,11 @@ export const RiderSelector: React.FC<RiderSelectorProps> = ({ selectedRiderId, o
       <Text style={styles.subtitle}>Choose your favorite Borla Wura rider for this pickup</Text>
       
       <View style={styles.list}>
-        {riders.map(item => renderRider({ item }))}
+        {riders.length > 0 ? (
+          riders.map(item => renderRider({ item }))
+        ) : (
+          <Text style={styles.emptyText}>No online riders found in your area.</Text>
+        )}
       </View>
     </View>
   );
@@ -169,6 +153,13 @@ const styles = StyleSheet.create({
   },
   list: {
     gap: 12,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: '#6b7280',
+    textAlign: 'center',
+    marginTop: 20,
+    fontStyle: 'italic',
   },
   riderCard: {
     flexDirection: 'row',
