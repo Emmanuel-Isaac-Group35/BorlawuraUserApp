@@ -152,7 +152,7 @@ const BookingPage: React.FC = () => {
   const handleRiderFound = (rider: any) => {
     setAssignedRider(rider);
     setShowFindingRider(false);
-    setShowReceipt(true);
+    navigateTo('/track-order', { id: completedOrder?.id });
   };
 
   const handleCancelSearching = () => {
