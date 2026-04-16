@@ -124,7 +124,7 @@ export const FindingRider: React.FC<FindingRiderProps> = ({ userLat, userLng, or
         .eq('id', orderId)
         .single();
       
-      if (order && order.rider_id && ['accepted', 'assigned', 'confirmed', 'in_progress', 'heading', 'arrived', 'completed'].includes(order.status)) {
+      if (order && order.rider_id && ['accepted', 'assigned', 'confirmed', 'active', 'in_progress', 'heading', 'arrived', 'completed'].includes(order.status)) {
           const { data: riderData } = await supabase.from('riders').select('*').eq('id', order.rider_id).single();
           if (riderData) {
             const riderObj: Rider = {
