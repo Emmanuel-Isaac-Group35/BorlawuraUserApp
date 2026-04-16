@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Image, Alert } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Image, Alert, ActivityIndicator } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Navigation } from '../../components/feature/Navigation';
 import { RemixIcon } from '../../utils/icons';
 import { navigateTo } from '../../utils/navigation';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
+import { typography } from '../../utils/typography';
 
 interface Message {
   id: string;
@@ -15,6 +16,7 @@ interface Message {
 }
 
 const SupportChatPage: React.FC = () => {
+  const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -26,10 +28,12 @@ const SupportChatPage: React.FC = () => {
   ]);
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [isSending, setIsSending] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
 
-  const sendMessage = () => {
-    if (!inputText.trim()) return;
+  const sendMessage = async () => {
+    if (!inputText.trim() || isSending) return;
+    setIsSending(true);
 
     const newMessage: Message = {
       id: Date.now().toString(),
@@ -38,21 +42,40 @@ const SupportChatPage: React.FC = () => {
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
 
-    setMessages([...messages, newMessage]);
-    setInputText('');
+    try {
+      // 1. Indicate creator_type and persist to database
+      const { error } = await supabase.from('support_tickets').insert([{
+        creator_id: user?.id || user?.supabase_id,
+        creator_type: 'user', // Explicitly indicate this is coming from the User App
+        subject: `User Support Request: ${user?.full_name || 'Resident'}`,
+        description: inputText,
+        priority: 'medium',
+        status: 'open'
+      }]);
 
-    // Simulate agent response
-    setIsTyping(true);
-    setTimeout(() => {
-      const agentResponse: Message = {
-        id: (Date.now() + 1).toString(),
-        text: "I've received your inquiry. One of our support personnel will be with you shortly. In the meantime, please feel free to provide any order IDs or photos related to your issue.",
-        sender: 'agent',
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      };
-      setMessages(prev => [...prev, agentResponse]);
-      setIsTyping(false);
-    }, 2000);
+      if (error) throw error;
+
+      // 2. Update local UI
+      setMessages([...messages, newMessage]);
+      setInputText('');
+
+      // 3. Simulate agent response
+      setIsTyping(true);
+      setTimeout(() => {
+        const agentResponse: Message = {
+          id: (Date.now() + 1).toString(),
+          text: "Thanks for reporting. Our support team has received your ticket and will respond shortly.",
+          sender: 'agent',
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        };
+        setMessages(prev => [...prev, agentResponse]);
+        setIsTyping(false);
+      }, 2000);
+    } catch (err: any) {
+      Alert.alert('Report Failed', 'Could not send the report: ' + err.message);
+    } finally {
+      setIsSending(false);
+    }
   };
 
   useEffect(() => {
@@ -60,8 +83,9 @@ const SupportChatPage: React.FC = () => {
   }, [messages]);
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
+    <View style={styles.container}>
+      {/* Absolute Dynamic Header */}
+      <View style={[styles.header, { paddingTop: Math.max(insets.top, 20), height: Math.max(insets.top, 20) + 60 }]}>
         <TouchableOpacity onPress={() => navigateTo('/support')} style={styles.backButton}>
           <RemixIcon name="ri-arrow-left-line" size={24} color="#1f2937" />
         </TouchableOpacity>
@@ -76,11 +100,14 @@ const SupportChatPage: React.FC = () => {
           </View>
         </View>
       </View>
-
+ 
       <ScrollView
         ref={scrollViewRef}
         style={styles.chatArea}
-        contentContainerStyle={styles.chatContent}
+        contentContainerStyle={[
+          styles.chatContent,
+          { paddingTop: 20 }
+        ]}
         showsVerticalScrollIndicator={false}
       >
         {messages.map((msg) => (
@@ -97,6 +124,7 @@ const SupportChatPage: React.FC = () => {
                 msg.sender === 'user' ? styles.userBubble : styles.agentBubble
               ]}
             >
+              {msg.sender === 'user' && <Text style={styles.roleTag}>USER REPORT</Text>}
               <Text style={[
                 styles.messageText,
                 msg.sender === 'user' ? styles.userText : styles.agentText
@@ -118,12 +146,12 @@ const SupportChatPage: React.FC = () => {
           </View>
         )}
       </ScrollView>
-
+ 
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
-        <View style={styles.inputArea}>
+        <View style={[styles.inputArea, { paddingBottom: Math.max(insets.bottom, 12) + 8 }]}>
           <TouchableOpacity style={styles.attachButton}>
             <RemixIcon name="ri-add-line" size={24} color="#6b7280" />
           </TouchableOpacity>
@@ -133,17 +161,22 @@ const SupportChatPage: React.FC = () => {
             value={inputText}
             onChangeText={setInputText}
             multiline
+            placeholderTextColor="#9ca3af"
           />
           <TouchableOpacity 
             onPress={sendMessage}
             style={[styles.sendButton, !inputText.trim() && styles.sendButtonDisabled]}
-            disabled={!inputText.trim()}
+            disabled={!inputText.trim() || isSending}
           >
-            <RemixIcon name="ri-send-plane-2-fill" size={24} color="#fff" />
+            {isSending ? (
+               <ActivityIndicator size="small" color="#fff" />
+            ) : (
+               <RemixIcon name="ri-send-plane-2-fill" size={24} color="#fff" />
+            )}
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 };
 
@@ -152,20 +185,16 @@ export default SupportChatPage;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f9fafb',
+    backgroundColor: '#f8fafc',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
+    paddingHorizontal: 16,
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#f3f4f6',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
+    zIndex: 50,
   },
   backButton: {
     marginRight: 16,
@@ -197,11 +226,12 @@ const styles = StyleSheet.create({
   },
   agentName: {
     fontSize: 16,
-    fontWeight: '600',
+    fontFamily: typography.bold,
     color: '#1f2937',
   },
   agentStatus: {
     fontSize: 12,
+    fontFamily: typography.medium,
     color: '#10b981',
   },
   chatArea: {
@@ -238,6 +268,7 @@ const styles = StyleSheet.create({
   },
   messageText: {
     fontSize: 15,
+    fontFamily: typography.regular,
     lineHeight: 20,
   },
   userText: {
@@ -248,6 +279,7 @@ const styles = StyleSheet.create({
   },
   timestamp: {
     fontSize: 10,
+    fontFamily: typography.regular,
     marginTop: 4,
     alignSelf: 'flex-end',
   },
@@ -257,12 +289,21 @@ const styles = StyleSheet.create({
   agentTimestamp: {
     color: '#9ca3af',
   },
+  roleTag: {
+    fontSize: 9,
+    fontFamily: typography.bold,
+    color: 'rgba(255, 255, 255, 0.7)',
+    marginBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
   typingContainer: {
     paddingVertical: 8,
   },
   typingText: {
     fontSize: 12,
     color: '#6b7280',
+    fontFamily: typography.medium,
     fontStyle: 'italic',
   },
   inputArea: {
@@ -289,6 +330,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     fontSize: 15,
+    fontFamily: typography.medium,
     color: '#1f2937',
   },
   sendButton: {

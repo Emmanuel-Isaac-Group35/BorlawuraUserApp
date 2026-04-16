@@ -87,7 +87,7 @@ export const RiderSelector: React.FC<RiderSelectorProps> = ({ selectedRiderId, o
         selectedRiderId === item.id && styles.riderCardSelected
       ]}
       onPress={() => onSelect(item.id)}
-      activeOpacity={0.7}
+      activeOpacity={0.8}
     >
       <View style={styles.riderInfo}>
         <View style={styles.photoContainer}>
@@ -95,12 +95,21 @@ export const RiderSelector: React.FC<RiderSelectorProps> = ({ selectedRiderId, o
           {item.isOnline && <View style={styles.onlineBadge} />}
         </View>
         <View style={styles.details}>
-          <Text style={styles.name}>{item.name}</Text>
+          <View style={styles.nameRow}>
+            <Text style={styles.name} numberOfLines={1}>{item.name}</Text>
+            {item.rating >= 4.8 && (
+              <View style={styles.topRatedBadge}>
+                <Text style={styles.topRatedText}>Top Rated</Text>
+              </View>
+            )}
+          </View>
           <View style={styles.ratingRow}>
-            <RemixIcon name="ri-star-fill" size={14} color="#fbbf24" />
-            <Text style={styles.rating}>{item.rating}</Text>
+            <View style={styles.ratingBox}>
+              <RemixIcon name="ri-star-fill" size={12} color="#fbbf24" />
+              <Text style={styles.ratingText}>{item.rating}</Text>
+            </View>
             <View style={styles.dot} />
-            <Text style={styles.distance}>{item.distance}</Text>
+            <Text style={styles.distanceText}>{item.distance}</Text>
           </View>
         </View>
       </View>
@@ -108,7 +117,11 @@ export const RiderSelector: React.FC<RiderSelectorProps> = ({ selectedRiderId, o
         styles.selectionCircle,
         selectedRiderId === item.id && styles.selectionCircleActive
       ]}>
-        {selectedRiderId === item.id && <RemixIcon name="ri-check-line" size={14} color="#fff" />}
+        {selectedRiderId === item.id ? (
+          <RemixIcon name="ri-checkbox-circle-fill" size={24} color="#10b981" />
+        ) : (
+          <View style={styles.unselectedCircle} />
+        )}
       </View>
     </TouchableOpacity>
   );
@@ -117,21 +130,32 @@ export const RiderSelector: React.FC<RiderSelectorProps> = ({ selectedRiderId, o
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#10b981" />
-        <Text style={styles.loadingText}>Fetching available riders...</Text>
+        <Text style={styles.loadingText}>Finding nearby riders...</Text>
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Select Your Rider</Text>
-      <Text style={styles.subtitle}>Choose your favorite Borla Wura rider for this pickup</Text>
+      <View style={styles.headerRow}>
+        <View>
+          <Text style={styles.title}>Select Your Rider</Text>
+          <Text style={styles.subtitle}>Choose your favorite Borla Wura rider</Text>
+        </View>
+        <View style={styles.countBadge}>
+          <Text style={styles.countText}>{riders.length} Online</Text>
+        </View>
+      </View>
       
       <View style={styles.list}>
         {riders.length > 0 ? (
           riders.map(item => renderRider({ item }))
         ) : (
-          <Text style={styles.emptyText}>No online riders found in your area.</Text>
+          <View style={styles.emptyState}>
+            <RemixIcon name="ri-user-unfollow-line" size={48} color="#9ca3af" />
+            <Text style={styles.emptyText}>No online riders found in your area.</Text>
+            <Text style={styles.emptySubtext}>Please try again in a few minutes.</Text>
+          </View>
         )}
       </View>
     </View>
@@ -142,120 +166,187 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 20,
+  },
   title: {
     fontSize: 20,
     fontFamily: typography.bold,
-    color: '#1f2937',
-    marginBottom: 8,
+    color: '#111827',
+    marginBottom: 4,
   },
   subtitle: {
-    fontSize: 14,
+    fontSize: 13,
     fontFamily: typography.regular,
-    color: '#4b5563',
-    marginBottom: 24,
+    color: '#6b7280',
+  },
+  countBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    backgroundColor: '#ecfdf5',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#d1fae5',
+  },
+  countText: {
+    fontSize: 12,
+    fontFamily: typography.semiBold,
+    color: '#059669',
   },
   list: {
     gap: 12,
   },
+  emptyState: {
+    padding: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f9fafb',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: '#d1d5db',
+  },
   emptyText: {
+    fontSize: 16,
+    fontFamily: typography.semiBold,
+    color: '#374151',
+    marginTop: 12,
+    textAlign: 'center',
+  },
+  emptySubtext: {
     fontSize: 14,
     fontFamily: typography.regular,
     color: '#6b7280',
+    marginTop: 4,
     textAlign: 'center',
-    marginTop: 20,
-    fontStyle: 'italic',
   },
   riderCard: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 12,
+    padding: 14,
     backgroundColor: '#ffffff',
-    borderRadius: 16,
+    borderRadius: 20,
     borderWidth: 1.5,
     borderColor: '#f3f4f6',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
   },
   riderCardSelected: {
     borderColor: '#10b981',
-    backgroundColor: '#ecfdf5',
+    backgroundColor: '#f0fdf4',
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
   },
   riderInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 14,
+    flex: 1,
   },
   photoContainer: {
     position: 'relative',
   },
   photo: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     backgroundColor: '#f3f4f6',
+    borderWidth: 2,
+    borderColor: '#fff',
   },
   onlineBadge: {
     position: 'absolute',
     bottom: 2,
     right: 2,
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
     backgroundColor: '#10b981',
-    borderWidth: 2,
+    borderWidth: 2.5,
     borderColor: '#ffffff',
   },
   details: {
     flex: 1,
   },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 6,
+  },
   name: {
     fontSize: 16,
     fontFamily: typography.semiBold,
-    color: '#1f2937',
-    marginBottom: 4,
+    color: '#111827',
+  },
+  topRatedBadge: {
+    backgroundColor: '#fef3c7',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  topRatedText: {
+    fontSize: 10,
+    fontFamily: typography.bold,
+    color: '#d97706',
+    textTransform: 'uppercase',
   },
   ratingRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 8,
   },
-  rating: {
-    fontSize: 14,
-    fontFamily: typography.medium,
-    color: '#4b5563',
+  ratingBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#fffbeb',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  ratingText: {
+    fontSize: 12,
+    fontFamily: typography.semiBold,
+    color: '#d97706',
   },
   dot: {
     width: 3,
     height: 3,
     borderRadius: 1.5,
     backgroundColor: '#d1d5db',
-    marginHorizontal: 4,
   },
-  distance: {
-    fontSize: 14,
-    fontFamily: typography.regular,
+  distanceText: {
+    fontSize: 13,
+    fontFamily: typography.medium,
     color: '#6b7280',
   },
   selectionCircle: {
+    marginLeft: 10,
+  },
+  unselectedCircle: {
     width: 24,
     height: 24,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: '#d1d5db',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  selectionCircleActive: {
-    backgroundColor: '#10b981',
-    borderColor: '#10b981',
+    borderColor: '#e5e7eb',
+    backgroundColor: '#fff',
   },
   loadingContainer: {
-    height: 200,
+    padding: 40,
     justifyContent: 'center',
     alignItems: 'center',
   },
   loadingText: {
-    marginTop: 12,
-    fontSize: 14,
+    marginTop: 16,
+    fontSize: 15,
     fontFamily: typography.medium,
     color: '#6b7280',
   },

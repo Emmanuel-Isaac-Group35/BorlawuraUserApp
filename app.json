@@ -30,10 +30,9 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-location"
+      "expo-location",
+      "expo-font",
+      "expo-web-browser"
     ]
   }
 }
-
-
-

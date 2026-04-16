@@ -1,11 +1,11 @@
-import { NavigationContainerRef } from '@react-navigation/native';
-import { createRef } from 'react';
+import { createNavigationContainerRef } from '@react-navigation/native';
 
-export const navigationRef = createRef<NavigationContainerRef<any>>();
+export const navigationRef = createNavigationContainerRef<any>();
 
 export const navigate = (name: string, params?: any) => {
-  // @ts-ignore
-  navigationRef.current?.navigate(name, params);
+  if (navigationRef.isReady()) {
+    navigationRef.navigate(name as never, params as never);
+  }
 };
 
 // Map web routes to React Navigation routes

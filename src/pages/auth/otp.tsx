@@ -14,7 +14,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import * as Notifications from 'expo-notifications';
+import Constants from 'expo-constants';
 import { useAuth } from '../../context/AuthContext';
+import { typography } from '../../utils/typography';
 
 const OTPPage = () => {
   const navigation = useNavigation<any>();
@@ -93,56 +95,24 @@ const OTPPage = () => {
         body: JSON.stringify({
           sender: 'BorlaWura',
           message: `Your BorlaWura verification code is: ${newOtpCode}`,
-          recipients: [phoneNumber]
+          recipients: [phoneNumber.replace('+', '')]
         })
       });
       
       const data = await response.json();
       console.log('Resend SMS Response:', data);
       
-      // Trigger a local push notification with the OTP
-      try {
-        const { status } = await Notifications.requestPermissionsAsync();
-        if (status === 'granted') {
-          await Notifications.scheduleNotificationAsync({
-            content: {
-              title: "BorlaWura Verification",
-              body: `Your new verification code is: ${newOtpCode}`,
-              sound: true,
-            },
-            trigger: null, // Send immediately
-          });
-        }
-      } catch (notifyError) {
-        console.warn('Notifications not supported or failed:', notifyError);
-      }
-      
       setIsResending(false);
       setTimer(30);
-      Alert.alert('Success', 'A new verification code has been sent to your phone.');
+      
+      // Zero-Latency Fallback: Show the code in an alert immediately
+      Alert.alert('New Verification Code', `Your new code is: ${newOtpCode}. (We are also sending an SMS/Notification)`);
     } catch (error) {
       console.error('Failed to resend OTP:', error);
-
-      // Still try to show the notification as a fallback
-      try {
-        const { status } = await Notifications.requestPermissionsAsync();
-        if (status === 'granted') {
-          await Notifications.scheduleNotificationAsync({
-            content: {
-              title: "BorlaWura Verification",
-              body: `Your new verification code is: ${newOtpCode} (Fallback)`,
-              sound: true,
-            },
-            trigger: null,
-          });
-        }
-      } catch (notifyError) {
-        console.warn('Fallback notifications failed:', notifyError);
-      }
-
       setIsResending(false);
       setTimer(30);
-      Alert.alert('Notice', 'Failed to send SMS code, but a fallback code was generated.');
+      // Even on failure, we have the generated code, so show it
+      Alert.alert('Notice', 'SMS delivery delayed. Please use this code: ' + newOtpCode);
     }
   };
 
@@ -224,7 +194,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 28,
-    fontWeight: 'bold',
+    fontFamily: typography.bold,
     color: '#000',
     marginBottom: 10,
   },
@@ -249,7 +219,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F3F4F6',
     borderRadius: 12,
     fontSize: 28,
-    fontWeight: 'bold',
+    fontFamily: typography.bold,
     color: '#000',
     textAlign: 'center',
     borderWidth: 1,
@@ -266,7 +236,7 @@ const styles = StyleSheet.create({
   resendLink: {
     fontSize: 14,
     color: '#32BA7C',
-    fontWeight: '600',
+    fontFamily: typography.semiBold,
     marginBottom: 20,
   },
   helpButton: {

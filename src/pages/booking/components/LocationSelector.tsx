@@ -1,13 +1,14 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator, Alert } from 'react-native';
+import RNAsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import { RemixIcon } from '../../../utils/icons';
-import RNAsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../../../context/AuthContext';
+import { typography } from '../../../utils/typography';
 
 interface LocationSelectorProps {
   value: string;
-  onChange: (value: string, coords?: { latitude: number, longitude: number }) => void;
+  onChange: (value: string, lat?: number | null, lng?: number | null) => void;
 }
 
 export const LocationSelector: React.FC<LocationSelectorProps> = ({ value, onChange }) => {
@@ -50,72 +51,42 @@ export const LocationSelector: React.FC<LocationSelectorProps> = ({ value, onCha
       try {
         location = await Location.getLastKnownPositionAsync({});
         if (!location) {
-          // Wrap in a shorter timeout for simulator speed
           location = await Promise.race([
             Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
             new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000))
           ]) as Location.LocationObject;
         }
       } catch (innerError) {
-        // Silently try low accuracy as a final attempt
         try {
           location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low });
         } catch (finalError) {
-          // If we are in development/simulator, use a default fallback to prevent crashes
           if (__DEV__) {
-            console.log('Location detection unavailable in simulator, using default coordinates.');
-            location = {
-              coords: {
-                latitude: 5.6037,
-                longitude: -0.1870,
-                altitude: 0,
-                accuracy: 0,
-                altitudeAccuracy: 0,
-                heading: 0,
-                speed: 0,
-              },
-              timestamp: Date.now(),
-            };
+            location = { coords: { latitude: 5.6037, longitude: -0.1870, altitude: 0, accuracy: 0, altitudeAccuracy: 0, heading: 0, speed: 0 }, timestamp: Date.now() };
           } else {
             throw finalError;
           }
         }
       }
 
-      if (!location) {
-        throw new Error('All location detection methods failed');
-      }
+      if (!location) throw new Error('All location detection methods failed');
 
       const { latitude, longitude } = location.coords;
-      
       let formattedAddress = '';
       try {
-        const addresses = await Location.reverseGeocodeAsync({
-          latitude,
-          longitude,
-        });
-
+        const addresses = await Location.reverseGeocodeAsync({ latitude, longitude });
         const addr = addresses[0];
         formattedAddress = addr 
           ? `${addr.streetNumber ? addr.streetNumber + ' ' : ''}${addr.street || ''}, ${addr.district || addr.city || ''}`.trim().replace(/^,\s*/, '')
-          : (latitude === 5.6037 ? 'Accra Central, Ghana (Default)' : `GPS Points: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
+          : (latitude === 5.6037 ? 'Accra Central, Ghana (Default)' : `GPS: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
       } catch (geoError) {
-        // Fallback for geocoding failure (often happens in simulators or offline)
-        formattedAddress = latitude === 5.6037 ? 'Accra Central, Ghana (Default)' : `GPS Points: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+        formattedAddress = latitude === 5.6037 ? 'Accra Central, Ghana (Default)' : `GPS: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
       }
 
       setManualAddress(formattedAddress);
       onChange(formattedAddress, { latitude, longitude });
     } catch (error) {
-      // Completely silent in production/dev to keep terminal clean
-      if (__DEV__) {
-        console.log('Location flow handled via fallback.');
-      }
       setUseCurrentLocation(false);
-      Alert.alert(
-        'Location Detection', 
-        'We couldn\'t detect your exact address. You can enter it manually below or continue with the detected coordinates.'
-      );
+      Alert.alert('Location Error', 'Unable to detect your current location.');
     } finally {
       setIsDetectingLocation(false);
     }
@@ -129,178 +100,140 @@ export const LocationSelector: React.FC<LocationSelectorProps> = ({ value, onCha
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Pickup Location</Text>
-      <Text style={styles.subtitle}>Where should we collect your waste?</Text>
+      <View style={styles.header}>
+        <Text style={styles.title}>Pickup Location</Text>
+        <Text style={styles.subtitle}>Where should we collect your waste?</Text>
+      </View>
       
       <View style={styles.content}>
         <TouchableOpacity
           onPress={handleCurrentLocation}
-          style={[
-            styles.optionCard,
-            useCurrentLocation && styles.optionCardActive
-          ]}
+          style={[styles.gpsCard, useCurrentLocation && styles.gpsCardActive]}
           activeOpacity={0.8}
           disabled={isDetectingLocation}
         >
-          <View style={styles.optionContent}>
-            <View style={styles.iconWrapper}>
-              {isDetectingLocation ? (
-                <ActivityIndicator size="small" color="#10b981" />
-              ) : (
-                <RemixIcon name="ri-map-pin-line" size={24} color="#10b981" />
-              )}
-            </View>
-            <View style={styles.textWrapper}>
-              <Text style={styles.optionTitle}>
-                {isDetectingLocation ? 'Detecting Location...' : 'Use Current Location'}
-              </Text>
-              <Text style={styles.optionSubtitle}>
-                {isDetectingLocation ? 'Checking GPS satellites...' : "We'll detect your location automatically"}
-              </Text>
-            </View>
+          <View style={[styles.gpsIconBox, useCurrentLocation && styles.gpsIconBoxActive]}>
+             {isDetectingLocation ? (
+               <ActivityIndicator size="small" color="#10b981" />
+             ) : (
+               <RemixIcon name="ri-gps-fill" size={24} color={useCurrentLocation ? "#fff" : "#10b981"} />
+             )}
           </View>
+          <View style={styles.gpsText}>
+             <Text style={[styles.gpsTitle, useCurrentLocation && styles.gpsTitleActive]}>
+                {isDetectingLocation ? 'Pinpointing...' : 'Current Location'}
+             </Text>
+             <Text style={[styles.gpsDesc, useCurrentLocation && styles.gpsDescActive]}>
+                {isDetectingLocation ? 'Checking satellites' : 'Smart auto-detection'}
+             </Text>
+          </View>
+          {useCurrentLocation && !isDetectingLocation && (
+             <RemixIcon name="ri-checkbox-circle-fill" size={20} color="#10b981" />
+          )}
         </TouchableOpacity>
 
-        <View style={styles.inputSection}>
-          <Text style={styles.label}>Or enter address manually</Text>
-          <View style={styles.inputWrapper}>
-            <TextInput
-              value={manualAddress}
-              onChangeText={handleManualAddress}
-              placeholder="Enter your full address..."
-              style={styles.input}
-              placeholderTextColor="#9ca3af"
-              multiline
-            />
-            <View style={styles.searchIcon}>
-              <RemixIcon name="ri-search-line" size={20} color="#9ca3af" />
-            </View>
-          </View>
+        <View style={styles.dividerBox}>
+           <View style={styles.line} />
+           <Text style={styles.dividerText}>OR MANUAL ENTRY</Text>
+           <View style={styles.line} />
         </View>
 
-        <View style={styles.savedSection}>
-          <Text style={styles.label}>Saved Addresses</Text>
-          <View style={styles.savedList}>
-            {savedAddresses.map((address, index) => (
-              <TouchableOpacity
-                key={index}
-                onPress={() => handleManualAddress(address)}
-                style={styles.savedItem}
-                activeOpacity={0.8}
-              >
-                <RemixIcon name="ri-home-4-line" size={20} color="#9ca3af" />
-                <Text style={styles.savedText}>{address}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+        <View style={styles.inputCard}>
+           <View style={styles.inputLead}>
+              <RemixIcon name="ri-map-pin-2-fill" size={18} color="#94a3b8" />
+              <Text style={styles.inputLabel}>Collection Address</Text>
+           </View>
+           <TextInput
+             value={manualAddress}
+             onChangeText={handleManualAddress}
+             placeholder="Enter your street name, house number, etc."
+             style={styles.input}
+             placeholderTextColor="#cbd5e1"
+             multiline
+           />
         </View>
+
+        {savedAddresses.length > 0 && (
+           <View style={styles.savedSection}>
+              <Text style={styles.savedTitle}>SAVED LOCATIONS</Text>
+              <View style={styles.savedList}>
+                {savedAddresses.map((address, index) => (
+                  <TouchableOpacity
+                    key={index}
+                    onPress={() => handleManualAddress(address)}
+                    style={styles.savedItem}
+                  >
+                    <View style={styles.savedIconBox}>
+                       <RemixIcon name="ri-home-fill" size={16} color="#64748b" />
+                    </View>
+                    <Text style={styles.savedText} numberOfLines={1}>{address}</Text>
+                    <Text style={styles.useLabel}>USE</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+           </View>
+        )}
       </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1f2937',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#4b5563',
-    marginBottom: 24,
-  },
-  content: {
-    gap: 16,
-  },
-  optionCard: {
-    width: '100%',
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#e5e7eb',
-    backgroundColor: '#ffffff',
-  },
-  optionCardActive: {
-    borderColor: '#10b981',
-    backgroundColor: '#ecfdf5',
-  },
-  optionContent: {
+  container: { flex: 1 },
+  header: { marginBottom: 24 },
+  title: { fontSize: 22, fontFamily: typography.bold, color: '#0f172a' },
+  subtitle: { fontSize: 13, fontFamily: typography.medium, color: '#94a3b8', marginTop: 2 },
+  content: { gap: 20 },
+  gpsCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    padding: 16,
+    borderRadius: 24,
+    backgroundColor: '#fff',
+    borderWidth: 1.5,
+    borderColor: '#f1f5f9',
   },
-  iconWrapper: {
-    width: 40,
-    height: 40,
-    backgroundColor: '#d1fae5',
+  gpsCardActive: { borderColor: '#10b981', backgroundColor: '#f0fdf4' },
+  gpsIconBox: { width: 50, height: 50, borderRadius: 16, backgroundColor: '#f0fdf4', alignItems: 'center', justifyContent: 'center' },
+  gpsIconBoxActive: { backgroundColor: '#10b981' },
+  gpsText: { flex: 1, marginLeft: 14 },
+  gpsTitle: { fontSize: 15, fontFamily: typography.bold, color: '#0f172a' },
+  gpsTitleActive: { color: '#065f46' },
+  gpsDesc: { fontSize: 13, fontFamily: typography.medium, color: '#94a3b8' },
+  gpsDescActive: { color: '#10b981' },
+  dividerBox: { flexDirection: 'row', alignItems: 'center', gap: 12, marginVertical: 8 },
+  line: { flex: 1, height: 1.5, backgroundColor: '#f1f5f9' },
+  dividerText: { fontSize: 10, fontFamily: typography.bold, color: '#cbd5e1', letterSpacing: 1 },
+  inputCard: {
+    backgroundColor: '#f8fafc',
     borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
+    padding: 16,
+    borderWidth: 1.5,
+    borderColor: '#f1f5f9',
   },
-  textWrapper: {
-    flex: 1,
-  },
-  optionTitle: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#1f2937',
-    marginBottom: 4,
-  },
-  optionSubtitle: {
-    fontSize: 14,
-    color: '#6b7280',
-  },
-  inputSection: {
-    gap: 12,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#374151',
-  },
-  inputWrapper: {
-    position: 'relative',
-  },
+  inputLead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
+  inputLabel: { fontSize: 13, fontFamily: typography.bold, color: '#64748b' },
   input: {
-    width: '100%',
-    padding: 12,
-    paddingRight: 40,
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 12,
-    fontSize: 14,
-    color: '#1f2937',
-    minHeight: 48,
+    fontSize: 15,
+    fontFamily: typography.medium,
+    color: '#0f172a',
+    padding: 0,
+    minHeight: 60,
     textAlignVertical: 'top',
   },
-  searchIcon: {
-    position: 'absolute',
-    right: 12,
-    top: 14,
-  },
-  savedSection: {
-    gap: 12,
-  },
-  savedList: {
-    gap: 8,
-  },
+  savedSection: { marginTop: 8 },
+  savedTitle: { fontSize: 11, fontFamily: typography.bold, color: '#cbd5e1', marginBottom: 12, letterSpacing: 1 },
+  savedList: { gap: 10 },
   savedItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    padding: 12,
+    padding: 14,
+    backgroundColor: '#fff',
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
-    borderRadius: 8,
-    backgroundColor: '#ffffff',
+    borderColor: '#f1f5f9',
   },
-  savedText: {
-    fontSize: 14,
-    color: '#374151',
-  },
+  savedIconBox: { width: 32, height: 32, borderRadius: 10, backgroundColor: '#f8fafc', alignItems: 'center', justifyContent: 'center' },
+  savedText: { flex: 1, marginLeft: 12, fontSize: 14, fontFamily: typography.medium, color: '#475569' },
+  useLabel: { fontSize: 11, fontFamily: typography.bold, color: '#10b981', paddingHorizontal: 8, paddingVertical: 4, backgroundColor: '#f0fdf4', borderRadius: 6 },
 });

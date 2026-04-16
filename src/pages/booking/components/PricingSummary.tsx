@@ -1,16 +1,17 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, Image, ScrollView, TouchableOpacity } from 'react-native';
 import { RemixIcon } from '../../../utils/icons';
 import { supabase } from '../../../lib/supabase';
+import { typography } from '../../../utils/typography';
 
 interface PricingSummaryProps {
   bookingData: {
-    location: string;
     serviceType: string;
     wasteTypes: string[];
     bagSize: string;
+    location: string;
     scheduledTime: string;
-    notes: string;
+    notes?: string;
     riderId: string | null;
   };
 }
@@ -21,15 +22,12 @@ export const PricingSummary: React.FC<PricingSummaryProps> = ({ bookingData }) =
   React.useEffect(() => {
     if (bookingData.riderId) {
       const fetchRider = async () => {
-        const { data } = await supabase
-          .from('riders')
-          .select('*')
-          .eq('id', bookingData.riderId)
-          .single();
+        const { data } = await supabase.from('riders').select('*').eq('id', bookingData.riderId).single();
         if (data) {
           setRiderInfo({
             name: data.full_name || `${data.first_name || ''} ${data.last_name || ''}`.trim(),
-            avatar: data.avatar_url
+            avatar: data.avatar_url,
+            phone: data.phone_number
           });
         }
       };
@@ -37,144 +35,105 @@ export const PricingSummary: React.FC<PricingSummaryProps> = ({ bookingData }) =
     }
   }, [bookingData.riderId]);
 
-  const getWasteTypeNames = () => {
-    const typeMap: { [key: string]: string } = {
-      'general': 'General Household Waste'
-    };
-    return bookingData.wasteTypes.map(type => typeMap[type]).join(', ');
-  };
-
-  const getSizeLabel = () => {
-    const sizeMap: { [key: string]: string } = {
-      'small': 'Small Bag (1-2 bags)',
-      'medium': 'Medium Bin (3-5 bags)',
-      'large': 'Large Sack (6+ bags)'
-    };
-    return sizeMap[bookingData.bagSize] || '';
-  };
+  const details = [
+    { label: 'Location', value: bookingData.location, icon: 'ri-map-pin-2-fill' },
+    { label: 'Service', value: bookingData.serviceType === 'instant' ? 'Instant Pickup' : 'Scheduled', icon: 'ri-flashlight-fill' },
+    { label: 'Schedule', value: bookingData.scheduledTime || 'ASAP (30-45 mins)', icon: 'ri-calendar-event-fill' },
+    { label: 'Volume', value: (bookingData.bagSize || '').charAt(0).toUpperCase() + (bookingData.bagSize || '').slice(1), icon: 'ri-database-2-fill' },
+  ];
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Booking Summary</Text>
-      <Text style={styles.subtitle}>Review your pickup details</Text>
+      <View style={styles.header}>
+        <Text style={styles.title}>Review & Confirm</Text>
+        <Text style={styles.subtitle}>Please verify your pickup request details</Text>
+      </View>
       
-      <View style={styles.content}>
-        <View style={styles.detailsSection}>
-          <View style={styles.detailCard}>
-            <View style={styles.detailIcon}>
-              <RemixIcon name="ri-map-pin-line" size={20} color="#10b981" />
-            </View>
-            <View style={styles.detailContent}>
-              <Text style={styles.detailLabel}>Pickup Location</Text>
-              <Text style={styles.detailValue}>{bookingData.location}</Text>
-            </View>
-          </View>
-
-          <View style={styles.detailCard}>
-            <View style={styles.detailIcon}>
-              <RemixIcon name="ri-time-line" size={20} color="#10b981" />
-            </View>
-            <View style={styles.detailContent}>
-              <Text style={styles.detailLabel}>Service Type</Text>
-              <Text style={styles.detailValue}>
-                {bookingData.serviceType === 'instant' ? 'Instant Pickup (30 mins)' : 'Scheduled Pickup'}
-                {bookingData.scheduledTime && (
-                  <Text>{'\n'}{bookingData.scheduledTime}</Text>
-                )}
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.detailCard}>
-            <View style={styles.detailIcon}>
-              <RemixIcon name="ri-delete-bin-line" size={20} color="#10b981" />
-            </View>
-            <View style={styles.detailContent}>
-              <Text style={styles.detailLabel}>Waste Details</Text>
-              <Text style={styles.detailValue}>
-                {getWasteTypeNames()}
-                {'\n'}{getSizeLabel()}
-                {bookingData.notes && (
-                  <Text>
-                    {'\n\n'}
-                    <Text style={styles.notesLabel}>Notes:</Text> {bookingData.notes}
-                  </Text>
-                )}
-              </Text>
-            </View>
-          </View>
-
-          {riderInfo && (
-            <View style={styles.detailCard}>
-              <View style={styles.detailIcon}>
-                <RemixIcon name="ri-user-follow-line" size={20} color="#10b981" />
+      <View style={styles.summaryCard}>
+        {details.map((item, idx) => (
+          <View key={idx} style={[styles.row, idx === details.length - 1 && styles.rowLast]}>
+            <View style={styles.rowLead}>
+              <View style={styles.iconBox}>
+                <RemixIcon name={item.icon} size={16} color="#10b981" />
               </View>
-              <View style={styles.detailContent}>
-                <Text style={styles.detailLabel}>Selected Rider</Text>
-                <Text style={styles.detailValue}>{riderInfo.name}</Text>
-              </View>
+              <Text style={styles.rowLabel}>{item.label}</Text>
             </View>
-          )}
-        </View>
+            <Text style={styles.rowValue} numberOfLines={2}>{item.value}</Text>
+          </View>
+        ))}
+
+        {bookingData.notes ? (
+           <View style={styles.notesBox}>
+              <Text style={styles.notesTitle}>Instructions</Text>
+              <Text style={styles.notesText}>{bookingData.notes}</Text>
+           </View>
+        ) : null}
+
+        {riderInfo && (
+           <View style={styles.riderSummary}>
+              <View style={styles.divider} />
+              <View style={styles.riderBox}>
+                 <Image source={{ uri: riderInfo.avatar || 'https://cdn-icons-png.flaticon.com/512/149/149071.png' }} style={styles.riderImg} />
+                 <View style={styles.riderMain}>
+                    <Text style={styles.riderLabel}>Your Preferred Rider</Text>
+                    <Text style={styles.riderName}>{riderInfo.name}</Text>
+                 </View>
+                 <View style={styles.statusBox}>
+                    <View style={styles.dot} />
+                    <Text style={styles.statusText}>Selected</Text>
+                 </View>
+              </View>
+           </View>
+        )}
+      </View>
+
+      <View style={styles.disclaimer}>
+         <RemixIcon name="ri-information-fill" size={14} color="#94a3b8" />
+         <Text style={styles.disclaimerText}>By confirming, you agree to our service terms and standard pickup rates.</Text>
       </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
+  container: { flex: 1 },
+  header: { marginBottom: 24 },
+  title: { fontSize: 20, fontFamily: typography.bold, color: '#0f172a' },
+  subtitle: { fontSize: 13, fontFamily: typography.medium, color: '#94a3b8', marginTop: 2 },
+  summaryCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 24,
+    padding: 20,
+    borderWidth: 1.5,
+    borderColor: '#f1f5f9',
   },
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1f2937',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#4b5563',
-    marginBottom: 24,
-  },
-  content: {
-    gap: 24,
-  },
-  detailsSection: {
-    gap: 16,
-  },
-  detailCard: {
+  row: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-    padding: 16,
-    backgroundColor: '#f9fafb',
-    borderRadius: 12,
-  },
-  detailIcon: {
-    width: 32,
-    height: 32,
-    backgroundColor: '#d1fae5',
-    borderRadius: 16,
+    justifyContent: 'space-between',
     alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 4,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f8fafc',
   },
-  detailContent: {
-    flex: 1,
-  },
-  detailLabel: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#1f2937',
-    marginBottom: 4,
-  },
-  detailValue: {
-    fontSize: 14,
-    color: '#4b5563',
-    lineHeight: 20,
-  },
-  notesLabel: {
-    fontWeight: '600',
-  },
+  rowLast: { borderBottomWidth: 0 },
+  rowLead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  iconBox: { width: 30, height: 30, borderRadius: 10, backgroundColor: '#f0fdf4', alignItems: 'center', justifyContent: 'center' },
+  rowLabel: { fontSize: 13, fontFamily: typography.semiBold, color: '#64748b' },
+  rowValue: { fontSize: 14, fontFamily: typography.bold, color: '#0f172a', flex: 1, textAlign: 'right', marginLeft: 16 },
+  notesBox: { marginTop: 16, padding: 14, backgroundColor: '#f8fafc', borderRadius: 16 },
+  notesTitle: { fontSize: 12, fontFamily: typography.bold, color: '#94a3b8', marginBottom: 4, textTransform: 'uppercase' },
+  notesText: { fontSize: 13, fontFamily: typography.medium, color: '#475569', lineHeight: 18 },
+  riderSummary: { marginTop: 8 },
+  divider: { height: 1, backgroundColor: '#f1f5f9', marginVertical: 12 },
+  riderBox: { flexDirection: 'row', alignItems: 'center' },
+  riderImg: { width: 44, height: 44, borderRadius: 14, backgroundColor: '#f1f5f9' },
+  riderMain: { flex: 1, marginLeft: 12 },
+  riderLabel: { fontSize: 11, fontFamily: typography.bold, color: '#94a3b8' },
+  riderName: { fontSize: 14, fontFamily: typography.bold, color: '#0f172a' },
+  statusBox: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#f0fdf4', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#10b981' },
+  statusText: { fontSize: 10, fontFamily: typography.bold, color: '#10b981' },
+  disclaimer: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginTop: 20, paddingHorizontal: 4 },
+  disclaimerText: { fontSize: 11, fontFamily: typography.medium, color: '#94a3b8', flex: 1, lineHeight: 16 },
 });
 

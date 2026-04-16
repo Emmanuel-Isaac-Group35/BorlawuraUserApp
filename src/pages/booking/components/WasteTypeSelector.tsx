@@ -1,6 +1,7 @@
 import React from 'react';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, TextInput, ScrollView } from 'react-native';
 import { RemixIcon } from '../../../utils/icons';
+import { typography } from '../../../utils/typography';
 
 interface WasteTypeSelectorProps {
   selectedTypes: string[];
@@ -22,17 +23,24 @@ export const WasteTypeSelector: React.FC<WasteTypeSelectorProps> = ({
   const wasteTypes = [
     {
       id: 'general',
-      title: 'General Household Waste',
-      description: 'Regular trash, food waste, non-recyclables',
-      icon: 'https://readdy.ai/api/search-image?query=icon%2C%203D%20cartoon%20household%20waste%20bin%2C%20the%20icon%20should%20take%20up%2070%25%20of%20the%20frame%2C%20vibrant%20colors%20with%20soft%20gradients%2C%20minimalist%20design%2C%20smooth%20rounded%20shapes%2C%20subtle%20shading%2C%20no%20outlines%2C%20centered%20composition%2C%20isolated%20on%20white%20background%2C%20playful%20and%20friendly%20aesthetic%2C%20isometric%20perspective%2C%20high%20detail%20quality%2C%20clean%20and%20modern%20look%2C%20single%20object%20focus&width=80&height=80&seq=waste1&orientation=squarish',
-      color: '#f3f4f6'
+      title: 'General Household',
+      description: 'Regular trash, food, non-recyclables',
+      icon: 'https://cdn-icons-png.flaticon.com/512/3299/3299935.png',
+      color: '#f8fafc'
+    },
+    {
+      id: 'plastic',
+      title: 'Plastic & Bottles',
+      description: 'PET bottles, containers, clean plastic',
+      icon: 'https://cdn-icons-png.flaticon.com/512/2666/2666631.png',
+      color: '#f8fafc'
     }
   ];
 
   const bagSizes = [
-    { id: 'small', title: 'Small Bag', description: '1-2 bags' },
-    { id: 'medium', title: 'Medium Bin', description: '3-5 bags' },
-    { id: 'large', title: 'Large Sack', description: '6+ bags' }
+    { id: 'small', title: 'Small', description: '1-2 regular bags' },
+    { id: 'medium', title: 'Medium', description: '3-4 regular bags' },
+    { id: 'large', title: 'Large', description: '5+ bags / Big sack' }
   ];
 
   const toggleWasteType = (typeId: string) => {
@@ -45,225 +53,132 @@ export const WasteTypeSelector: React.FC<WasteTypeSelectorProps> = ({
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Waste Details</Text>
-      <Text style={styles.subtitle}>What type of waste do you have?</Text>
+      <View style={styles.header}>
+        <Text style={styles.title}>Waste Details</Text>
+        <Text style={styles.subtitle}>Help us understand your pickup needs</Text>
+      </View>
       
-      <View style={styles.content}>
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Waste Categories</Text>
-          <View style={styles.wasteTypesList}>
-            {wasteTypes.map((type) => {
-              const isSelected = selectedTypes.includes(type.id);
-              return (
-                <TouchableOpacity
-                  key={type.id}
-                  onPress={() => toggleWasteType(type.id)}
-                  style={[
-                    styles.wasteTypeCard,
-                    isSelected && styles.wasteTypeCardActive
-                  ]}
-                  activeOpacity={0.8}
-                >
-                  <View style={styles.wasteTypeContent}>
-                    <View style={[styles.iconContainer, { backgroundColor: type.color }]}>
-                      <Image source={{ uri: type.icon }} style={styles.typeImage} resizeMode="cover" />
-                    </View>
-                    <View style={styles.wasteTypeInfo}>
-                      <Text style={styles.wasteTypeTitle}>{type.title}</Text>
-                      <Text style={styles.wasteTypeDescription}>{type.description}</Text>
-                    </View>
-                    <View style={styles.checkContainer}>
-                      {isSelected && (
-                        <RemixIcon name="ri-check-line" size={20} color="#10b981" />
-                      )}
-                    </View>
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Categories</Text>
+        <View style={styles.grid}>
+          {wasteTypes.map((type) => {
+            const isSelected = selectedTypes.includes(type.id);
+            return (
+              <TouchableOpacity
+                key={type.id}
+                onPress={() => toggleWasteType(type.id)}
+                style={[styles.typeCard, isSelected && styles.typeCardActive]}
+                activeOpacity={0.8}
+              >
+                <View style={styles.typeIconBox}>
+                  <Image source={{ uri: type.icon }} style={styles.typeImage} />
+                </View>
+                <Text style={styles.typeTitle}>{type.title}</Text>
+                <Text style={styles.typeDesc} numberOfLines={2}>{type.description}</Text>
+                {isSelected && (
+                  <View style={styles.checkBadge}>
+                    <RemixIcon name="ri-check-line" size={10} color="#fff" />
                   </View>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+                )}
+              </TouchableOpacity>
+            );
+          })}
         </View>
+      </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Estimated Volume</Text>
-          <View style={styles.bagSizesList}>
-            {bagSizes.map((size) => {
-              const isSelected = selectedSize === size.id;
-              return (
-                <TouchableOpacity
-                  key={size.id}
-                  onPress={() => onSizeChange(size.id)}
-                  style={[
-                    styles.bagSizeCard,
-                    isSelected && styles.bagSizeCardActive
-                  ]}
-                  activeOpacity={0.8}
-                >
-                  <View style={styles.bagSizeContent}>
-                    <View style={styles.bagSizeInfo}>
-                      <Text style={styles.bagSizeTitle}>{size.title}</Text>
-                      <Text style={styles.bagSizeDescription}>{size.description}</Text>
-                    </View>
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Volume / Size</Text>
+        <View style={styles.sizeList}>
+          {bagSizes.map((size) => {
+            const isSelected = selectedSize === size.id;
+            return (
+              <TouchableOpacity
+                key={size.id}
+                onPress={() => onSizeChange(size.id)}
+                style={[styles.sizeItem, isSelected && styles.sizeItemActive]}
+                activeOpacity={0.8}
+              >
+                <View style={[styles.radio, isSelected && styles.radioActive]}>
+                  {isSelected && <View style={styles.radioDot} />}
+                </View>
+                <View style={styles.sizeInfo}>
+                  <Text style={[styles.sizeTitle, isSelected && styles.sizeTitleActive]}>{size.title}</Text>
+                  <Text style={styles.sizeDesc}>{size.description}</Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
         </View>
+      </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Special Instructions (Optional)</Text>
-          <TextInput
-            value={notes}
-            onChangeText={onNotesChange}
-            placeholder="Any special instructions for the pickup..."
-            style={styles.notesInput}
-            placeholderTextColor="#9ca3af"
-            multiline
-            numberOfLines={3}
-            maxLength={500}
-          />
-          <Text style={styles.characterCount}>{notes.length}/500 characters</Text>
-        </View>
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Additional Notes</Text>
+        <TextInput
+          value={notes}
+          onChangeText={onNotesChange}
+          placeholder="e.g. Near the blue gate, heavy items..."
+          style={styles.input}
+          placeholderTextColor="#94a3b8"
+          multiline
+          numberOfLines={3}
+        />
       </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  container: { flex: 1 },
+  header: { marginBottom: 20 },
+  title: { fontSize: 20, fontFamily: typography.bold, color: '#0f172a' },
+  subtitle: { fontSize: 13, fontFamily: typography.medium, color: '#94a3b8', marginTop: 2 },
+  section: { marginBottom: 24 },
+  sectionTitle: { fontSize: 14, fontFamily: typography.bold, color: '#1e293b', marginBottom: 12 },
+  grid: { flexDirection: 'row', gap: 12 },
+  typeCard: {
     flex: 1,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1f2937',
-    marginBottom: 8,
-    fontFamily: 'Montserrat-Bold',
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#4b5563',
-    marginBottom: 24,
-    fontFamily: 'Montserrat-Regular',
-  },
-  content: {
-    gap: 24,
-  },
-  section: {
-    gap: 12,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#1f2937',
-    fontFamily: 'Montserrat-SemiBold',
-  },
-  wasteTypesList: {
-    gap: 12,
-  },
-  wasteTypeCard: {
-    width: '100%',
     padding: 16,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#e5e7eb',
+    borderRadius: 20,
     backgroundColor: '#ffffff',
+    borderWidth: 1.5,
+    borderColor: '#f1f5f9',
+    alignItems: 'center',
+    position: 'relative',
   },
-  wasteTypeCardActive: {
-    borderColor: '#10b981',
-    backgroundColor: '#ecfdf5',
-  },
-  wasteTypeContent: {
+  typeCardActive: { borderColor: '#10b981', backgroundColor: '#f0fdf4' },
+  typeIconBox: { width: 50, height: 50, marginBottom: 10 },
+  typeImage: { width: '100%', height: '100%' },
+  typeTitle: { fontSize: 14, fontFamily: typography.bold, color: '#1e293b', textAlign: 'center' },
+  typeDesc: { fontSize: 11, fontFamily: typography.medium, color: '#64748b', textAlign: 'center', marginTop: 4 },
+  checkBadge: { position: 'absolute', top: 8, right: 8, width: 18, height: 18, borderRadius: 9, backgroundColor: '#10b981', alignItems: 'center', justifyContent: 'center' },
+  sizeList: { gap: 10 },
+  sizeItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-  },
-  iconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    overflow: 'hidden',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  typeImage: {
-    width: '100%',
-    height: '100%',
-  },
-  wasteTypeInfo: {
-    flex: 1,
-  },
-  wasteTypeTitle: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#1f2937',
-    marginBottom: 4,
-    fontFamily: 'Montserrat-SemiBold',
-  },
-  wasteTypeDescription: {
-    fontSize: 14,
-    color: '#6b7280',
-    fontFamily: 'Montserrat-Regular',
-  },
-  checkContainer: {
-    width: 20,
-    height: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  bagSizesList: {
-    gap: 12,
-  },
-  bagSizeCard: {
-    width: '100%',
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#e5e7eb',
-    backgroundColor: '#ffffff',
-  },
-  bagSizeCardActive: {
-    borderColor: '#10b981',
-    backgroundColor: '#ecfdf5',
-  },
-  bagSizeContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  bagSizeInfo: {
-    flex: 1,
-  },
-  bagSizeTitle: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#1f2937',
-    marginBottom: 4,
-    fontFamily: 'Montserrat-SemiBold',
-  },
-  bagSizeDescription: {
-    fontSize: 14,
-    color: '#6b7280',
-    fontFamily: 'Montserrat-Regular',
-  },
-  notesInput: {
-    width: '100%',
-    padding: 12,
+    padding: 14,
+    borderRadius: 16,
+    backgroundColor: '#f8fafc',
     borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 12,
-    fontSize: 14,
-    color: '#1f2937',
-    minHeight: 80,
-    textAlignVertical: 'top',
-    fontFamily: 'Montserrat-Regular',
+    borderColor: '#f1f5f9',
   },
-  characterCount: {
-    fontSize: 12,
-    color: '#6b7280',
-    marginTop: 4,
-    textAlign: 'right',
-    fontFamily: 'Montserrat-Regular',
+  sizeItemActive: { borderColor: '#10b981', backgroundColor: '#f0fdf4' },
+  radio: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: '#cbd5e1', alignItems: 'center', justifyContent: 'center' },
+  radioActive: { borderColor: '#10b981' },
+  radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#10b981' },
+  sizeInfo: { marginLeft: 12 },
+  sizeTitle: { fontSize: 14, fontFamily: typography.bold, color: '#1e293b' },
+  sizeTitleActive: { color: '#0f172a' },
+  sizeDesc: { fontSize: 12, fontFamily: typography.medium, color: '#64748b', marginTop: 2 },
+  input: {
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#f1f5f9',
+    borderRadius: 16,
+    padding: 16,
+    fontSize: 14,
+    color: '#0f172a',
+    fontFamily: typography.medium,
+    minHeight: 100,
+    textAlignVertical: 'top',
   },
 });

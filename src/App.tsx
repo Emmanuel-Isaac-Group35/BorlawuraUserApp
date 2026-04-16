@@ -1,9 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
+import { LogBox } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { enableScreens } from 'react-native-screens';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import * as Linking from 'expo-linking';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import SplashView from './components/SplashView';
+
+enableScreens();
+LogBox.ignoreLogs(['setLayoutAnimationEnabledExperimental']);
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { 
   useFonts, 
@@ -18,6 +24,8 @@ import HomePage from './pages/home/page';
 import AuthPage from './pages/auth/page';
 import SignupPage from './pages/auth/signup';
 import OTPPage from './pages/auth/otp';
+import ForgotPasswordPage from './pages/auth/forgot-password';
+import CompleteProfilePage from './pages/auth/complete-profile';
 import BookingPage from './pages/booking/page';
 import OrdersPage from './pages/orders/page';
 import ServicesPage from './pages/services/page';
@@ -32,24 +40,39 @@ import AboutPage from './pages/profile/about/page';
 import NotFound from './pages/NotFound';
 import ChatbotPage from './pages/chatbot/page';
 import RiderChatPage from './pages/chat-rider/page';
+import { NotificationOverlay } from './components/feature/NotificationOverlay';
+import { BottomNavigation } from './components/feature/BottomNavigation';
 
 // Import navigation utility
 import { navigationRef } from './utils/navigation';
 
 const Stack = createNativeStackNavigator();
 
+const linking = {
+  prefixes: [Linking.createURL('/')],
+  config: {
+    screens: {
+      Auth: 'auth-callback',
+    },
+  },
+};
+
+import { GlobalOrderListener } from './components/feature/GlobalOrderListener';
+
 function AppNavigator() {
-  const { isLoggedIn, isSuspended, isLoading } = useAuth();
+  const { isLoggedIn, isSuspended, isLoading, needsProfileCompletion } = useAuth();
 
   if (isLoading) return null; // Or a loading spinner
 
   return (
-    <NavigationContainer ref={navigationRef}>
+    <NavigationContainer ref={navigationRef} linking={linking}>
       <Stack.Navigator
         initialRouteName={isLoggedIn ? (isSuspended ? "Auth" : "Home") : "Auth"}
         screenOptions={{
           headerShown: false,
-          contentStyle: { backgroundColor: '#f9fafb' },
+          contentStyle: { backgroundColor: '#ffffff' },
+          animation: 'slide_from_right',
+          gestureEnabled: true,
         }}
       >
         {!isLoggedIn || isSuspended ? (
@@ -57,14 +80,19 @@ function AppNavigator() {
             <Stack.Screen name="Auth" component={AuthPage} />
             <Stack.Screen name="Signup" component={SignupPage} />
             <Stack.Screen name="OTP" component={OTPPage} />
+            <Stack.Screen name="ForgotPassword" component={ForgotPasswordPage} />
+          </>
+        ) : needsProfileCompletion ? (
+          <>
+            <Stack.Screen name="CompleteProfile" component={CompleteProfilePage} />
           </>
         ) : (
           <>
-            <Stack.Screen name="Home" component={HomePage} options={{ animation: 'none' }} />
-            <Stack.Screen name="Booking" component={BookingPage} options={{ animation: 'none' }} />
-            <Stack.Screen name="Orders" component={OrdersPage} options={{ animation: 'none' }} />
-            <Stack.Screen name="Services" component={ServicesPage} options={{ animation: 'none' }} />
-            <Stack.Screen name="Profile" component={ProfilePage} options={{ animation: 'none' }} />
+            <Stack.Screen name="Home" component={HomePage} />
+            <Stack.Screen name="Booking" component={BookingPage} />
+            <Stack.Screen name="Orders" component={OrdersPage} />
+            <Stack.Screen name="Services" component={ServicesPage} />
+            <Stack.Screen name="Profile" component={ProfilePage} />
             <Stack.Screen name="Support" component={SupportPage} />
             <Stack.Screen name="SupportChat" component={SupportChatPage} />
             <Stack.Screen name="TrackOrder" component={TrackOrderPage} />
@@ -78,9 +106,13 @@ function AppNavigator() {
         )}
         <Stack.Screen name="NotFound" component={NotFound} />
       </Stack.Navigator>
+      <BottomNavigation />
+      <GlobalOrderListener />
     </NavigationContainer>
   );
 }
+
+import { SettingsProvider } from './context/SettingsContext';
 
 function App() {
   const [showSplash, setShowSplash] = useState(true);
@@ -108,9 +140,12 @@ function App() {
   return (
     <ErrorBoundary>
       <AuthProvider>
-        <SafeAreaProvider>
-          <AppNavigator />
-        </SafeAreaProvider>
+        <SettingsProvider>
+          <SafeAreaProvider>
+            <AppNavigator />
+            <NotificationOverlay />
+          </SafeAreaProvider>
+        </SettingsProvider>
       </AuthProvider>
     </ErrorBoundary>
   );

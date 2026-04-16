@@ -1,38 +1,56 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Animated, Pressable } from 'react-native';
-import { RemixIcon } from '../../../utils/icons';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import { navigateTo } from '../../../utils/navigation';
+import { typography } from '../../../utils/typography';
 
 interface Action {
-  icon: string;
+  icon: any;
   title: string;
   subtitle: string;
   color: string;
   path: string;
+  gradient: [string, string];
+  iconLib: 'MCI' | 'Ionicons';
 }
 
 export const QuickActions: React.FC = () => {
   const actions: Action[] = [
     {
-      icon: 'ri-flashlight-line',
-      title: 'Instant Pickup',
-      subtitle: 'Ready in 30 mins',
+      icon: 'lightning-bolt',
+      iconLib: 'MCI',
+      title: 'Rapid Pickup',
+      subtitle: 'Trash out in 30m',
       color: '#f97316',
+      gradient: ['#fb923c', '#f97316'],
       path: '/booking'
     },
     {
-      icon: 'ri-calendar-line',
-      title: 'Schedule Pickup',
-      subtitle: 'Plan ahead',
+      icon: 'calendar-clock',
+      iconLib: 'MCI',
+      title: 'Subscription',
+      subtitle: 'Scheduled plans',
       color: '#3b82f6',
+      gradient: ['#60a5fa', '#3b82f6'],
       path: '/booking'
     },
     {
-      icon: 'ri-truck-line',
-      title: 'Track Order',
-      subtitle: 'Live updates',
-      color: '#a855f7',
+      icon: 'map-marker-path',
+      iconLib: 'MCI',
+      title: 'Live Tracking',
+      subtitle: 'Watch your rider',
+      color: '#8b5cf6',
+      gradient: ['#a78bfa', '#8b5cf6'],
       path: '/orders'
+    },
+    {
+      icon: 'headset',
+      iconLib: 'Ionicons',
+      title: 'Help Center',
+      subtitle: '24/7 Support',
+      color: '#10b981',
+      gradient: ['#34d399', '#10b981'],
+      path: '/support'
     }
   ];
 
@@ -42,49 +60,28 @@ export const QuickActions: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Quick Actions</Text>
+      <Text style={styles.title}>Premium Services</Text>
       <View style={styles.grid}>
-        {actions.map((action, index) => {
-          const scale = new Animated.Value(1);
-          const handlePressIn = () => {
-            Animated.spring(scale, {
-              toValue: 0.97,
-              useNativeDriver: true,
-              speed: 30,
-              bounciness: 8,
-            }).start();
-          };
-          const handlePressOut = () => {
-            Animated.spring(scale, {
-              toValue: 1,
-              useNativeDriver: true,
-              speed: 30,
-              bounciness: 8,
-            }).start();
-          };
-          return (
-            <Pressable
-              key={index}
-              onPress={() => handleActionClick(action.path)}
-              onPressIn={handlePressIn}
-              onPressOut={handlePressOut}
-              style={({ pressed }) => [
-                styles.actionCard,
-                pressed && { transform: [{ scale: 0.97 }], opacity: 0.96 },
-              ]}
-            >
-              <View style={styles.actionContent}>
-                <View style={[styles.iconContainer, { backgroundColor: action.color, shadowColor: action.color }]}> 
-                  <RemixIcon name={action.icon} size={28} color="#fff" />
-                </View>
-                <View style={styles.textContainer}>
-                  <Text style={styles.actionTitle}>{action.title}</Text>
-                  <Text style={styles.actionSubtitle}>{action.subtitle}</Text>
-                </View>
-              </View>
-            </Pressable>
-          );
-        })}
+        {actions.map((action, index) => (
+          <TouchableOpacity
+            key={index}
+            onPress={() => handleActionClick(action.path)}
+            activeOpacity={0.8}
+            style={styles.actionCard}
+          >
+            <View style={[styles.iconBox, { backgroundColor: action.gradient[0] + '20' }]}>
+               {action.iconLib === 'MCI' ? (
+                 <MaterialCommunityIcons name={action.icon} size={28} color={action.color} />
+               ) : (
+                 <Ionicons name={action.icon} size={26} color={action.color} />
+               )}
+            </View>
+            <View style={styles.textContainer}>
+              <Text style={styles.actionTitle}>{action.title}</Text>
+              <Text style={styles.actionSubtitle} numberOfLines={1}>{action.subtitle}</Text>
+            </View>
+          </TouchableOpacity>
+        ))}
       </View>
     </View>
   );
@@ -92,71 +89,58 @@ export const QuickActions: React.FC = () => {
 
 const styles = StyleSheet.create({
   container: {
+    paddingHorizontal: 20,
     marginBottom: 24,
   },
   title: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1f2937',
+    fontSize: 19,
+    fontFamily: typography.bold,
+    color: '#0f172a',
     marginBottom: 16,
-    paddingHorizontal: 16,
+    letterSpacing: -0.5
   },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    gap: 14,
-    paddingHorizontal: 10,
+    gap: 12,
   },
   actionCard: {
     width: '48%',
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    paddingVertical: 22,
-    paddingHorizontal: 14,
-    borderWidth: 0,
-    marginBottom: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.10,
-    shadowRadius: 12,
-    elevation: 6,
-    minHeight: 90,
+    flexDirection: 'column',
     alignItems: 'flex-start',
-    justifyContent: 'center',
-    transition: 'all 0.15s',
-  },
-  actionContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-  },
-  iconContainer: {
-    width: 54,
-    height: 54,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 8,
+    backgroundColor: '#ffffff',
+    padding: 16,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: '#f1f5f9',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.18,
-    shadowRadius: 8,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.05,
+    shadowRadius: 15,
+    elevation: 4,
+  },
+  iconBox: {
+    width: 52,
+    height: 52,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
   },
   textContainer: {
-    flex: 1,
+    width: '100%',
   },
   actionTitle: {
     fontSize: 15,
-    fontWeight: '600',
-    color: '#1f2937',
-    marginBottom: 2,
-    fontFamily: 'Montserrat-SemiBold',
+    fontFamily: typography.bold,
+    color: '#1e293b',
+    letterSpacing: -0.3
   },
   actionSubtitle: {
-    fontSize: 12,
-    color: '#6b7280',
-    fontFamily: 'Montserrat-Regular',
+    fontSize: 11,
+    fontFamily: typography.medium,
+    color: '#64748b',
+    marginTop: 4,
+    opacity: 0.8
   },
 });

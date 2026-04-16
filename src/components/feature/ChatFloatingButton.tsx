@@ -1,9 +1,11 @@
 import React from 'react';
 import { TouchableOpacity, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RemixIcon } from '../../utils/icons';
 import { navigateTo } from '../../utils/navigation';
 
 export const ChatFloatingButton: React.FC = () => {
+    const insets = useSafeAreaInsets();
     const handlePress = () => {
         navigateTo('/support-chat');
     };
@@ -11,7 +13,7 @@ export const ChatFloatingButton: React.FC = () => {
     return (
         <TouchableOpacity
             onPress={handlePress}
-            style={styles.container}
+            style={[styles.container, { bottom: insets.bottom + 105 }]}
             activeOpacity={0.85}
         >
             <View style={styles.bubble}>
@@ -24,7 +26,6 @@ export const ChatFloatingButton: React.FC = () => {
 const styles = StyleSheet.create({
     container: {
         position: 'absolute',
-        bottom: 100,
         right: 24,
         zIndex: 100,
         shadowColor: '#000',

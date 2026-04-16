@@ -1,39 +1,68 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { useNavigation, useRoute } from '@react-navigation/native';
-import { RemixIcon } from '../../utils/icons';
-import { navigateTo } from '../../utils/navigation';
+import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { navigateTo, navigationRef } from '../../utils/navigation';
+import { typography } from '../../utils/typography';
 
 export const BottomNavigation: React.FC = () => {
-  const navigation = useNavigation();
-  const route = useRoute();
+  const insets = useSafeAreaInsets();
+  const [currentPath, setCurrentPath] = React.useState('/');
+  const [isNavReady, setIsNavReady] = React.useState(false);
 
-  const navItems = [
-    { path: '/', icon: 'ri-home-5-line', label: 'Home' },
-    { path: '/booking', icon: 'ri-calendar-check-line', label: 'Book' },
-    { path: '/orders', icon: 'ri-file-list-3-line', label: 'Orders' },
-    { path: '/profile', icon: 'ri-user-3-line', label: 'Profile' }
+  React.useEffect(() => {
+    // Poll for readiness
+    const checkReady = setInterval(() => {
+      if (navigationRef.isReady()) {
+        setIsNavReady(true);
+        clearInterval(checkReady);
+      }
+    }, 100);
+
+    const unsub = navigationRef.addListener('state', () => {
+      if (navigationRef.isReady()) {
+        const route = navigationRef.getCurrentRoute();
+        if (route) {
+          const routeValues: { [key: string]: string } = {
+            'Home': '/',
+            'Booking': '/booking',
+            'Orders': '/orders',
+            'Profile': '/profile',
+          };
+          setCurrentPath(routeValues[route.name] || '/');
+        }
+      }
+    });
+
+    return () => {
+      clearInterval(checkReady);
+      unsub();
+    };
+  }, []);
+
+  const navItems: any[] = [
+    { path: '/', icon: 'home', iconOutline: 'home-outline', label: 'Home' },
+    { path: '/booking', icon: 'calendar', iconOutline: 'calendar-outline', label: 'Book' },
+    { path: '/orders', icon: 'receipt', iconOutline: 'receipt-outline', label: 'Orders' },
+    { path: '/profile', icon: 'person', iconOutline: 'person-outline', label: 'Profile' }
   ];
 
   const handleNavigate = (path: string) => {
     navigateTo(path);
   };
 
-  const getRouteName = () => {
-    const routeName = route.name;
-    const routeMap: { [key: string]: string } = {
-      'Home': '/',
-      'Booking': '/booking',
-      'Orders': '/orders',
-      'Profile': '/profile',
-    };
-    return routeMap[routeName] || '/';
-  };
+  const isVisible = (() => {
+    if (!isNavReady) return false;
+    const route = navigationRef.getCurrentRoute();
+    if (!route) return false;
+    const hideOn = ['Auth', 'Signup', 'OTP', 'TrackOrder', 'SupportChat', 'RiderChat', 'Chatbot'];
+    return !hideOn.includes(route.name);
+  })();
 
-  const currentPath = getRouteName();
+  if (!isVisible) return null;
 
   return (
-    <View style={styles.navWrapper}>
+    <View style={[styles.navWrapper, { bottom: Math.max(insets.bottom, 16) }]}>
       <View style={styles.nav}>
         <View style={styles.navGrid}>
           {navItems.map((item) => {
@@ -43,14 +72,18 @@ export const BottomNavigation: React.FC = () => {
                 key={item.path}
                 onPress={() => handleNavigate(item.path)}
                 style={styles.navItem}
-                activeOpacity={0.85}
+                activeOpacity={0.7}
               >
-                <View style={styles.iconContainer}>
-                  <RemixIcon 
-                    name={item.icon} 
-                    size={28} 
-                    color={isActive ? '#10b981' : '#9ca3af'} 
+                <View style={[
+                  styles.iconContainer,
+                  isActive && styles.iconContainerActive
+                ]}>
+                  <Ionicons 
+                    name={isActive ? item.icon : item.iconOutline} 
+                    size={24} 
+                    color={isActive ? '#10b981' : '#64748b'} 
                   />
+                  {isActive && <View style={styles.glow} />}
                 </View>
                 <Text style={[
                   styles.label,
@@ -72,55 +105,68 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
-    bottom: 16,
     alignItems: 'center',
     zIndex: 40,
   },
   nav: {
-    backgroundColor: '#fff',
-    borderRadius: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    elevation: 10,
-    width: '94%',
+    backgroundColor: 'rgba(255, 255, 255, 0.98)',
+    borderRadius: 32,
+    shadowColor: '#10b981',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.12,
+    shadowRadius: 24,
+    elevation: 15,
+    width: '92%',
     alignSelf: 'center',
-    paddingVertical: 8,
+    paddingVertical: 12,
     paddingHorizontal: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(241, 245, 249, 0.5)',
   },
   navGrid: {
     flexDirection: 'row',
-    height: 56,
+    height: 64,
     alignItems: 'center',
     justifyContent: 'space-between',
   },
   navItem: {
     flex: 1,
-    flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
-    paddingVertical: 4,
-    borderRadius: 16,
+    position: 'relative',
+    height: '100%',
   },
   iconContainer: {
-    width: 32,
-    height: 32,
+    width: 48,
+    height: 36,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 2,
+    borderRadius: 18,
+    position: 'relative',
+  },
+  iconContainerActive: {
+    backgroundColor: '#f0fdf4',
+  },
+  glow: {
+    position: 'absolute',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#bbf7d0',
+    opacity: 0.3,
+    zIndex: -1,
+    transform: [{ scale: 1.2 }],
   },
   label: {
-    fontSize: 13,
-    fontWeight: '600',
-    fontFamily: 'Montserrat-Medium',
-    marginTop: 2,
+    fontSize: 12,
+    fontFamily: typography.semiBold,
+    marginTop: 6,
+    letterSpacing: -0.2
   },
   labelActive: {
     color: '#10b981',
   },
   labelInactive: {
-    color: '#9ca3af',
+    color: '#64748b',
   },
 });

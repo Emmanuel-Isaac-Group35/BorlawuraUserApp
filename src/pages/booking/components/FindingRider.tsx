@@ -1,11 +1,30 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Image, Animated, useWindowDimensions, Alert } from 'react-native';
+import { View, Text, StyleSheet, Animated, TouchableOpacity, Image, useWindowDimensions } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { RemixIcon } from '../../../utils/icons';
-import { Button } from '../../../components/base/Button';
+import { typography } from '../../../utils/typography';
 import { supabase } from '../../../lib/supabase';
+import { sendLocalNotification } from '../../../utils/notifications';
 
+interface Rider {
+  id: string;
+  name: string;
+  rating: number;
+  phone: string;
+  photo: string;
+  distance?: string;
+  lat?: number;
+  lng?: number;
+}
 
+interface FindingRiderProps {
+  userLat: number | null;
+  userLng: number | null;
+  orderId?: string;
+  selectedRiderId?: string | null;
+  onRiderFound: (rider: any) => void;
+  onCancel: () => void;
+}
 
 const getMapHtml = (userLat: number, userLng: number, riders: any[]) => `
 <!DOCTYPE html>
@@ -16,568 +35,247 @@ const getMapHtml = (userLat: number, userLng: number, riders: any[]) => `
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
         body { margin: 0; padding: 0; }
-        #map { width: 100%; height: 100vh; }
-        .rider-icon {
-            background-color: #3b82f6;
+        #map { width: 100%; height: 100vh; background: #f8fafc; }
+        .user-marker {
+            width: 20px; height: 20px;
+            background: #10b981;
+            border-radius: 50%;
+            border: 3px solid #ffffff;
+            box-shadow: 0 0 10px rgba(16,185,129,0.5);
+        }
+        .rider-marker {
+            width: 12px; height: 12px;
+            background: #3b82f6;
             border-radius: 50%;
             border: 2px solid #ffffff;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            opacity: 0.7;
         }
-        .user-icon {
-            background-color: #10b981;
-            border-radius: 50%;
-            border: 2px solid #ffffff;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-        }
-        .pulse {
-            width: 10px;
-            height: 10px;
-            background: rgba(16, 185, 129, 0.5);
-            border-radius: 50%;
-            animation: pulse 2s infinite;
+        .search-circle {
+            animation: pulse 3s infinite ease-out;
+            fill: #10b981;
+            fill-opacity: 0.1;
+            stroke: #10b981;
+            stroke-opacity: 0.3;
         }
         @keyframes pulse {
-            0% { transform: scale(1); opacity: 1; }
-            100% { transform: scale(4); opacity: 0; }
+            0% { transform: scale(1); opacity: 0.8; }
+            100% { transform: scale(3); opacity: 0; }
         }
     </style>
 </head>
 <body>
     <div id="map"></div>
     <script>
-        const map = L.map('map', {
-            zoomControl: false,
-            attributionControl: false
-        }).setView([${userLat}, ${userLng}], 14);
-
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-            attribution: 'OpenStreetMap'
-        }).addTo(map);
-
-        const userIcon = L.divIcon({
-            className: 'user-icon',
-            iconSize: [16, 16],
-            iconAnchor: [8, 8]
-        });
-
+        const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([${userLat}, ${userLng}], 15);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { maxZoom: 20 }).addTo(map);
+        
+        const userIcon = L.divIcon({ className: 'user-marker', iconSize: [20, 20], iconAnchor: [10, 10] });
         L.marker([${userLat}, ${userLng}], { icon: userIcon }).addTo(map);
 
-        const riderIcon = L.divIcon({
-            className: 'rider-icon',
-            iconSize: [12, 12],
-            iconAnchor: [6, 6]
-        });
-
+        const riderIcon = L.divIcon({ className: 'rider-marker', iconSize: [12, 12], iconAnchor: [6, 6] });
         const riders = ${JSON.stringify(riders)};
-        riders.forEach(rider => {
-            L.marker([rider.lat, rider.lng], { icon: riderIcon }).addTo(map);
-        });
+        riders.forEach(r => L.marker([r.lat, r.lng], { icon: riderIcon }).addTo(map));
 
-        // Add a pulsing circle around the user to show searching
         const circle = L.circle([${userLat}, ${userLng}], {
-            color: '#10b981',
-            fillColor: '#10b981',
-            fillOpacity: 0.1,
-            radius: 500
+            radius: 400,
+            className: 'search-circle'
         }).addTo(map);
-
-        let radius = 500;
-        setInterval(() => {
-            radius = radius > 1500 ? 500 : radius + 20;
-            circle.setRadius(radius);
-        }, 50);
     </script>
 </body>
 </html>
 `;
 
-interface Rider {
-  id: string;
-  name: string;
-  rating: number;
-  phone: string;
-  photo: string;
-  distance: string;
-  lat: number;
-  lng: number;
-}
-
-interface FindingRiderProps {
-  userLat: number | null;
-  userLng: number | null;
-  orderId?: string;
-  selectedRiderId?: string | null;
-  onRiderFound: (rider: Rider) => void;
-  onCancel: () => void;
-}
-
 export const FindingRider: React.FC<FindingRiderProps> = ({ userLat, userLng, orderId, selectedRiderId, onRiderFound, onCancel }) => {
-  const { width, height } = useWindowDimensions();
+  const { width } = useWindowDimensions();
   const [status, setStatus] = useState<'searching' | 'connecting' | 'waiting' | 'found'>(selectedRiderId ? 'connecting' : 'searching');
   const [localRider, setLocalRider] = useState<Rider | null>(null);
   const [pulseAnim] = useState(new Animated.Value(1));
-  const [searchAttempt, setSearchAttempt] = useState(0);
   const [targetRider, setTargetRider] = useState<any>(null);
   
-  // Use provided coordinates or fallback to Accra center
   const lat = userLat || 5.6037;
   const lng = userLng || -0.1870;
-  
   const [onlineRiders, setOnlineRiders] = useState<{id: string, lat: number, lng: number}[]>([]);
 
   useEffect(() => {
-    const fetchOnlineRidersForMap = async () => {
-      if (selectedRiderId) return;
-      
-      const { data } = await supabase
-        .from('riders')
-        .select('id, latitude, longitude')
-        .eq('status', 'active')
-        .eq('is_online', true)
-        .limit(10);
-        
-      if (data && data.length > 0) {
-        setOnlineRiders(data.map((r, i) => ({
-          id: r.id,
-          // Fallback slightly around user if rider has no strict GPS
-          lat: r.latitude || lat + (Math.random() - 0.5) * 0.02,
-          lng: r.longitude || lng + (Math.random() - 0.5) * 0.02
-        })));
-      }
+    const fetchOnlineRiders = async () => {
+      const { data } = await supabase.from('riders').select('id, latitude, longitude').eq('is_online', true).limit(8);
+      if (data) setOnlineRiders(data.map(r => ({ id: r.id, lat: r.latitude || lat + (Math.random()-0.5)*0.01, lng: r.longitude || lng + (Math.random()-0.5)*0.01 })));
     };
-    
-    fetchOnlineRidersForMap();
-  }, [selectedRiderId, lat, lng]);
-
-  useEffect(() => {
-    let timeoutId: NodeJS.Timeout;
-
-    if (status === 'searching' || status === 'connecting' || status === 'waiting') {
-      const waitTime = selectedRiderId ? 60 * 1000 : 3 * 60 * 1000;
-      timeoutId = setTimeout(() => {
-        Alert.alert(
-          selectedRiderId ? 'Rider Not Responding' : 'No Riders Available',
-          selectedRiderId 
-            ? 'Your selected rider is not responding. Would you like to keep waiting or cancel?' 
-            : 'All riders are currently busy or not available at the moment. Would you like to cancel or keep searching?',
-          [
-            { 
-              text: 'Cancel', 
-              onPress: onCancel, 
-              style: 'cancel' 
-            },
-            { 
-              text: selectedRiderId ? 'Keep Waiting' : 'Search Again', 
-              onPress: () => setSearchAttempt(prev => prev + 1)
-            }
-          ]
-        );
-      }, waitTime);
-    }
-
-    return () => {
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-    };
-  }, [status, searchAttempt, onCancel, selectedRiderId]);
+    fetchOnlineRiders();
+  }, [lat, lng]);
 
   useEffect(() => {
     Animated.loop(
       Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 1.2,
-          duration: 1000,
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulseAnim, {
-          toValue: 1,
-          duration: 1000,
-          useNativeDriver: true,
-        }),
+        Animated.timing(pulseAnim, { toValue: 1.15, duration: 1500, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 1500, useNativeDriver: true }),
       ])
     ).start();
+  }, []);
 
-    const fetchTargetRider = async () => {
-      if (selectedRiderId) {
-        const { data } = await supabase
-          .from('riders')
-          .select('*')
-          .eq('id', selectedRiderId)
-          .single();
-        if (data) setTargetRider(data);
-      }
-    };
+  useEffect(() => {
+    if (!orderId) return;
 
-    const checkInitialRider = async () => {
-      const { data: orderData, error: orderError } = await supabase
+    // 1. Initial State Check (Backup if the real-time update was missed)
+    const checkInitialStatus = async () => {
+      const { data: order, error } = await supabase
         .from('orders')
-        .select('*')
+        .select('*, rider_id')
         .eq('id', orderId)
         .single();
       
-      if (!orderError && orderData && orderData.rider_id) {
-        // Fetch rider info separately
-        const { data: riderData } = await supabase
-          .from('riders')
-          .select('*')
-          .eq('id', orderData.rider_id)
-          .single();
-        const riderPhone = riderData?.phone_number || riderData?.phone || '+233 24 000 0000';
-        const riderName = riderData?.full_name || (riderData?.first_name ? `${riderData.first_name} ${riderData.last_name || ''}`.trim() : 'Your Rider');
-        const riderPhoto = riderData?.avatar_url || 'https://readdy.ai/api/search-image?query=Professional%20African%20male%20waste%20collection%20worker&width=100&height=100&seq=rider_found';
-
-        const rating = riderData?.rating ? parseFloat(riderData.rating) : 5.0;
-
-        const realRider: Rider = {
-          id: orderData.rider_id || 'RDR-001',
-          name: riderName,
-          rating: rating,
-          phone: riderPhone,
-          photo: riderPhoto,
-          distance: orderData.status === 'accepted' ? 'Ready for pickup' : 'Notified',
-          lat: riderData?.latitude || lat + 0.002,
-          lng: riderData?.longitude || lng + 0.002
-        };
-
-        setLocalRider(realRider);
-        
-        if (orderData.status === 'accepted' || orderData.status === 'active' || orderData.status === 'in_progress') {
-          setStatus('found');
-          setTimeout(() => onRiderFound(realRider), 1500);
-        } else {
-          setStatus('waiting');
-        }
+      if (order && order.rider_id && ['accepted', 'assigned', 'confirmed', 'in_progress', 'heading', 'arrived', 'completed'].includes(order.status)) {
+          const { data: riderData } = await supabase.from('riders').select('*').eq('id', order.rider_id).single();
+          if (riderData) {
+            const riderObj: Rider = {
+              id: riderData.id,
+              name: riderData.full_name || 'Borla Rider',
+              rating: parseFloat(riderData.rating || '4.8'),
+              phone: riderData.phone_number || '',
+              photo: riderData.avatar_url || 'https://cdn-icons-png.flaticon.com/512/149/149071.png',
+              distance: 'Nearby',
+              lat: riderData.latitude,
+              lng: riderData.longitude
+            };
+            setLocalRider(riderObj);
+            setStatus('found');
+            // Give 1 second for the UI to feel "Found" then transition
+            setTimeout(() => onRiderFound(riderObj), 1000);
+          }
       }
     };
+    checkInitialStatus();
 
-    if (!orderId) {
-      console.warn("FindingRider: No orderId provided, cannot listen for rider changes.");
-      return;
-    }
+    // 1.5 Heartbeat Backup (Polling every 5s in case real-time fails)
+    const heartbeat = setInterval(checkInitialStatus, 5000);
 
-    fetchTargetRider();
-    checkInitialRider();
-
-    const channel = supabase
-      .channel(`order-${orderId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'orders',
-          filter: `id=eq.${orderId}`,
-        },
-        async (payload: any) => {
-          console.log('Order status update in FindingRider:', payload);
-          const updatedOrder = payload.new;
-          if (updatedOrder.rider_id) {
-            
-            // Try fetching from riders table
-            const { data: riderData, error } = await supabase
-              .from('riders')
-              .select('*')
-              .eq('id', updatedOrder.rider_id)
-              .single();
-
-            if (error) {
-              console.error("Error fetching rider details in FindingRider:", error);
-            }
-
-            const riderPhone = riderData?.phone_number || riderData?.phone || '+233 24 000 0000';
-            const riderName = riderData?.full_name || (riderData?.first_name ? `${riderData.first_name} ${riderData.last_name || ''}`.trim() : 'Your Rider');
-            const riderPhoto = riderData?.avatar_url || 'https://readdy.ai/api/search-image?query=Professional%20African%20male%20waste%20collection%20worker%2C%20friendly%20smile%2C%20uniform%2C%20safety%20equipment%2C%20confident%20expression%2C%20clean%20background%2C%20high-quality%20portrait%20photography&width=100&height=100&seq=rider_found&orientation=squarish';
-
-            const rating = riderData?.rating ? parseFloat(riderData.rating) : 5.0;
-
-            const realRider: Rider = {
-              id: updatedOrder.rider_id || 'RDR-001',
-              name: riderName,
-              rating: rating,
-              phone: riderPhone,
-              photo: riderPhoto,
-              distance: updatedOrder.status === 'accepted' ? 'On the way' : 'Notified',
-              lat: riderData?.latitude || lat + 0.002,
-              lng: riderData?.longitude || lng + 0.002
-            };
-
-            setLocalRider(realRider);
-            
-            if (updatedOrder.status === 'accepted' || updatedOrder.status === 'active' || updatedOrder.status === 'in_progress') {
-              setStatus('found');
-              setTimeout(() => onRiderFound(realRider), 1500);
-            } else {
-              setStatus('waiting');
+    // 2. Real-time Subscription (Live Updates)
+    const channel = supabase.channel(`order-sync-${orderId}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders', filter: `id=eq.${orderId}` }, async (payload: any) => {
+          console.log('📦 Real-time Status Sync:', payload.new.status);
+          if (payload.new.rider_id) {
+            const { data: riderData } = await supabase.from('riders').select('*').eq('id', payload.new.rider_id).single();
+            if (riderData) {
+              const riderObj: Rider = {
+                id: riderData.id,
+                name: riderData.full_name || 'Borla Rider',
+                rating: parseFloat(riderData.rating || '4.8'),
+                phone: riderData.phone_number || '',
+                photo: riderData.avatar_url || 'https://cdn-icons-png.flaticon.com/512/149/149071.png',
+                distance: 'Nearby',
+                lat: riderData.latitude,
+                lng: riderData.longitude
+              };
+              setLocalRider(riderObj);
+              if (['accepted', 'assigned', 'confirmed', 'active', 'in_progress', 'heading', 'arrived', 'completed'].includes(payload.new.status)) {
+                setStatus('found');
+                sendLocalNotification(
+                  'Order Accepted!',
+                  `${riderObj.name} has accepted your request.`,
+                  { orderId }
+                );
+                setTimeout(() => onRiderFound(riderObj), 2000);
+              } else {
+                setStatus('waiting');
+              }
             }
           }
-        }
-      )
-      .subscribe();
+      }).subscribe((status) => {
+        console.log(`🔌 Sync Channel for ${orderId}:`, status);
+      });
 
-    return () => {
-      supabase.removeChannel(channel);
+    return () => { 
+      supabase.removeChannel(channel); 
+      clearInterval(heartbeat);
     };
   }, [orderId]);
 
   return (
     <View style={styles.container}>
-      <View style={styles.mapContainer}>
-        <WebView
-          source={{ html: getMapHtml(lat, lng, onlineRiders) }}
-          style={styles.map}
-          scrollEnabled={false}
-        />
-        <View style={styles.overlay}>
+      <View style={styles.mapWrap}>
+        <WebView source={{ html: getMapHtml(lat, lng, onlineRiders) }} style={styles.map} scrollEnabled={false} />
+        <View style={styles.topOverlay}>
           <View style={styles.statusBadge}>
             <View style={styles.pulseDot} />
             <Text style={styles.statusText}>
-              {status === 'searching' ? 'Searching for riders...' : 
-               status === 'connecting' ? (selectedRiderId ? `Notifying ${targetRider?.full_name || 'rider'}...` : 'Connecting to rider...') : 
-               status === 'waiting' ? 'Waiting for rider to accept...' :
-               'Rider found!'}
+              {status === 'searching' ? 'Searching nearby...' :
+               status === 'connecting' ? 'Connecting to rider...' :
+               status === 'waiting' ? 'Waiting for confirmation...' : 'Rider Found!'}
             </Text>
           </View>
         </View>
       </View>
 
-      <View style={styles.bottomSheet}>
-        {status !== 'found' && status !== 'waiting' ? (
-          <View style={styles.loadingContent}>
-            <Animated.View style={[styles.searchingIcon, { transform: [{ scale: pulseAnim }] }]}>
-              <RemixIcon name="ri-radar-line" size={40} color="#10b981" />
-            </Animated.View>
-            <Text style={styles.title}>{selectedRiderId ? 'Requesting Rider' : 'Finding Your Rider'}</Text>
-            <Text style={styles.subtitle}>
-              {selectedRiderId 
-                ? `Sending your pickup request to ${targetRider?.full_name || 'the selected rider'}. Please wait for a response.`
-                : 'Connecting you with the nearest Borla Wura rider for quick pickup'}
-            </Text>
-            <View style={styles.tipCard}>
-              <RemixIcon name="ri-lightbulb-line" size={18} color="#065f46" />
-              <Text style={styles.tipText}>
-                Did you know? Sorting your waste helps our riders process it faster!
-              </Text>
-            </View>
-            <Button variant="outline" onPress={onCancel} fullWidth style={styles.cancelBtn}>
-              Cancel Search
-            </Button>
-          </View>
-        ) : (
-          <View style={styles.foundContent}>
-            <View style={styles.foundHeader}>
-              <RemixIcon 
-                name={status === 'waiting' ? "ri-time-line" : "ri-checkbox-circle-fill"} 
-                size={24} 
-                color={status === 'waiting' ? "#f59e0b" : "#10b981"} 
-              />
-              <Text style={[styles.foundTitle, status === 'waiting' && { color: '#f59e0b' }]}>
-                {status === 'waiting' ? 'Waiting for Acceptance...' : 'Rider Accepted!'}
-              </Text>
-            </View>
-            <View style={styles.riderInfo}>
-              {localRider && (
-                <>
-                  <Image source={{ uri: localRider.photo }} style={styles.riderPhoto} />
-                  <View style={styles.riderDetails}>
-                    <Text style={styles.riderName}>{localRider.name}</Text>
-                    <View style={styles.ratingRow}>
-                      <RemixIcon name="ri-star-fill" size={14} color="#fbbf24" />
-                      <Text style={styles.ratingText}>{localRider.rating}</Text>
-                      <View style={styles.dot} />
-                      <Text style={styles.distanceText}>{localRider.distance}</Text>
-                    </View>
-                  </View>
-                </>
-              )}
-              <View style={styles.riderActions}>
-                <View style={[styles.actionIcon, status === 'waiting' && { backgroundColor: '#fef3c7' }]}>
-                  <RemixIcon 
-                    name={status === 'waiting' ? "ri-loader-4-line" : "ri-phone-line"} 
-                    size={20} 
-                    color={status === 'waiting' ? "#f59e0b" : "#10b981"} 
-                  />
+      <View style={styles.sheet}>
+        <View style={styles.sheetContent}>
+           {status === 'found' ? (
+             <View style={styles.foundBox}>
+                <View style={styles.successCircle}>
+                  <RemixIcon name="ri-check-line" size={32} color="#fff" />
                 </View>
-              </View>
-            </View>
-            {status === 'waiting' && (
-              <Button variant="outline" onPress={onCancel} fullWidth style={[styles.cancelBtn, { marginTop: 16 }]}>
-                Cancel Request
-              </Button>
-            )}
-          </View>
-        )}
+                <Text style={styles.foundTitle}>Pickup Confirmed</Text>
+                <View style={styles.riderCard}>
+                   <Image source={{ uri: localRider?.photo }} style={styles.riderImg} />
+                   <View style={styles.riderInfo}>
+                      <Text style={styles.riderName}>{localRider?.name}</Text>
+                      <View style={styles.ratingRow}>
+                         <RemixIcon name="ri-star-fill" size={12} color="#fbbf24" />
+                         <Text style={styles.ratingText}>{localRider?.rating}</Text>
+                      </View>
+                   </View>
+                </View>
+             </View>
+           ) : (
+             <View style={styles.searchingBox}>
+                <Animated.View style={[styles.radarBox, { transform: [{ scale: pulseAnim }] }]}>
+                   <View style={styles.radarCircle}>
+                      <RemixIcon name="ri-radar-line" size={40} color="#10b981" />
+                   </View>
+                </Animated.View>
+                <Text style={styles.searchingTitle}>Finding your Rider</Text>
+                <Text style={styles.searchingDesc}>
+                   We are connecting you with the best available rider in your area for a swift collection.
+                </Text>
+                <View style={styles.loaderLine}>
+                   <Animated.View style={[styles.loaderFill, { width: '100%', opacity: 0.6 }]} />
+                </View>
+                <TouchableOpacity onPress={onCancel} style={styles.cancelBtn}>
+                   <Text style={styles.cancelText}>Cancel Search</Text>
+                </TouchableOpacity>
+             </View>
+           )}
+        </View>
       </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
-  mapContainer: {
-    flex: 1,
-    position: 'relative',
-  },
-  map: {
-    flex: 1,
-  },
-  overlay: {
-    position: 'absolute',
-    top: 100,
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    zIndex: 10,
-  },
-  statusBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 25,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  pulseDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#10b981',
-    marginRight: 10,
-  },
-  statusText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1f2937',
-  },
-  bottomSheet: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 30,
-    borderTopRightRadius: 30,
-    padding: 24,
-    paddingBottom: 40,
-    elevation: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -10 },
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-  },
-  loadingContent: {
-    alignItems: 'center',
-  },
-  searchingIcon: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#ecfdf5',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 20,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1f2937',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#6b7280',
-    textAlign: 'center',
-    lineHeight: 20,
-    marginBottom: 24,
-  },
-  tipCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f0fdf4',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 24,
-    gap: 12,
-  },
-  tipText: {
-    flex: 1,
-    fontSize: 12,
-    color: '#065f46',
-    lineHeight: 18,
-  },
-  cancelBtn: {
-    borderColor: '#ef4444',
-  },
-  foundContent: {
-    gap: 20,
-  },
-  foundHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  foundTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#10b981',
-  },
-  riderInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f9fafb',
-    padding: 16,
-    borderRadius: 16,
-    gap: 12,
-  },
-  riderPhoto: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-  },
-  riderDetails: {
-    flex: 1,
-  },
-  riderName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1f2937',
-    marginBottom: 4,
-  },
-  ratingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  ratingText: {
-    fontSize: 14,
-    color: '#1f2937',
-    fontWeight: '500',
-  },
-  dot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#d1d5db',
-    marginHorizontal: 4,
-  },
-  distanceText: {
-    fontSize: 14,
-    color: '#6b7280',
-  },
-  riderActions: {
-    gap: 10,
-  },
-  actionIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: '#ecfdf5',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  container: { flex: 1, backgroundColor: '#fff' },
+  mapWrap: { flex: 1 },
+  map: { flex: 1 },
+  topOverlay: { position: 'absolute', top: 100, left: 0, right: 0, alignItems: 'center' },
+  statusBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 25, elevation: 5, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 10 },
+  pulseDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#10b981', marginRight: 10 },
+  statusText: { fontSize: 13, fontFamily: typography.bold, color: '#0f172a' },
+  sheet: { backgroundColor: '#fff', borderTopLeftRadius: 36, borderTopRightRadius: 36, padding: 32, elevation: 20, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 20 },
+  sheetContent: { alignItems: 'center' },
+  searchingBox: { width: '100%', alignItems: 'center' },
+  radarBox: { width: 100, height: 100, borderRadius: 50, backgroundColor: '#f0fdf4', alignItems: 'center', justifyContent: 'center', marginBottom: 20 },
+  radarCircle: { width: 70, height: 70, borderRadius: 35, backgroundColor: '#dcfce7', alignItems: 'center', justifyContent: 'center' },
+  searchingTitle: { fontSize: 22, fontFamily: typography.bold, color: '#0f172a', marginBottom: 8 },
+  searchingDesc: { fontSize: 14, fontFamily: typography.medium, color: '#64748b', textAlign: 'center', lineHeight: 22, marginBottom: 24 },
+  loaderLine: { width: '100%', height: 4, backgroundColor: '#f1f5f9', borderRadius: 2, overflow: 'hidden', marginBottom: 32 },
+  loaderFill: { height: '100%', backgroundColor: '#10b981' },
+  cancelBtn: { padding: 12 },
+  cancelText: { fontSize: 14, fontFamily: typography.bold, color: '#ef4444' },
+  foundBox: { width: '100%', alignItems: 'center' },
+  successCircle: { width: 64, height: 64, borderRadius: 32, backgroundColor: '#10b981', alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
+  foundTitle: { fontSize: 22, fontFamily: typography.bold, color: '#0f172a', marginBottom: 20 },
+  riderCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8fafc', padding: 16, borderRadius: 20, width: '100%' },
+  riderImg: { width: 50, height: 50, borderRadius: 15, backgroundColor: '#e2e8f0' },
+  riderInfo: { marginLeft: 16 },
+  riderName: { fontSize: 16, fontFamily: typography.bold, color: '#0f172a' },
+  ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
+  ratingText: { fontSize: 13, fontFamily: typography.bold, color: '#475569' },
 });

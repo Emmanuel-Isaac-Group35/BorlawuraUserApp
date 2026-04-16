@@ -1,11 +1,15 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-
-
-import { View, Alert, Modal, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Alert, Modal, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import RNAsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
+import * as Linking from 'expo-linking';
+import * as WebBrowser from 'expo-web-browser';
 
 import { supabase } from '../lib/supabase';
+import { registerForPushNotificationsAsync } from '../utils/notifications';
+
+WebBrowser.maybeCompleteAuthSession();
 
 // Context type definition
 interface AuthContextType {
@@ -15,7 +19,9 @@ interface AuthContextType {
   login: (userData: any) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
+  signInWithGoogle: () => Promise<void>;
   isLoading: boolean;
+  needsProfileCompletion: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -25,79 +31,122 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSuspended, setIsSuspended] = useState(false);
+  const [needsProfileCompletion, setNeedsProfileCompletion] = useState(false);
+
+  const processingRef = React.useRef(false);
 
   useEffect(() => {
-    // Check for persisted login state
+    // 1. Manual Deep Link Interceptor (for OAuth)
+    const handleDeepLink = async (event: { url: string }) => {
+      console.log('🔗 Deep Link Detected:', event.url);
+      if (event.url.includes('access_token=') || event.url.includes('refresh_token=')) {
+        setIsLoading(true);
+        const { data, error } = await supabase.auth.getSession();
+        if (data?.session?.user) {
+           handleSupabaseSession(data.session.user);
+        } else if (error) {
+           console.error('Deep link session error:', error);
+           setIsLoading(false);
+        }
+      }
+    };
+
+    const linkSubscription = Linking.addEventListener('url', handleDeepLink);
+
+    // Initial check for a deep link if the app was opened via one
+    Linking.getInitialURL().then((url) => {
+      if (url) handleDeepLink({ url });
+    });
+
+    // 2. Listen for Supabase Auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('🔄 Auth State Event:', event, session?.user?.email);
+      if (session?.user && !processingRef.current) {
+        handleSupabaseSession(session.user);
+      } else if (event === 'SIGNED_OUT') {
+        logout();
+      }
+    });
+
+    const handleSupabaseSession = async (supabaseUser: any) => {
+      if (processingRef.current) return;
+      processingRef.current = true;
+      setIsLoading(true);
+      try {
+        const { data: dbUser, error } = await supabase
+          .from('users')
+          .select('*')
+          .eq('email', supabaseUser.email)
+          .maybeSingle();
+
+        let finalUser = dbUser;
+        if (!dbUser && !error) {
+          // Auto-create user if they don't exist yet (First time Google Login)
+          const { data: newUser, error: insertError } = await supabase
+            .from('users')
+            .insert([{
+              email: supabaseUser.email,
+              full_name: supabaseUser.user_metadata?.full_name || supabaseUser.user_metadata?.name || 'New User',
+              avatar_url: supabaseUser.user_metadata?.avatar_url || supabaseUser.user_metadata?.picture,
+              status: 'active',
+              registration_status: 'approved'
+            }])
+            .select()
+            .single();
+            
+          if (insertError) throw insertError;
+          finalUser = newUser;
+        }
+
+        if (finalUser) {
+          const storageUser = { 
+            ...finalUser, 
+            supabase_id: finalUser.id 
+          };
+          await RNAsyncStorage.setItem('user', JSON.stringify(storageUser));
+          setUser(storageUser);
+          
+          // Check if profile is complete (needs address and phone)
+          const isComplete = storageUser.location && storageUser.phone_number;
+          setNeedsProfileCompletion(!isComplete);
+          
+          setIsLoggedIn(true);
+          const isRestricted = ['suspended', 'flagged', 'rejected', 'pending'].includes(finalUser.status);
+          setIsSuspended(isRestricted);
+        }
+      } catch (err) {
+        console.error('OAuth sync error:', err);
+      } finally {
+        setIsLoading(false);
+        processingRef.current = false;
+      }
+    };
+
+    // 2. Check for persisted login state on app open
     const checkAuth = async () => {
       try {
         const storedUserJSON = await RNAsyncStorage.getItem('user');
         if (storedUserJSON) {
-          let userData = JSON.parse(storedUserJSON);
-          
-          // 1. Initial Data Sync: Ensure we have the latest record from DB
-          // This is critical for catching suspensions that happened while the app was closed
-          if (userData.id) {
-             const { data: dbUser, error: checkError } = await supabase
-               .from('users')
-               .select('*')
-               .eq('id', userData.id)
-               .maybeSingle();
-             
-             if (dbUser) {
-               userData = {
-                 ...userData,
-                 ...dbUser,
-                 supabase_id: dbUser.id
-               };
-               // Persist the freshest data
-               await RNAsyncStorage.setItem('user', JSON.stringify(userData));
-             }
-          }
-
-          // 2. Re-sync logic for temporary IDs (Legacy fallback)
-          if (userData.id && userData.id.toString().startsWith('user_')) {
-            let searchPhone = (userData.phone_number || userData.phoneNumber || '').replace(/\s+/g, '');
-            if (searchPhone.startsWith('0')) {
-              searchPhone = '+233' + searchPhone.substring(1);
-            } else if (searchPhone && !searchPhone.startsWith('+')) {
-              searchPhone = '+233' + searchPhone;
-            }
-            
-            const searchEmail = userData.email && userData.email.includes('@') ? userData.email : null;
-            
-            if (searchPhone || searchEmail) {
-              let query = supabase.from('users').select('*');
-              if (searchPhone && searchEmail) {
-                query = query.or(`phone_number.eq.${searchPhone},email.eq.${searchEmail}`);
-              } else if (searchPhone) {
-                query = query.eq('phone_number', searchPhone);
-              } else {
-                query = query.eq('email', searchEmail);
-              }
+          try {
+            const userData = JSON.parse(storedUserJSON);
+            if (userData && (userData.id || userData.supabase_id)) {
+              setUser(userData);
+              setIsLoggedIn(true);
               
-              const { data: dbUser } = await query.single();
-              if (dbUser) {
-                userData = {
-                   ...userData,
-                   ...dbUser,
-                   supabase_id: dbUser.id,
-                   id: dbUser.id // Overwrite temporary ID with real one
-                };
-                // Persist the fixed data
-                await RNAsyncStorage.setItem('user', JSON.stringify(userData));
-              }
-            }
-          }
-          
-          setUser(userData);
-          setIsLoggedIn(true);
+              // Re-check profile completion on startup
+              const isComplete = userData.location && userData.phone_number;
+              setNeedsProfileCompletion(!isComplete);
 
-          // Update check for all restricted statuses
-          const isRestricted = (
-            ['suspended', 'flagged', 'pending'].includes(userData.status) || 
-            ['rejected', 'pending'].includes(userData.registration_status)
-          );
-          setIsSuspended(isRestricted);
+              const isRestricted = ['suspended', 'flagged', 'rejected', 'pending'].includes(userData.status);
+              setIsSuspended(isRestricted);
+            } else {
+               // Corrupted data structure, clean it up
+               await RNAsyncStorage.removeItem('user');
+            }
+          } catch (parseErr) {
+            console.error('Invalid storage data, clearing...');
+            await RNAsyncStorage.removeItem('user');
+          }
         }
       } catch (e) {
         console.error('Failed to load auth state', e);
@@ -105,233 +154,244 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setIsLoading(false);
       }
     };
+
     checkAuth();
+    return () => {
+      subscription.unsubscribe();
+      linkSubscription.remove();
+    };
   }, []);
 
-  // Set up real-time monitoring when user is logged in
+  // Update push tokens in background
   useEffect(() => {
-    let userChannel: any = null;
     const userId = user?.supabase_id || user?.id;
-
-    if (userId && isLoggedIn) {
-      console.log('Setting up real-time listener for user:', userId);
-      userChannel = supabase
-        .channel(`user-status-${userId}`)
-        .on(
-          'postgres_changes',
-          { event: 'UPDATE', schema: 'public', table: 'users', filter: `id=eq.${userId}` },
-          (payload) => {
-            const newStatus = payload.new.status;
-            const regStatus = payload.new.registration_status;
-            
-            console.log('Real-time status update received:', newStatus, regStatus);
-
-            const shouldBlock = (
-              ['suspended', 'flagged', 'pending'].includes(newStatus) || 
-              ['rejected', 'pending'].includes(regStatus)
-            );
-            
-            setIsSuspended(shouldBlock);
-            setUser((prev: any) => prev ? { ...prev, status: newStatus, registration_status: regStatus } : null);
+    if (userId && isLoggedIn && !String(userId).startsWith('user_')) {
+      const isExpoGo = Constants.appOwnership === 'expo';
+      if (!isExpoGo || Platform.OS === 'ios') {
+        registerForPushNotificationsAsync().then(token => {
+          if (token) {
+            supabase.from('users').update({ push_token: token }).eq('id', userId).then();
           }
-        )
-        .subscribe();
-    }
-
-    return () => {
-      if (userChannel) {
-        console.log('Removing real-time listener for user:', userId);
-        supabase.removeChannel(userChannel);
+        });
       }
-    };
+    }
   }, [user?.id, user?.supabase_id, isLoggedIn]);
 
   const login = async (userData: any) => {
-    let existingUser: any = null;
+    setIsLoading(true);
     try {
-      // Normalize phone number to used format
       const finalPhone = userData.phoneNumber || userData.phone_number;
+      let dbUser: any = null;
+      let authUserId: string | null = null;
       
-      if (finalPhone) {
-        try {
-          const { data, error: fetchError } = await supabase
+      // CASE 1: Profile Completion (already have an auth user, just updating DB)
+      if (userData.isProfileCompletion && (user?.supabase_id || user?.id)) {
+        authUserId = user.supabase_id || user.id;
+        const { data: updatedUser, error: updateError } = await supabase
             .from('users')
-            .select('*')
-            .eq('phone_number', finalPhone)
-            .maybeSingle();
-          
-          existingUser = data;
-
-          if (!existingUser) {
-            // User not found
-            if (userData.isSignup) {
-              // Only insert a new user if they used the Signup flow
-              const { data: insertedUser, error: insertError } = await supabase
-                .from('users')
-                .insert([{ 
-                    phone_number: finalPhone,
-                    full_name: userData.name || '',
-                    email: userData.email || '',
-                    status: 'active',
-                    registration_status: 'approved'
-                }])
-                .select()
-                .single();
-                
-              if (insertError) {
-                console.error('Supabase User Insert Error:', insertError);
-                throw new Error(`Failed to create user in DB: ${insertError.message}`);
-              }
-              
-              if (insertedUser) {
-                existingUser = insertedUser;
-              }
-            } else {
-               throw new Error("Account not found. Please sign up first.");
-            }
-          } else if (existingUser) {
-            // If they are signing up again with the same number, but providing a new name/email
-            if (userData.isSignup) {
-               const { data: updatedUser } = await supabase
-                  .from('users')
-                  .update({ 
-                     full_name: userData.name || existingUser.full_name,
-                     email: userData.email || existingUser.email
-                  })
-                  .eq('id', existingUser.id)
-                  .select()
-                  .single();
- 
-               if (updatedUser) {
-                 existingUser = updatedUser;
-               }
+            .update({
+              phone_number: finalPhone,
+              location: userData.location || ''
+            })
+            .eq('id', authUserId)
+            .select()
+            .single();
+        
+        if (updateError) throw updateError;
+        dbUser = updatedUser;
+      } 
+      // CASE 2: New Signup (Need to create Auth User AND DB User)
+      else if (userData.isSignup) {
+        // 1. Create the Auth Account in the Security Vault
+        const { data: authData, error: authError } = await supabase.auth.signUp({
+          email: userData.email,
+          password: userData.password,
+          options: {
+            data: {
+              full_name: userData.name,
+              phone: finalPhone,
             }
           }
-        } catch (dbError: any) {
-          console.error("Failed to sync user with DB:", dbError);
-          throw new Error(dbError.message || "Failed to sync account in database.");
+        });
+
+        if (authError) {
+          // If user already exists in Auth, try to just login or error
+          if (authError.message.includes('already registered')) {
+            throw new Error("This email is already registered. Please login instead.");
+          }
+          throw authError;
+        }
+        
+        authUserId = authData.user?.id || null;
+
+        // 2. Create or Update the Public Profile linked to that Auth ID
+        if (authUserId) {
+          // Check if a 'ghost' record already exists for this email or phone
+          const { data: ghostRecord } = await supabase
+            .from('users')
+            .select('id')
+            .or(`email.eq.${userData.email},phone_number.eq.${finalPhone}`)
+            .maybeSingle();
+
+          let insertedOrUpdatedUser: any = null;
+
+          if (ghostRecord) {
+            // Repair the ghost account by updating its ID to the new Auth ID
+            const { data: repairedUser, error: repairError } = await supabase
+              .from('users')
+              .update({ 
+                id: authUserId,
+                phone_number: finalPhone,
+                full_name: userData.name || '',
+                location: userData.location || '',
+                status: 'active'
+              })
+              .eq('id', ghostRecord.id)
+              .select()
+              .single();
+            
+            if (repairError) {
+              // If update by ID fails (perhaps due to primary key constraints), try to just fetch what's there
+              const { data: fallback } = await supabase.from('users').select('*').eq('id', authUserId).single();
+              insertedOrUpdatedUser = fallback;
+            } else {
+              insertedOrUpdatedUser = repairedUser;
+            }
+          } else {
+            // No ghost record, normal insert
+            const { data: newUser, error: dbError } = await supabase
+              .from('users')
+              .insert([{ 
+                  id: authUserId,
+                  phone_number: finalPhone,
+                  full_name: userData.name || '',
+                  email: userData.email || '',
+                  location: userData.location || '',
+                  status: 'active',
+                  registration_status: 'approved'
+              }])
+              .select()
+              .single();
+            if (!dbError) insertedOrUpdatedUser = newUser;
+          }
+          
+          dbUser = insertedOrUpdatedUser || { id: authUserId, email: userData.email }; 
+        }
+      }
+      // CASE 3: Standard Login State Update (Auth already happened in AuthPage)
+      else if (finalPhone || userData.id) {
+        const { data } = await supabase
+          .from('users')
+          .select('*')
+          .or(`id.eq.${userData.id},phone_number.eq.${finalPhone}`)
+          .maybeSingle();
+        dbUser = data;
+
+        if (!dbUser) {
+          throw new Error("User record not found in database.");
         }
       }
 
       const storageUser = { 
-        ...userData, 
-        ...existingUser, 
-        phoneNumber: finalPhone, 
-        phone_number: finalPhone,
-        name: userData.name || existingUser?.full_name || '',
-        full_name: userData.name || existingUser?.full_name || '',
-        email: userData.email || existingUser?.email || '',
-        supabase_id: existingUser?.id || userData.id
+        ...(dbUser || userData), 
+        supabase_id: dbUser?.id || authUserId || userData.id
       };
 
-      // CRITICAL SECURITY CHECK
-      const restrictedStatuses = ['suspended', 'flagged', 'rejected'];
-      const isActuallyRestricted = (
-        restrictedStatuses.includes(storageUser.status) || 
-        restrictedStatuses.includes(storageUser.registration_status)
-      );
-      
-      if (isActuallyRestricted) {
-         let message = "This account has been restricted by the administrator.";
-         if (storageUser.status === 'suspended') message = "Your account has been suspended for violating terms of service.";
-         else if (storageUser.status === 'flagged') message = "Your account is under review for security reasons.";
-         else if (storageUser.registration_status === 'rejected') message = "Your account registration was not approved.";
-         
-         setIsSuspended(true);
-         setUser(storageUser);
-         setIsLoggedIn(false); // ENSURE THIS IS FALSE
-         throw new Error(message);
-      }
-
-      // If pending, they can log in but will be blocked by the modal in the background
-      const isPending = storageUser.status === 'pending' || storageUser.registration_status === 'pending';
-      
       await RNAsyncStorage.setItem('user', JSON.stringify(storageUser));
       setUser(storageUser);
-      setIsSuspended(isPending);
+      setNeedsProfileCompletion(false);
       setIsLoggedIn(true);
+      setIsSuspended(['suspended', 'flagged', 'rejected', 'pending'].includes(storageUser.status));
+      setIsLoading(false);
     } catch (e: any) {
-      console.error('Login error', e);
-      setIsLoggedIn(false);
+      setIsLoading(false);
+      Alert.alert('Auth Error', e.message);
       throw e;
+    }
+  };
+
+  const signInWithGoogle = async () => {
+    const redirectUrl = Linking.createURL('auth-callback');
+    try {
+      if (Platform.OS !== 'web') {
+        await WebBrowser.warmUpAsync();
+      }
+
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: redirectUrl, skipBrowserRedirect: true },
+      });
+      if (error) throw error;
+      if (data?.url) {
+        const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl);
+        
+        // Fail-safe: If the browser closed successfully, force-check for the session
+        if (result.type === 'success') {
+          if (Platform.OS === 'ios') WebBrowser.dismissBrowser();
+          
+          // Small delay to allow deep link processing, then force sync
+          setTimeout(async () => {
+            const { data: sessionData } = await supabase.auth.getSession();
+            if (sessionData?.session?.user && !isLoggedIn) {
+              handleSupabaseSession(sessionData.session.user);
+            }
+          }, 500);
+        }
+      }
+    } catch (err: any) {
+      Alert.alert('Authentication Error', err.message);
+    } finally {
+      if (Platform.OS !== 'web') {
+        await WebBrowser.coolDownAsync();
+      }
     }
   };
 
   const logout = async () => {
     try {
+      await supabase.auth.signOut();
       await RNAsyncStorage.removeItem('user');
       setUser(null);
       setIsLoggedIn(false);
       setIsSuspended(false);
     } catch (e) {
-      console.error('Failed to clear auth state', e);
+      console.error('Logout error', e);
     }
   };
 
   const refreshUser = async () => {
-    if (!user?.id && !user?.supabase_id) return;
+    const id = user?.supabase_id || user?.id;
+    if (!id || String(id).startsWith('user_')) return;
     try {
-      const searchId = user.supabase_id || user.id;
-      const { data: dbUser } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', searchId)
-        .single();
-      
-      if (dbUser) {
-        const updatedUser = { ...user, ...dbUser, supabase_id: dbUser.id };
-        setUser(updatedUser);
-        await RNAsyncStorage.setItem('user', JSON.stringify(updatedUser));
+      const { data } = await supabase.from('users').select('*').eq('id', id).single();
+      if (data) {
+        const updated = { ...user, ...data };
+        setUser(updated);
+        await RNAsyncStorage.setItem('user', JSON.stringify(updated));
       }
     } catch (e) {
-      console.error('Failed to refresh user', e);
+      console.error('Refresh error', e);
     }
   };
 
-  const getSuspendedMessage = () => {
-     if (!user) return "Your account has been restricted.";
-     const s = (user.status || '').toLowerCase();
-     const rs = (user.registration_status || '').toLowerCase();
-
-     if (s === 'suspended') return "Your account has been suspended by the administrator for violating terms of service.";
-     if (s === 'flagged') return "Your account has been flagged for security review.";
-     if (rs === 'rejected') return "Your account registration has been rejected.";
-     if (rs === 'pending' || s === 'pending') return "Your account is currently pending administrative approval.";
-     
-     return "Your access to this application has been restricted.";
-  };
-
   return (
-    <AuthContext.Provider value={{ isLoggedIn, isSuspended, user, login, logout, refreshUser, isLoading }}>
+    <AuthContext.Provider value={{ isLoggedIn, isSuspended, user, login, logout, refreshUser, signInWithGoogle, isLoading, needsProfileCompletion }}>
       {children}
-      
-      <Modal
-        visible={isSuspended}
-        transparent={true}
-        animationType="fade"
-      >
+      <Modal visible={isSuspended} transparent={true} animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.iconContainer}>
               <Ionicons 
-                name={(user?.status === 'pending' || user?.registration_status === 'pending') ? "time" : "warning"} 
+                name={user?.status === 'pending' ? "time" : "warning"} 
                 size={60} 
-                color={(user?.status === 'pending' || user?.registration_status === 'pending') ? "#d97706" : "#dc2626"} 
+                color={user?.status === 'pending' ? "#d97706" : "#dc2626"} 
               />
             </View>
             <Text style={styles.modalTitle}>
-              {(user?.status === 'pending' || user?.registration_status === 'pending') ? "Account Pending" : "Account Restricted"}
+              {user?.status === 'pending' ? "Account Pending" : "Account Restricted"}
             </Text>
-            <Text style={styles.modalSubtitle}>
-              {getSuspendedMessage()}
-            </Text>
-            <Text style={styles.modalSubtitle}>
-              Please contact support if you believe this is a mistake.
-            </Text>
-            <TouchableOpacity 
-              style={[styles.logoutButton, (user?.status === 'pending' || user?.registration_status === 'pending') && { backgroundColor: '#d97706' }]}
-              onPress={logout}
-            >
+            <Text style={styles.modalSubtitle}>Your access has been restricted. Please contact support.</Text>
+            <TouchableOpacity style={styles.logoutButton} onPress={logout}>
               <Text style={styles.logoutButtonText}>Sign Out</Text>
             </TouchableOpacity>
           </View>
@@ -341,66 +401,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   );
 };
 
-const styles = StyleSheet.create({
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-  },
-  modalContent: {
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    padding: 30,
-    alignItems: 'center',
-    width: '100%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 5,
-  },
-  iconContainer: {
-    marginBottom: 20,
-    backgroundColor: '#fee2e2',
-    padding: 20,
-    borderRadius: 50,
-  },
-  modalTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#1f2937',
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-  modalSubtitle: {
-    fontSize: 16,
-    color: '#4b5563',
-    textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: 8,
-  },
-  logoutButton: {
-    backgroundColor: '#dc2626',
-    paddingVertical: 14,
-    paddingHorizontal: 30,
-    borderRadius: 12,
-    marginTop: 24,
-    width: '100%',
-    alignItems: 'center',
-  },
-  logoutButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-});
-
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
+  if (context === undefined) throw new Error('useAuth must be used within an AuthProvider');
   return context;
 };
+
+const styles = StyleSheet.create({
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center', padding: 24 },
+  modalContent: { backgroundColor: '#fff', borderRadius: 20, padding: 30, alignItems: 'center', width: '100%' },
+  iconContainer: { marginBottom: 20, backgroundColor: '#fee2e2', padding: 20, borderRadius: 50 },
+  modalTitle: { fontSize: 24, fontWeight: 'bold', color: '#1f2937', marginBottom: 16, textAlign: 'center' },
+  modalSubtitle: { fontSize: 16, color: '#4b5563', textAlign: 'center', lineHeight: 24, marginBottom: 8 },
+  logoutButton: { backgroundColor: '#dc2626', paddingVertical: 14, paddingHorizontal: 30, borderRadius: 12, marginTop: 24, width: '100%', alignItems: 'center' },
+  logoutButtonText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
+});

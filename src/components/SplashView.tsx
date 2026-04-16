@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, Animated } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { typography } from '../utils/typography';
 
 const SplashView = () => {
   const fadeAnim = React.useRef(new Animated.Value(0)).current;
@@ -37,7 +38,7 @@ const styles = StyleSheet.create({
   logoText: {
     color: '#FFFFFF',
     fontSize: 48,
-    fontWeight: '900',
+    fontFamily: typography.bold,
     textAlign: 'center',
     letterSpacing: -1.5,
   },

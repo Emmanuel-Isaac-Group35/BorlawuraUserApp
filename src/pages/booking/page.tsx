@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Modal, TouchableOpacity, Alert, Image, KeyboardAvoidingView, Platform } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Navigation } from '../../components/feature/Navigation';
-import { BottomNavigation } from '../../components/feature/BottomNavigation';
 import { LocationSelector } from './components/LocationSelector';
 import { ServiceSelector } from './components/ServiceSelector';
 import { WasteTypeSelector } from './components/WasteTypeSelector';
@@ -18,6 +17,7 @@ import { supabase } from '../../lib/supabase';
 import { typography } from '../../utils/typography';
 
 const BookingPage: React.FC = () => {
+  const insets = useSafeAreaInsets();
   const [step, setStep] = useState(1);
   const [showReceipt, setShowReceipt] = useState(false);
   const [showFindingRider, setShowFindingRider] = useState(false);
@@ -35,6 +35,14 @@ const BookingPage: React.FC = () => {
 
   const [completedOrder, setCompletedOrder] = useState<any>(null);
   const [assignedRider, setAssignedRider] = useState<any>(null);
+
+  const steps = [
+    { id: 1, label: 'Location' },
+    { id: 2, label: 'Service' },
+    { id: 3, label: 'Waste' },
+    { id: 4, label: 'Rider' },
+    { id: 5, label: 'Review' }
+  ];
 
   const updateBookingData = (fieldOrData: string | object, value?: any) => {
     if (typeof fieldOrData === 'object') {
@@ -69,7 +77,6 @@ const BookingPage: React.FC = () => {
       if (user && (user.id || user.supabase_id)) {
         let realUserId = user.supabase_id || user.id;
         
-        // Special recovery: If the ID is a placeholder from a manual session
         if (realUserId && realUserId.toString().startsWith('user_')) {
           let searchPhone = (user.phoneNumber || user.phone_number || '').replace(/\s+/g, '');
           if (searchPhone.startsWith('0')) {
@@ -92,7 +99,7 @@ const BookingPage: React.FC = () => {
           if (dbUser) {
             realUserId = dbUser.id;
           } else {
-             Alert.alert("Account Not Synced", "We couldn't find your account in our database. Please try signing out and signing in again.");
+             Alert.alert("Account Not Synced", "Please sign out and sign in again.");
              return;
           }
         }
@@ -113,21 +120,18 @@ const BookingPage: React.FC = () => {
         }]).select('id').single();
         
         if (error || !insertedOrderData) {
-          console.error("Supabase order insert error:", JSON.stringify(error, null, 2));
-          Alert.alert("Booking Error", "We couldn't save your booking to the server. Please check your connection.");
+          Alert.alert("Booking Error", "Unable to save booking. Please try again.");
           return;
         }
 
         newOrder.id = insertedOrderData.id;
-
         setCompletedOrder(newOrder);
         setShowFindingRider(true);
       } else {
-        Alert.alert("Error", "You must be logged in to book a service.");
+        Alert.alert("Error", "You must be logged in to book.");
       }
     } catch (e) {
-      console.error("Critical booking failure:", e);
-      Alert.alert("System Error", "Something went wrong during the booking process.");
+      Alert.alert("Error", "Critical booking failure.");
     }
   };
 
@@ -156,11 +160,6 @@ const BookingPage: React.FC = () => {
     navigateTo('/track-order', { id: completedOrder?.id });
   };
 
-  const handleCancelSearching = () => {
-    setShowFindingRider(false);
-    Alert.alert("Search Cancelled", "Rider search has been stopped.");
-  };
-
   if (showFindingRider) {
     return (
       <SafeAreaView style={styles.container}>
@@ -171,123 +170,8 @@ const BookingPage: React.FC = () => {
           orderId={completedOrder?.id}
           selectedRiderId={bookingData.riderId}
           onRiderFound={handleRiderFound}
-          onCancel={handleCancelSearching}
+          onCancel={() => setShowFindingRider(false)}
         />
-        <BottomNavigation />
-      </SafeAreaView>
-    );
-  }
-
-  if (showReceipt) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <Navigation />
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.content}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        >
-          <View style={styles.receiptContainer}>
-            <View style={styles.successContainer}>
-              <View style={styles.successIcon}>
-                <RemixIcon name="ri-calendar-check-line" size={32} color="#10b981" />
-              </View>
-              <Text style={styles.successTitle}>Booking Confirmed!</Text>
-              <Text style={styles.successSubtitle}>Your waste collection has been successfully scheduled</Text>
-            </View>
-
-            <View style={styles.receiptCard}>
-              <View style={styles.receiptHeader}>
-                <Text style={styles.receiptTitle}>Receipt</Text>
-                <Text style={styles.receiptNumber}>Order #{completedOrder?.id}</Text>
-              </View>
-
-              <View style={styles.receiptDetails}>
-                <View style={styles.receiptRow}>
-                  <Text style={styles.receiptLabel}>Service:</Text>
-                  <Text style={styles.receiptValue}>{completedOrder?.service}</Text>
-                </View>
-                <View style={styles.receiptRow}>
-                  <Text style={styles.receiptLabel}>Location:</Text>
-                  <Text style={styles.receiptValue}>{completedOrder?.address}</Text>
-                </View>
-                <View style={styles.receiptRow}>
-                  <Text style={styles.receiptLabel}>Scheduled:</Text>
-                  <Text style={styles.receiptValue}>{completedOrder?.time || 'Immediately'}</Text>
-                </View>
-                <View style={styles.receiptRow}>
-                  <Text style={styles.receiptLabel}>Waste Type:</Text>
-                  <Text style={styles.receiptValue}>{completedOrder?.wasteType}</Text>
-                </View>
-                <View style={styles.receiptRow}>
-                  <Text style={styles.receiptLabel}>Bag Size:</Text>
-                  <Text style={styles.receiptValue}>{completedOrder?.bagSize}</Text>
-                </View>
-                {assignedRider && (
-                  <View style={styles.riderSummary}>
-                    <View style={styles.receiptDivider} />
-                    <Text style={styles.riderSummaryTitle}>Assigned Rider</Text>
-                    <View style={styles.riderSummaryContent}>
-                      <Image source={{ uri: assignedRider.photo }} style={styles.riderSummaryPhoto} />
-                      <View style={styles.riderSummaryInfo}>
-                        <Text style={styles.riderSummaryName}>{assignedRider.name}</Text>
-                        <Text style={styles.riderSummaryStatus}>Arriving in a tricycle</Text>
-                      </View>
-                      <TouchableOpacity 
-                        style={styles.trackBtn}
-                        onPress={() => navigateTo('/track-order', { id: completedOrder?.id })}
-                      >
-                        <Text style={styles.trackBtnText}>Track</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                )}
-                <View style={[styles.receiptRow, { justifyContent: 'center' }]}>
-                  <Text style={styles.receiptLabel}>Status: </Text>
-                  <Text style={[styles.receiptValue, { color: '#10b981', textAlign: 'left', flex: 0 }]}>Confirmed</Text>
-                </View>
-              </View>
-
-              <View style={styles.infoCard}>
-                <RemixIcon name="ri-information-line" size={20} color="#065f46" />
-                <View style={styles.infoContent}>
-                  <Text style={styles.infoTitle}>What's Next?</Text>
-                  <Text style={styles.infoText}>
-                    {assignedRider 
-                      ? `${assignedRider.name} is on the way to your location. You can track their real-time location using the "Track" button above.`
-                      : "Our team will arrive at your location at the scheduled time. You'll receive SMS updates about your collection."}
-                  </Text>
-                </View>
-              </View>
-            </View>
-
-            <View style={styles.buttonContainer}>
-              <Button
-                variant="primary"
-                onPress={() => completedOrder && generateReceipt(completedOrder)}
-                fullWidth
-              >
-                <View style={styles.buttonContent}>
-                  <RemixIcon name="ri-printer-line" size={20} color="#fff" />
-                  <Text style={styles.buttonText}>Download Receipt PDF</Text>
-                </View>
-              </Button>
-
-              <Button
-                variant="outline"
-                onPress={resetBooking}
-                fullWidth
-              >
-                <View style={styles.buttonContent}>
-                  <RemixIcon name="ri-add-line" size={18} color="#10b981" />
-                  <Text style={[styles.buttonText, styles.buttonTextOutline]}>Book Another Service</Text>
-                </View>
-              </Button>
-            </View>
-          </View>
-        </ScrollView>
-        <BottomNavigation />
       </SafeAreaView>
     );
   }
@@ -295,136 +179,117 @@ const BookingPage: React.FC = () => {
   return (
     <SafeAreaView style={styles.container}>
       <Navigation />
+      
       <KeyboardAvoidingView 
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined} 
         style={{ flex: 1 }}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.content}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
+        <ScrollView 
+          style={styles.scrollView} 
+          contentContainerStyle={[
+            styles.content,
+            {
+              paddingTop: insets.top + 70,
+              paddingBottom: insets.bottom + 100
+            }
+          ]} 
+          showsVerticalScrollIndicator={false} 
+          keyboardShouldPersistTaps="always"
+          removeClippedSubviews={false}
         >
-        <View style={styles.progressContainer}>
-          <View style={styles.progressHeader}>
-            <Text style={styles.progressText}>Step {step} of 5</Text>
-            <Text style={styles.progressPercent}>{Math.round((step / 5) * 100)}%</Text>
+          
+          <View style={styles.stepIndicatorPage}>
+             <View style={styles.stepLineContainer}>
+                {steps.map((s, idx) => (
+                   <React.Fragment key={s.id}>
+                      <View style={[styles.stepDot, step >= s.id && styles.stepDotActive]}>
+                         {step > s.id ? (
+                            <RemixIcon name="ri-check-line" size={12} color="#fff" />
+                         ) : (
+                            <Text style={[styles.stepNumText, step >= s.id && styles.stepNumTextActive]}>{s.id}</Text>
+                         )}
+                      </View>
+                      {idx < steps.length - 1 && (
+                         <View style={[styles.connector, step > s.id && styles.connectorActive]} />
+                      )}
+                   </React.Fragment>
+                ))}
+             </View>
+             <Text style={styles.stepLabelMain}>{steps[step-1].label}</Text>
           </View>
-          <View style={styles.progressBar}>
-            <View
-              style={[
-                styles.progressFill,
-                { width: `${(step / 5) * 100}%` }
-              ]}
-            />
+
+          <View style={styles.mainCard}>
+            {step === 1 && (
+              <LocationSelector
+                value={bookingData.location}
+                onChange={(value, coords) => updateBookingData({
+                    location: value,
+                    latitude: coords?.latitude || null,
+                    longitude: coords?.longitude || null
+                })}
+              />
+            )}
+
+            {step === 2 && (
+              <ServiceSelector
+                value={bookingData.serviceType}
+                onChange={(v) => updateBookingData('serviceType', v)}
+                scheduledTime={bookingData.scheduledTime}
+                onTimeChange={(v) => updateBookingData('scheduledTime', v)}
+              />
+            )}
+
+            {step === 3 && (
+              <WasteTypeSelector
+                selectedTypes={bookingData.wasteTypes}
+                selectedSize={bookingData.bagSize}
+                notes={bookingData.notes}
+                onTypesChange={(v) => updateBookingData('wasteTypes', v)}
+                onSizeChange={(v) => updateBookingData('bagSize', v)}
+                onNotesChange={(v) => updateBookingData('notes', v)}
+              />
+            )}
+
+            {step === 4 && (
+              <RiderSelector
+                selectedRiderId={bookingData.riderId}
+                onSelect={(id) => updateBookingData('riderId', id)}
+              />
+            )}
+
+            {step === 5 && <PricingSummary bookingData={bookingData} />}
           </View>
-        </View>
 
-        <View style={styles.stepCard}>
-          {step === 1 && (
-            <LocationSelector
-              value={bookingData.location}
-              onChange={(value, coords) => {
-                if (coords) {
-                  updateBookingData({
-                    location: value,
-                    latitude: coords.latitude,
-                    longitude: coords.longitude
-                  });
-                } else {
-                  updateBookingData({
-                    location: value,
-                    latitude: null,
-                    longitude: null
-                  });
-                }
-              }}
-            />
-          )}
-
-          {step === 2 && (
-            <ServiceSelector
-              value={bookingData.serviceType}
-              onChange={(value) => updateBookingData('serviceType', value)}
-              scheduledTime={bookingData.scheduledTime}
-              onTimeChange={(value) => updateBookingData('scheduledTime', value)}
-            />
-          )}
-
-          {step === 3 && (
-            <WasteTypeSelector
-              selectedTypes={bookingData.wasteTypes}
-              selectedSize={bookingData.bagSize}
-              notes={bookingData.notes}
-              onTypesChange={(value) => updateBookingData('wasteTypes', value)}
-              onSizeChange={(value) => updateBookingData('bagSize', value)}
-              onNotesChange={(value) => updateBookingData('notes', value)}
-            />
-          )}
-
-          {step === 4 && (
-            <RiderSelector
-              selectedRiderId={bookingData.riderId}
-              onSelect={(id) => updateBookingData('riderId', id)}
-            />
-          )}
-
-          {step === 5 && (
-            <PricingSummary
-              bookingData={bookingData}
-            />
-          )}
-        </View>
-
-        <View style={styles.navigationButtons}>
-          {step > 1 && (
-            <Button
-              variant="outline"
-              onPress={prevStep}
-              style={styles.navButton}
-            >
-              <View style={styles.buttonContent}>
-                <RemixIcon name="ri-arrow-left-line" size={18} color="#10b981" />
-                <Text style={[styles.buttonText, styles.buttonTextOutline]}>Back</Text>
-              </View>
-            </Button>
-          )}
-
-          {step < 5 ? (
-            <Button
-              variant="primary"
-              onPress={nextStep}
-              style={styles.navButton}
-              disabled={
-                (step === 1 && !bookingData.location) ||
-                (step === 2 && !bookingData.serviceType) ||
-                (step === 3 && bookingData.wasteTypes.length === 0) ||
-                (step === 4 && !bookingData.riderId)
-              }
-            >
-              <View style={styles.buttonContent}>
-                <Text style={styles.buttonText}>Continue</Text>
-                <RemixIcon name="ri-arrow-right-line" size={18} color="#fff" />
-              </View>
-            </Button>
-          ) : (
-            <Button
-              variant="primary"
-              onPress={handleBooking}
-              style={styles.navButton}
-            >
-              <View style={styles.buttonContent}>
-                <RemixIcon name="ri-check-line" size={18} color="#fff" />
-                <Text style={styles.buttonText}>Confirm Booking</Text>
-              </View>
-            </Button>
-          )}
-        </View>
-      </ScrollView>
+          <View style={styles.footerNav}>
+             {step > 1 && (
+                <TouchableOpacity onPress={prevStep} style={styles.backBtn}>
+                   <RemixIcon name="ri-arrow-left-s-line" size={20} color="#64748b" />
+                   <Text style={styles.backBtnText}>Back</Text>
+                </TouchableOpacity>
+             )}
+             
+             <TouchableOpacity 
+                onPress={step < 5 ? nextStep : handleBooking}
+                style={[styles.nextBtn, (step < 5 && !canGoNext(step, bookingData)) && styles.nextBtnDisabled]}
+                disabled={step < 5 && !canGoNext(step, bookingData)}
+             >
+                <Text style={styles.nextBtnText}>{step < 5 ? 'Continue' : 'Place Order'}</Text>
+                <RemixIcon name={step < 5 ? "ri-arrow-right-s-line" : "ri-check-line"} size={20} color="#fff" />
+             </TouchableOpacity>
+          </View>
+        </ScrollView>
       </KeyboardAvoidingView>
-      <BottomNavigation />
     </SafeAreaView>
   );
+};
+
+const canGoNext = (step: number, data: any) => {
+  if (step === 1) return !!data.location;
+  if (step === 2) return !!data.serviceType;
+  if (step === 3) return data.wasteTypes.length > 0 && !!data.bagSize;
+  if (step === 4) return !!data.riderId;
+  return true;
 };
 
 export default BookingPage;
@@ -432,245 +297,111 @@ export default BookingPage;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f9fafb',
+    backgroundColor: '#ffffff',
   },
   scrollView: {
     flex: 1,
   },
   content: {
-    paddingTop: 80,
-    paddingBottom: 100,
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
   },
-  progressContainer: {
-    marginBottom: 24,
+  stepIndicatorPage: {
+    marginBottom: 32,
+    alignItems: 'center',
   },
-  progressHeader: {
+  stepLineContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  progressText: {
-    fontSize: 14,
-    fontFamily: typography.medium,
-    color: '#4b5563',
-  },
-  progressPercent: {
-    fontSize: 14,
-    color: '#6b7280',
-    fontFamily: typography.regular,
-  },
-  progressBar: {
+    justifyContent: 'center',
     width: '100%',
-    height: 8,
-    backgroundColor: '#e5e7eb',
-    borderRadius: 4,
-    overflow: 'hidden',
+    paddingHorizontal: 20,
   },
-  progressFill: {
-    height: '100%',
+  stepDot: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#f1f5f9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 2,
+  },
+  stepDotActive: {
     backgroundColor: '#10b981',
-    borderRadius: 4,
   },
-  stepCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: '#f3f4f6',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  navigationButtons: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  navButton: {
-    flex: 1,
-  },
-  buttonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  buttonText: {
-    color: '#ffffff',
-    fontFamily: typography.semiBold,
-  },
-  buttonTextOutline: {
-    color: '#10b981',
-  },
-  receiptContainer: {
-    maxWidth: 400,
-    width: '100%',
-    alignSelf: 'center',
-  },
-  successContainer: {
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  successIcon: {
-    width: 64,
-    height: 64,
-    backgroundColor: '#d1fae5',
-    borderRadius: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 16,
-  },
-  successTitle: {
-    fontSize: 20,
-    fontFamily: typography.semiBold,
-    color: '#1f2937',
-    marginBottom: 8,
-  },
-  successSubtitle: {
-    fontSize: 14,
-    fontFamily: typography.regular,
-    color: '#4b5563',
-  },
-  receiptCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    padding: 24,
-    marginBottom: 24,
-    borderWidth: 1,
-    borderColor: '#f3f4f6',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  receiptHeader: {
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  receiptTitle: {
-    fontSize: 18,
-    fontFamily: typography.semiBold,
-    color: '#1f2937',
-    marginBottom: 8,
-  },
-  receiptNumber: {
-    fontSize: 14,
-    fontFamily: typography.regular,
-    color: '#6b7280',
-  },
-  receiptDetails: {
-    gap: 12,
-    marginBottom: 24,
-  },
-  receiptRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  receiptLabel: {
-    fontSize: 14,
-    fontFamily: typography.regular,
-    color: '#4b5563',
-  },
-  receiptValue: {
-    fontSize: 14,
-    fontFamily: typography.medium,
-    color: '#1f2937',
-    flex: 1,
-    textAlign: 'right',
-  },
-  receiptDivider: {
-    borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
-    marginVertical: 12,
-  },
-  receiptTotalLabel: {
-    fontSize: 18,
+  stepNumText: {
+    fontSize: 11,
     fontFamily: typography.bold,
-    color: '#1f2937',
+    color: '#94a3b8',
   },
-  receiptTotalValue: {
-    display: 'none',
+  stepNumTextActive: {
+    color: '#ffffff',
   },
-  infoCard: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-    padding: 16,
-    backgroundColor: '#ecfdf5',
-    borderRadius: 8,
-  },
-  infoContent: {
+  connector: {
     flex: 1,
+    height: 2,
+    backgroundColor: '#f1f5f9',
+    marginHorizontal: -2,
+    zIndex: 1,
   },
-  infoTitle: {
+  connectorActive: {
+    backgroundColor: '#10b981',
+  },
+  stepLabelMain: {
+    marginTop: 12,
     fontSize: 14,
-    fontFamily: typography.semiBold,
-    color: '#065f46',
-    marginBottom: 4,
+    fontFamily: typography.bold,
+    color: '#0f172a',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
   },
-  infoText: {
-    fontSize: 14,
-    fontFamily: typography.regular,
-    color: '#047857',
-    lineHeight: 20,
+  mainCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 24,
+    padding: 2,
+    marginBottom: 32,
   },
-  buttonContainer: {
-    gap: 12,
-  },
-  riderSummary: {
-    marginTop: 8,
-  },
-  riderSummaryTitle: {
-    fontSize: 14,
-    fontFamily: typography.semiBold,
-    color: '#1f2937',
-    marginBottom: 12,
-  },
-  riderSummaryContent: {
+  footerNav: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
   },
-  riderSummaryPhoto: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+  backBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    height: 54,
+    borderRadius: 18,
+    backgroundColor: '#f8fafc',
+    gap: 4,
   },
-  riderSummaryInfo: {
+  backBtnText: {
+    fontSize: 15,
+    fontFamily: typography.bold,
+    color: '#64748b',
+  },
+  nextBtn: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 54,
+    borderRadius: 18,
+    backgroundColor: '#10b981',
+    gap: 8,
+    shadowColor: '#10b981',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    elevation: 4,
   },
-  riderSummaryName: {
-    fontSize: 14,
-    fontFamily: typography.semiBold,
-    color: '#1f2937',
+  nextBtnDisabled: {
+    backgroundColor: '#cbd5e1',
+    shadowOpacity: 0,
+    elevation: 0,
   },
-  riderSummaryStatus: {
-    fontSize: 12,
-    fontFamily: typography.medium,
-    color: '#10b981',
-  },
-  trackBtn: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: '#ecfdf5',
-    borderRadius: 8,
-  },
-  trackBtnText: {
-    fontSize: 12,
-    fontFamily: typography.semiBold,
-    color: '#10b981',
-  },
-  paymentMethodLabel: {
-    fontSize: 12,
-    fontFamily: typography.regular,
-    color: '#6b7280',
-    textAlign: 'right',
-    marginTop: 4,
-    fontStyle: 'italic',
+  nextBtnText: {
+    fontSize: 16,
+    fontFamily: typography.bold,
+    color: '#ffffff',
   },
 });

@@ -1,21 +1,35 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, LayoutAnimation, Platform, UIManager } from 'react-native';
+import { typography } from '../../../utils/typography';
+import { RemixIcon } from '../../../utils/icons';
 import { navigateTo } from '../../../utils/navigation';
 import { useAuth } from '../../../context/AuthContext';
 import { supabase } from '../../../lib/supabase';
+
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 interface Order {
   id: string;
   type: string;
   date: string;
+  time: string;
   status: string;
   rider: string;
+  icon: string;
 }
 
-export const RecentOrders: React.FC = () => {
+export const RecentOrders: React.FC = React.memo(() => {
   const { user } = useAuth();
   const [orders, setOrders] = React.useState<Order[]>([]);
   const [isLoading, setIsLoading] = React.useState(false);
+  const isMounted = React.useRef(true);
+
+  React.useEffect(() => {
+    isMounted.current = true;
+    return () => { isMounted.current = false; };
+  }, []);
 
   React.useEffect(() => {
     const fetchRecentOrders = async () => {
@@ -59,14 +73,13 @@ export const RecentOrders: React.FC = () => {
 
         if (error) throw error;
 
-        // Fetch rider info separately to avoid join issues
         const riderIds = [...new Set((data || []).map(p => p.rider_id).filter(id => id))];
         let ridersMap: { [key: string]: any } = {};
         
         if (riderIds.length > 0) {
           const { data: ridersData } = await supabase
             .from('riders')
-            .select('id, full_name, first_name, last_name')
+            .select('id, full_name, first_name, last_name, avatar_url')
             .in('id', riderIds);
           
           if (ridersData) {
@@ -83,22 +96,26 @@ export const RecentOrders: React.FC = () => {
           return {
             id: p.id,
             type: p.service_type || 'Waste Pickup',
-            date: new Date(p.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }),
+            date: new Date(p.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }),
+            time: new Date(p.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
             status: p.status === 'pending' ? 'scheduled' : (p.status === 'in_progress' ? 'in-progress' : 'completed'),
-            rider: riderName || (p.status === 'completed' ? 'Success' : 'Finding Rider...')
+            rider: riderName || (p.status === 'completed' ? 'Success' : 'Finding Rider...'),
+            icon: (p.service_type || '').toLowerCase().includes('instant') ? 'ri-flashlight-fill' : 'ri-calendar-event-fill'
           };
         });
-        setOrders(formatted);
+        if (isMounted.current) {
+          LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+          setOrders(formatted);
+        }
       } catch (e) {
         console.error('Error fetching recent orders:', e);
       } finally {
-        setIsLoading(false);
+        if (isMounted.current) setIsLoading(false);
       }
     };
 
     fetchRecentOrders();
 
-    // Real-time listener
     let searchId = user?.supabase_id || user?.id;
     if (searchId && !String(searchId).startsWith('user_')) {
       const channel = supabase
@@ -111,10 +128,7 @@ export const RecentOrders: React.FC = () => {
             table: 'orders',
             filter: `user_id=eq.${searchId}`,
           },
-          (payload) => {
-            console.log('Home screen real-time update:', payload);
-            fetchRecentOrders();
-          }
+          () => fetchRecentOrders()
         )
         .subscribe();
 
@@ -124,62 +138,65 @@ export const RecentOrders: React.FC = () => {
     }
   }, [user]);
 
-  const getStatusColor = (status: string) => {
+  const getStatusStyle = (status: string) => {
     switch (status) {
-      case 'completed': return { bg: '#d1fae5', text: '#065f46' };
-      case 'in-progress': return { bg: '#dbeafe', text: '#1e40af' };
-      case 'scheduled': return { bg: '#fef3c7', text: '#92400e' };
-      default: return { bg: '#f3f4f6', text: '#374151' };
+      case 'completed': return { bg: '#f1f5f9', dot: '#10b981', text: '#334155', label: 'Completed' };
+      case 'in-progress': return { bg: '#f1f5f9', dot: '#3b82f6', text: '#334155', label: 'In Transit' };
+      default: return { bg: '#f1f5f9', dot: '#f59e0b', text: '#334155', label: 'Pending' };
     }
   };
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Recent Orders</Text>
+        <Text style={styles.title}>Recent Activity</Text>
         <TouchableOpacity onPress={() => navigateTo('/orders')}>
-          <Text style={styles.viewAll}>View All</Text>
+          <Text style={styles.viewAll}>See All</Text>
         </TouchableOpacity>
       </View>
       
       <View style={styles.ordersList}>
         {orders.length === 0 ? (
-          <View style={styles.emptyCard}>
-            <Text style={styles.emptyText}>No recent orders. Start by booking a pickup!</Text>
+          <View style={styles.emptyState}>
+            <RemixIcon name="ri-inbox-line" size={32} color="#94a3b8" />
+            <Text style={styles.emptyText}>No recent activities yet</Text>
           </View>
         ) : (
           orders.map((order) => {
-            const statusColors = getStatusColor(order.status);
+            const status = getStatusStyle(order.status);
             return (
-              <View key={order.id} style={styles.orderCard}>
-                <View style={styles.orderHeader}>
-                  <View>
-                    <Text style={styles.orderType}>{order.type}</Text>
-                    <Text style={styles.orderDate}>{order.date}</Text>
-                  </View>
-                  <View style={[styles.statusBadge, { backgroundColor: statusColors.bg }]}>
-                    <Text style={[styles.statusText, { color: statusColors.text }]}>
-                      {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
-                    </Text>
-                  </View>
+              <TouchableOpacity 
+                key={order.id} 
+                style={styles.orderItem}
+                onPress={() => navigateTo('/track-order', { id: order.id })}
+                activeOpacity={0.7}
+              >
+                <View style={styles.iconBox}>
+                  <RemixIcon name={order.icon} size={20} color="#64748b" />
                 </View>
                 
-                <View style={styles.orderFooter}>
-                  <Text style={styles.riderText}>Rider: {order.rider}</Text>
+                <View style={styles.orderInfo}>
+                  <Text style={styles.orderType}>{order.type}</Text>
+                  <Text style={styles.orderSubtext}>{order.date} • {order.time}</Text>
                 </View>
-              </View>
+
+                <View style={styles.statusBox}>
+                  <View style={[styles.statusDot, { backgroundColor: status.dot }]} />
+                  <Text style={styles.statusLabel}>{status.label}</Text>
+                </View>
+              </TouchableOpacity>
             );
           })
         )}
       </View>
     </View>
   );
-};
+});
 
 const styles = StyleSheet.create({
   container: {
-    paddingHorizontal: 16,
-    paddingVertical: 24,
+    paddingHorizontal: 20,
+    marginTop: 8,
   },
   header: {
     flexDirection: 'row',
@@ -189,85 +206,82 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#1f2937',
-    fontFamily: 'Montserrat-Bold',
+    fontFamily: typography.bold,
+    color: '#0f172a',
   },
   viewAll: {
     fontSize: 14,
-    fontWeight: '500',
+    fontFamily: typography.semiBold,
     color: '#10b981',
-    fontFamily: 'Montserrat-Medium',
   },
   ordersList: {
     gap: 12,
   },
-  orderCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#f3f4f6',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  orderHeader: {
+  orderItem: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    marginBottom: 8,
+    alignItems: 'center',
+    backgroundColor: '#ffffff',
+    padding: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#f1f5f9',
+  },
+  iconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: '#f8fafc',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  orderInfo: {
+    flex: 1,
   },
   orderType: {
     fontSize: 14,
-    fontWeight: '500',
-    color: '#1f2937',
-    fontFamily: 'Montserrat-SemiBold',
+    fontFamily: typography.semiBold,
+    color: '#1e293b',
   },
-  orderDate: {
+  orderSubtext: {
     fontSize: 12,
-    color: '#6b7280',
-    marginTop: 4,
-    fontFamily: 'Montserrat-Regular',
+    fontFamily: typography.regular,
+    color: '#64748b',
+    marginTop: 2,
   },
-  statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  statusText: {
-    fontSize: 10,
-    fontWeight: '600',
-    fontFamily: 'Montserrat-Bold',
-  },
-  orderFooter: {
+  statusBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    backgroundColor: '#f8fafc',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+    gap: 6,
   },
-  riderText: {
-    fontSize: 14,
-    color: '#4b5563',
-    fontFamily: 'Montserrat-Medium',
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
-  amountText: {
-    display: 'none',
+  statusLabel: {
+    fontSize: 11,
+    fontFamily: typography.semiBold,
+    color: '#475569',
   },
-  emptyCard: {
-    backgroundColor: '#f9fafb',
-    borderRadius: 12,
-    padding: 20,
-    borderStyle: 'dashed',
-    borderWidth: 1,
-    borderColor: '#d1d5db',
+  emptyState: {
+    padding: 32,
     alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f8fafc',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: '#e2e8f0',
   },
   emptyText: {
     fontSize: 14,
-    color: '#6b7280',
-    textAlign: 'center',
-    fontFamily: 'Montserrat-Regular',
+    fontFamily: typography.medium,
+    color: '#94a3b8',
+    marginTop: 10,
   },
 });
