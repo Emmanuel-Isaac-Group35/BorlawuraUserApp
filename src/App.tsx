@@ -59,6 +59,8 @@ const linking = {
 
 import { GlobalOrderListener } from './components/feature/GlobalOrderListener';
 
+import SavedAddressesPage from './pages/profile/addresses/page';
+
 function AppNavigator() {
   const { isLoggedIn, isSuspended, isLoading, needsProfileCompletion } = useAuth();
 
@@ -93,10 +95,10 @@ function AppNavigator() {
             <Stack.Screen name="Orders" component={OrdersPage} />
             <Stack.Screen name="Services" component={ServicesPage} />
             <Stack.Screen name="Profile" component={ProfilePage} />
+            <Stack.Screen name="SavedAddresses" component={SavedAddressesPage} />
             <Stack.Screen name="Support" component={SupportPage} />
             <Stack.Screen name="SupportChat" component={SupportChatPage} />
             <Stack.Screen name="TrackOrder" component={TrackOrderPage} />
-            <Stack.Screen name="PaymentMethods" component={PaymentMethodsPage} />
             <Stack.Screen name="Notifications" component={NotificationsPage} />
             <Stack.Screen name="Terms" component={TermsPage} />
             <Stack.Screen name="About" component={AboutPage} />
@@ -113,6 +115,7 @@ function AppNavigator() {
 }
 
 import { SettingsProvider } from './context/SettingsContext';
+import { MaintenanceOverlay } from './components/feature/MaintenanceOverlay';
 
 function App() {
   const [showSplash, setShowSplash] = useState(true);
@@ -144,6 +147,7 @@ function App() {
           <SafeAreaProvider>
             <AppNavigator />
             <NotificationOverlay />
+            <MaintenanceOverlay />
           </SafeAreaProvider>
         </SettingsProvider>
       </AuthProvider>

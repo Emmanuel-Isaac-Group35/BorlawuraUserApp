@@ -18,7 +18,7 @@ export const GlobalOrderListener: React.FC = () => {
       const { data: orders, error } = await supabase
         .from('orders')
         .select('*')
-        .or(`user_id.eq.${user.id},customer_phone.eq.${user.phone_number},phone.eq.${user.phone_number}`)
+        .eq('user_id', user.id)
         .in('status', ['accepted', 'assigned', 'active', 'confirmed', 'in_progress', 'completed'])
         .order('updated_at', { ascending: false })
         .limit(5);
@@ -104,9 +104,7 @@ export const GlobalOrderListener: React.FC = () => {
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' }, (payload) => {
         // We still use real-time for instant updates if it's enabled
         const order = payload.new;
-        const isMyOrder = order.user_id === user.id || 
-                          order.customer_phone === user.phone_number ||
-                          order.phone === user.phone_number;
+        const isMyOrder = order.user_id === user.id;
         
         if (isMyOrder) {
            const oldStatus = lastStatusRef.current[order.id];

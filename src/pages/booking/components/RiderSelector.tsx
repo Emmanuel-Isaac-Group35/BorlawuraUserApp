@@ -138,13 +138,7 @@ export const RiderSelector: React.FC<RiderSelectorProps> = ({ selectedRiderId, o
   return (
     <View style={styles.container}>
       <View style={styles.headerRow}>
-        <View>
-          <Text style={styles.title}>Select Your Rider</Text>
-          <Text style={styles.subtitle}>Choose your favorite Borla Wura rider</Text>
-        </View>
-        <View style={styles.countBadge}>
-          <Text style={styles.countText}>{riders.length} Online</Text>
-        </View>
+        <Text style={styles.countText}>{riders.length} Riders nearby</Text>
       </View>
       
       <View style={styles.list}>

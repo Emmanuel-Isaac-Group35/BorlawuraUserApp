@@ -1,178 +1,188 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator, Alert } from 'react-native';
-import RNAsyncStorage from '@react-native-async-storage/async-storage';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator, Alert, ScrollView } from 'react-native';
+import { WebView } from 'react-native-webview';
 import * as Location from 'expo-location';
 import { RemixIcon } from '../../../utils/icons';
 import { useAuth } from '../../../context/AuthContext';
+import { supabase } from '../../../lib/supabase';
 import { typography } from '../../../utils/typography';
 
 interface LocationSelectorProps {
   value: string;
-  onChange: (value: string, lat?: number | null, lng?: number | null) => void;
+  onChange: (value: string, coords?: { latitude: number; longitude: number } | null) => void;
 }
 
 export const LocationSelector: React.FC<LocationSelectorProps> = ({ value, onChange }) => {
   const { user } = useAuth();
-  const [useCurrentLocation, setUseCurrentLocation] = useState(false);
-  const [isDetectingLocation, setIsDetectingLocation] = useState(false);
-  const [manualAddress, setManualAddress] = useState(value);
-  const [savedAddresses, setSavedAddresses] = useState<string[]>([]);
+  const [coords, setCoords] = useState({ latitude: 5.6037, longitude: -0.1870 });
+  const [isDetecting, setIsDetecting] = useState(false);
+  const [savedAddresses, setSavedAddresses] = useState<any[]>([]);
+  const [onlineRiders, setOnlineRiders] = useState<any[]>([]);
 
-  React.useEffect(() => {
-    const loadSavedAddresses = async () => {
-      try {
-        const stored = await RNAsyncStorage.getItem('user_addresses');
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          setSavedAddresses(parsed.map((a: any) => a.address));
-        } else if (user?.location) {
-          setSavedAddresses([user.location]);
-        }
-      } catch (e) {
-        console.error("Error loading saved addresses", e);
-      }
-    };
-    loadSavedAddresses();
-  }, [user]);
+  useEffect(() => {
+    fetchCloudAddresses();
+    fetchOnlineRiders();
+    handleDetectLocation();
+  }, []);
 
-  const handleCurrentLocation = async () => {
-    setIsDetectingLocation(true);
-    setUseCurrentLocation(true);
+  const fetchCloudAddresses = async () => {
+    if (!user) return;
     try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        setIsDetectingLocation(false);
-        setUseCurrentLocation(false);
-        Alert.alert('Permission Denied', 'Permission to access location was denied');
-        return;
+      let searchId = user.supabase_id || user.id;
+      
+      // Handle mobile 'user_' prefix if present
+      if (searchId && String(searchId).startsWith('user_')) {
+        let searchPhone = (user.phone_number || user.phoneNumber || '').replace(/\s+/g, '');
+        if (searchPhone.startsWith('0')) searchPhone = '+233' + searchPhone.substring(1);
+        else if (searchPhone && !searchPhone.startsWith('+')) searchPhone = '+233' + searchPhone;
+        
+        const searchEmail = user.email && user.email.includes('@') ? user.email : null;
+        let query = supabase.from('users').select('id');
+        if (searchPhone && searchEmail) query = query.or(`phone_number.eq.${searchPhone},email.eq.${searchEmail}`);
+        else if (searchPhone) query = query.eq('phone_number', searchPhone);
+        else if (searchEmail) query = query.eq('email', searchEmail);
+        
+        const { data: dbUser } = await query.single();
+        if (dbUser) searchId = dbUser.id;
       }
 
-      let location = null;
-      try {
-        location = await Location.getLastKnownPositionAsync({});
-        if (!location) {
-          location = await Promise.race([
-            Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
-            new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000))
-          ]) as Location.LocationObject;
-        }
-      } catch (innerError) {
-        try {
-          location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low });
-        } catch (finalError) {
-          if (__DEV__) {
-            location = { coords: { latitude: 5.6037, longitude: -0.1870, altitude: 0, accuracy: 0, altitudeAccuracy: 0, heading: 0, speed: 0 }, timestamp: Date.now() };
-          } else {
-            throw finalError;
-          }
-        }
-      }
+      if (!searchId || String(searchId).startsWith('user_')) return;
 
-      if (!location) throw new Error('All location detection methods failed');
-
-      const { latitude, longitude } = location.coords;
-      let formattedAddress = '';
-      try {
-        const addresses = await Location.reverseGeocodeAsync({ latitude, longitude });
-        const addr = addresses[0];
-        formattedAddress = addr 
-          ? `${addr.streetNumber ? addr.streetNumber + ' ' : ''}${addr.street || ''}, ${addr.district || addr.city || ''}`.trim().replace(/^,\s*/, '')
-          : (latitude === 5.6037 ? 'Accra Central, Ghana (Default)' : `GPS: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
-      } catch (geoError) {
-        formattedAddress = latitude === 5.6037 ? 'Accra Central, Ghana (Default)' : `GPS: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
-      }
-
-      setManualAddress(formattedAddress);
-      onChange(formattedAddress, { latitude, longitude });
-    } catch (error) {
-      setUseCurrentLocation(false);
-      Alert.alert('Location Error', 'Unable to detect your current location.');
-    } finally {
-      setIsDetectingLocation(false);
+      const { data } = await supabase.from('user_addresses').select('*').eq('user_id', searchId);
+      if (data) setSavedAddresses(data);
+    } catch (e) {
+      console.error("Failed to fetch address sync:", e);
     }
   };
 
-  const handleManualAddress = (address: string) => {
-    setManualAddress(address);
-    onChange(address);
-    setUseCurrentLocation(false);
+  const fetchOnlineRiders = async () => {
+    const { data } = await supabase.from('riders').select('id, latitude, longitude').eq('is_online', true).limit(10);
+    if (data) setOnlineRiders(data);
   };
+
+  const handleDetectLocation = async () => {
+    setIsDetecting(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert("Permission Required", "Please enable location to find riders near you.");
+        return;
+      }
+      
+      const location = await Location.getCurrentPositionAsync({ 
+        accuracy: Location.Accuracy.Highest 
+      });
+      const { latitude, longitude } = location.coords;
+      
+      setCoords({ latitude, longitude });
+      
+      const addresses = await Location.reverseGeocodeAsync({ latitude, longitude });
+      const addr = addresses[0];
+      const formatted = addr 
+        ? `${addr.streetNumber || ''} ${addr.street || ''}, ${addr.district || addr.city || ''}`.trim() 
+        : `GPS Pin: ${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
+      
+      selectAddress(formatted, latitude, longitude);
+    } catch (e) {
+      console.error(e);
+      Alert.alert("GPS Error", "Unable to get high-accuracy location. Please check your GPS settings.");
+    } finally {
+      setIsDetecting(false);
+    }
+  };
+
+  const selectAddress = (addrText: string, lat: number, lng: number) => {
+    setCoords({ latitude: lat, longitude: lng });
+    onChange(addrText, { latitude: lat, longitude: lng });
+  };
+
+  const getMapHtml = () => `
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+        <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+        <style>
+            body { margin: 0; padding: 0; }
+            #map { width: 100%; height: 100vh; background: #f8fafc; }
+            .user-marker { width: 18px; height: 18px; background: #10b981; border-radius: 50%; border: 3px solid #ffffff; box-shadow: 0 0 10px rgba(16,185,129,0.5); }
+            .rider-marker { width: 12px; height: 12px; background: #3b82f6; border-radius: 50%; border: 2px solid #ffffff; opacity: 0.8; }
+        </style>
+    </head>
+    <body>
+        <div id="map"></div>
+        <script>
+            const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([${coords.latitude}, ${coords.longitude}], 15);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { maxZoom: 20 }).addTo(map);
+            L.marker([${coords.latitude}, ${coords.longitude}], { icon: L.divIcon({ className: 'user-marker', iconSize: [18, 18], iconAnchor: [9, 9] }) }).addTo(map);
+            const riders = ${JSON.stringify(onlineRiders)};
+            riders.forEach(r => {
+                if(r.latitude && r.longitude) {
+                   L.marker([r.latitude, r.longitude], { icon: L.divIcon({ className: 'rider-marker', iconSize: [12, 12], iconAnchor: [6, 6] }) }).addTo(map);
+                }
+            });
+        </script>
+    </body>
+    </html>
+  `;
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Pickup Location</Text>
-        <Text style={styles.subtitle}>Where should we collect your waste?</Text>
+      <View style={styles.mapWrap}>
+         <WebView 
+           key={`${coords.latitude}-${coords.longitude}-${onlineRiders.length}`}
+           source={{ html: getMapHtml() }} 
+           style={styles.map} 
+           scrollEnabled={false} 
+         />
+         <TouchableOpacity onPress={handleDetectLocation} style={styles.gpsBtn}>
+            {isDetecting ? <ActivityIndicator size="small" color="#10b981" /> : <RemixIcon name="ri-focus-3-fill" size={20} color="#10b981" />}
+         </TouchableOpacity>
       </View>
-      
-      <View style={styles.content}>
-        <TouchableOpacity
-          onPress={handleCurrentLocation}
-          style={[styles.gpsCard, useCurrentLocation && styles.gpsCardActive]}
-          activeOpacity={0.8}
-          disabled={isDetectingLocation}
-        >
-          <View style={[styles.gpsIconBox, useCurrentLocation && styles.gpsIconBoxActive]}>
-             {isDetectingLocation ? (
-               <ActivityIndicator size="small" color="#10b981" />
-             ) : (
-               <RemixIcon name="ri-gps-fill" size={24} color={useCurrentLocation ? "#fff" : "#10b981"} />
-             )}
-          </View>
-          <View style={styles.gpsText}>
-             <Text style={[styles.gpsTitle, useCurrentLocation && styles.gpsTitleActive]}>
-                {isDetectingLocation ? 'Pinpointing...' : 'Current Location'}
-             </Text>
-             <Text style={[styles.gpsDesc, useCurrentLocation && styles.gpsDescActive]}>
-                {isDetectingLocation ? 'Checking satellites' : 'Smart auto-detection'}
-             </Text>
-          </View>
-          {useCurrentLocation && !isDetectingLocation && (
-             <RemixIcon name="ri-checkbox-circle-fill" size={20} color="#10b981" />
-          )}
-        </TouchableOpacity>
 
-        <View style={styles.dividerBox}>
-           <View style={styles.line} />
-           <Text style={styles.dividerText}>OR MANUAL ENTRY</Text>
-           <View style={styles.line} />
-        </View>
+      <View style={styles.selectionPanel}>
+         <Text style={styles.panelTitle}>Select Pickup Address</Text>
+         
+         <ScrollView style={styles.addressList} showsVerticalScrollIndicator={false}>
+            {/* Automatic Detection Result */}
+            <TouchableOpacity 
+               onPress={() => selectAddress(value, coords.latitude, coords.longitude)}
+               style={[styles.addressItem, styles.autoDetected]}
+            >
+               <View style={styles.addrIconBox}><RemixIcon name="ri-gps-fill" size={18} color="#10b981" /></View>
+               <View style={styles.addrInfo}>
+                  <Text style={styles.addrLabel}>Detected Location</Text>
+                  <Text style={styles.addrText}>{value}</Text>
+               </View>
+               {value && <RemixIcon name="ri-checkbox-circle-fill" size={20} color="#10b981" />}
+            </TouchableOpacity>
 
-        <View style={styles.inputCard}>
-           <View style={styles.inputLead}>
-              <RemixIcon name="ri-map-pin-2-fill" size={18} color="#94a3b8" />
-              <Text style={styles.inputLabel}>Collection Address</Text>
-           </View>
-           <TextInput
-             value={manualAddress}
-             onChangeText={handleManualAddress}
-             placeholder="Enter your street name, house number, etc."
-             style={styles.input}
-             placeholderTextColor="#cbd5e1"
-             multiline
-           />
-        </View>
+            {/* Saved Addresses */}
+            {savedAddresses.map((s) => (
+               <TouchableOpacity 
+                  key={s.id} 
+                  onPress={() => selectAddress(s.address_text, s.latitude, s.longitude)}
+                  style={styles.addressItem}
+               >
+                  <View style={[styles.addrIconBox, { backgroundColor: '#f1f5f9' }]}><RemixIcon name={s.label.toLowerCase().includes('home') ? "ri-home-fill" : "ri-briefcase-fill"} size={18} color="#64748b" /></View>
+                  <View style={styles.addrInfo}>
+                     <Text style={styles.addrLabel}>{s.label}</Text>
+                     <Text style={styles.addrText}>{s.address_text}</Text>
+                  </View>
+                  {value === s.address_text && <RemixIcon name="ri-checkbox-circle-fill" size={20} color="#10b981" />}
+               </TouchableOpacity>
+            ))}
 
-        {savedAddresses.length > 0 && (
-           <View style={styles.savedSection}>
-              <Text style={styles.savedTitle}>SAVED LOCATIONS</Text>
-              <View style={styles.savedList}>
-                {savedAddresses.map((address, index) => (
-                  <TouchableOpacity
-                    key={index}
-                    onPress={() => handleManualAddress(address)}
-                    style={styles.savedItem}
-                  >
-                    <View style={styles.savedIconBox}>
-                       <RemixIcon name="ri-home-fill" size={16} color="#64748b" />
-                    </View>
-                    <Text style={styles.savedText} numberOfLines={1}>{address}</Text>
-                    <Text style={styles.useLabel}>USE</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-           </View>
-        )}
+            <View style={styles.manualInput}>
+               <TextInput 
+                  value={value} 
+                  onChangeText={(t) => onChange(t, null)}
+                  placeholder="Or type address manually..."
+                  style={styles.input}
+               />
+            </View>
+         </ScrollView>
       </View>
     </View>
   );
@@ -180,60 +190,19 @@ export const LocationSelector: React.FC<LocationSelectorProps> = ({ value, onCha
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { marginBottom: 24 },
-  title: { fontSize: 22, fontFamily: typography.bold, color: '#0f172a' },
-  subtitle: { fontSize: 13, fontFamily: typography.medium, color: '#94a3b8', marginTop: 2 },
-  content: { gap: 20 },
-  gpsCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    borderRadius: 24,
-    backgroundColor: '#fff',
-    borderWidth: 1.5,
-    borderColor: '#f1f5f9',
-  },
-  gpsCardActive: { borderColor: '#10b981', backgroundColor: '#f0fdf4' },
-  gpsIconBox: { width: 50, height: 50, borderRadius: 16, backgroundColor: '#f0fdf4', alignItems: 'center', justifyContent: 'center' },
-  gpsIconBoxActive: { backgroundColor: '#10b981' },
-  gpsText: { flex: 1, marginLeft: 14 },
-  gpsTitle: { fontSize: 15, fontFamily: typography.bold, color: '#0f172a' },
-  gpsTitleActive: { color: '#065f46' },
-  gpsDesc: { fontSize: 13, fontFamily: typography.medium, color: '#94a3b8' },
-  gpsDescActive: { color: '#10b981' },
-  dividerBox: { flexDirection: 'row', alignItems: 'center', gap: 12, marginVertical: 8 },
-  line: { flex: 1, height: 1.5, backgroundColor: '#f1f5f9' },
-  dividerText: { fontSize: 10, fontFamily: typography.bold, color: '#cbd5e1', letterSpacing: 1 },
-  inputCard: {
-    backgroundColor: '#f8fafc',
-    borderRadius: 20,
-    padding: 16,
-    borderWidth: 1.5,
-    borderColor: '#f1f5f9',
-  },
-  inputLead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
-  inputLabel: { fontSize: 13, fontFamily: typography.bold, color: '#64748b' },
-  input: {
-    fontSize: 15,
-    fontFamily: typography.medium,
-    color: '#0f172a',
-    padding: 0,
-    minHeight: 60,
-    textAlignVertical: 'top',
-  },
-  savedSection: { marginTop: 8 },
-  savedTitle: { fontSize: 11, fontFamily: typography.bold, color: '#cbd5e1', marginBottom: 12, letterSpacing: 1 },
-  savedList: { gap: 10 },
-  savedItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 14,
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#f1f5f9',
-  },
-  savedIconBox: { width: 32, height: 32, borderRadius: 10, backgroundColor: '#f8fafc', alignItems: 'center', justifyContent: 'center' },
-  savedText: { flex: 1, marginLeft: 12, fontSize: 14, fontFamily: typography.medium, color: '#475569' },
-  useLabel: { fontSize: 11, fontFamily: typography.bold, color: '#10b981', paddingHorizontal: 8, paddingVertical: 4, backgroundColor: '#f0fdf4', borderRadius: 6 },
+  mapWrap: { height: 180, borderRadius: 20, overflow: 'hidden', backgroundColor: '#f1f5f9', position: 'relative', marginBottom: 20 },
+  map: { flex: 1 },
+  gpsBtn: { position: 'absolute', bottom: 12, right: 12, width: 40, height: 40, borderRadius: 12, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', elevation: 3 },
+  selectionPanel: { gap: 12 },
+  panelTitle: { fontSize: 14, fontFamily: typography.bold, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5 },
+  addressList: { maxHeight: 300 },
+  addressItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', padding: 14, borderRadius: 16, marginBottom: 10, borderWidth: 1, borderColor: '#f1f5f9' },
+  autoDetected: { backgroundColor: '#f0fdf4', borderColor: '#dcfce7' },
+  addrIconBox: { width: 36, height: 36, borderRadius: 10, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  addrInfo: { flex: 1 },
+  addrLabel: { fontSize: 12, fontFamily: typography.bold, color: '#64748b' },
+  addrText: { fontSize: 13, fontFamily: typography.medium, color: '#1e293b', marginTop: 1 },
+  manualInput: { marginTop: 4 },
+  input: { borderBottomWidth: 1.5, borderBottomColor: '#f1f5f9', paddingVertical: 10, fontSize: 14, fontFamily: typography.medium, color: '#1e293b' },
 });
+

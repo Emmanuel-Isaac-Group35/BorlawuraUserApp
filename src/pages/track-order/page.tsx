@@ -242,6 +242,49 @@ const TrackOrderPage: React.FC = () => {
     Linking.openURL(`tel:${order.rider.phone}`);
   };
 
+  const handleCancelOrder = () => {
+    if (order?.status === 'completed' || order?.status === 'cancelled') return;
+
+    let message = "Are you sure you want to cancel this pickup?";
+    if (['accepted', 'assigned', 'confirmed', 'active', 'in_progress'].includes(order?.status)) {
+      message = "A rider has already been assigned and may be moving. Are you sure you want to cancel?";
+    }
+
+    Alert.alert(
+      "Cancel Order",
+      message,
+      [
+        { text: "No, Keep Order", style: "cancel" },
+        { text: "Yes, Cancel", style: "destructive", onPress: performCancellation }
+      ]
+    );
+  };
+
+  const performCancellation = async () => {
+    try {
+      const { error } = await supabase
+        .from('orders')
+        .update({ 
+          status: 'cancelled',
+          sub_status: 'cancelled',
+          cancelled_at: new Date().toISOString()
+        })
+        .eq('id', order.realId);
+
+      if (error) {
+        console.error("Supabase Cancellation Error:", error);
+        Alert.alert("Cancellation Failed", `Database says: ${error.message} (Code: ${error.code})`);
+        return;
+      }
+      
+      Alert.alert("Success", "Your order has been cancelled.");
+      navigation.navigate('Home');
+    } catch (e: any) {
+      console.error("General Cancellation Error:", e);
+      Alert.alert("Error", "A system error occurred. Please try again.");
+    }
+  };
+
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
@@ -317,7 +360,18 @@ const TrackOrderPage: React.FC = () => {
                 </View>
              </View>
            ))}
-        </View>
+          </View>
+
+        {order?.status !== 'completed' && order?.status !== 'cancelled' && (
+          <TouchableOpacity onPress={handleCancelOrder} style={styles.cancelBtn}>
+             <RemixIcon name="ri-close-circle-line" size={18} color="#ef4444" />
+             <Text style={styles.cancelBtnText}>Cancel Order</Text>
+          </TouchableOpacity>
+        )}
+
+        <TouchableOpacity onPress={() => navigation.navigate('Home')} style={styles.backHomeBtn}>
+           <Text style={styles.backHomeText}>Return to Home</Text>
+        </TouchableOpacity>
 
       </ScrollView>
     </SafeAreaView>
@@ -369,8 +423,10 @@ const styles = StyleSheet.create({
   stepTitle: { fontSize: 14, fontFamily: typography.bold, color: '#94a3b8' },
   stepTitleActive: { color: '#0f172a' },
   stepDesc: { fontSize: 12, fontFamily: typography.regular, color: '#64748b', marginTop: 2 },
-  backHomeBtn: { alignItems: 'center', paddingVertical: 12 },
-  backHomeText: { fontSize: 14, fontFamily: typography.semiBold, color: '#64748b' }
+  backHomeBtn: { alignItems: 'center', paddingVertical: 12, marginTop: 10 },
+  backHomeText: { fontSize: 14, fontFamily: typography.semiBold, color: '#64748b' },
+  cancelBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#fef2f2', paddingVertical: 16, borderRadius: 20, gap: 8, marginTop: 8 },
+  cancelBtnText: { fontSize: 15, fontFamily: typography.bold, color: '#ef4444' }
 });
 
 export default TrackOrderPage;

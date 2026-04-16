@@ -53,7 +53,6 @@ export function HomePage() {
           <Text style={styles.welcomeSubtitle}>Ready to clean up today?</Text>
         </View>
 
-        <ActiveStatusCard />
         <NewsSlider />
         <QuickActions />
         <RecentOrders />

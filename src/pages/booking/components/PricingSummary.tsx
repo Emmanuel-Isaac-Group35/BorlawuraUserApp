@@ -42,6 +42,16 @@ export const PricingSummary: React.FC<PricingSummaryProps> = ({ bookingData }) =
     { label: 'Volume', value: (bookingData.bagSize || '').charAt(0).toUpperCase() + (bookingData.bagSize || '').slice(1), icon: 'ri-database-2-fill' },
   ];
 
+  const calculateTotal = () => {
+    let base = 10;
+    if (bookingData.serviceType === 'instant') base += 5;
+    const size = (bookingData.bagSize || '').toLowerCase();
+    if (size === 'medium') base += 10;
+    if (size === 'large') base += 20;
+    if (size === 'xl' || size === 'extra large') base += 35;
+    return base.toFixed(2);
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -53,14 +63,17 @@ export const PricingSummary: React.FC<PricingSummaryProps> = ({ bookingData }) =
         {details.map((item, idx) => (
           <View key={idx} style={[styles.row, idx === details.length - 1 && styles.rowLast]}>
             <View style={styles.rowLead}>
-              <View style={styles.iconBox}>
-                <RemixIcon name={item.icon} size={16} color="#10b981" />
-              </View>
+              <View style={styles.iconBox}><RemixIcon name={item.icon} size={16} color="#10b981" /></View>
               <Text style={styles.rowLabel}>{item.label}</Text>
             </View>
             <Text style={styles.rowValue} numberOfLines={2}>{item.value}</Text>
           </View>
         ))}
+
+        <View style={styles.totalRow}>
+           <Text style={styles.totalLabel}>Total Amount</Text>
+           <Text style={styles.totalValue}>GHS {calculateTotal()}</Text>
+        </View>
 
         {bookingData.notes ? (
            <View style={styles.notesBox}>
@@ -78,10 +91,7 @@ export const PricingSummary: React.FC<PricingSummaryProps> = ({ bookingData }) =
                     <Text style={styles.riderLabel}>Your Preferred Rider</Text>
                     <Text style={styles.riderName}>{riderInfo.name}</Text>
                  </View>
-                 <View style={styles.statusBox}>
-                    <View style={styles.dot} />
-                    <Text style={styles.statusText}>Selected</Text>
-                 </View>
+                 <View style={styles.statusBox}><View style={styles.dot} /><Text style={styles.statusText}>Selected</Text></View>
               </View>
            </View>
         )}
@@ -100,26 +110,16 @@ const styles = StyleSheet.create({
   header: { marginBottom: 24 },
   title: { fontSize: 20, fontFamily: typography.bold, color: '#0f172a' },
   subtitle: { fontSize: 13, fontFamily: typography.medium, color: '#94a3b8', marginTop: 2 },
-  summaryCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 24,
-    padding: 20,
-    borderWidth: 1.5,
-    borderColor: '#f1f5f9',
-  },
-  row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f8fafc',
-  },
+  summaryCard: { backgroundColor: '#ffffff', borderRadius: 24, padding: 20, borderWidth: 1.5, borderColor: '#f1f5f9' },
+  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#f8fafc' },
   rowLast: { borderBottomWidth: 0 },
   rowLead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   iconBox: { width: 30, height: 30, borderRadius: 10, backgroundColor: '#f0fdf4', alignItems: 'center', justifyContent: 'center' },
   rowLabel: { fontSize: 13, fontFamily: typography.semiBold, color: '#64748b' },
   rowValue: { fontSize: 14, fontFamily: typography.bold, color: '#0f172a', flex: 1, textAlign: 'right', marginLeft: 16 },
+  totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: '#f1f5f9' },
+  totalLabel: { fontSize: 13, fontFamily: typography.bold, color: '#64748b' },
+  totalValue: { fontSize: 20, fontFamily: typography.bold, color: '#10b981' },
   notesBox: { marginTop: 16, padding: 14, backgroundColor: '#f8fafc', borderRadius: 16 },
   notesTitle: { fontSize: 12, fontFamily: typography.bold, color: '#94a3b8', marginBottom: 4, textTransform: 'uppercase' },
   notesText: { fontSize: 13, fontFamily: typography.medium, color: '#475569', lineHeight: 18 },
@@ -136,4 +136,3 @@ const styles = StyleSheet.create({
   disclaimer: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginTop: 20, paddingHorizontal: 4 },
   disclaimerText: { fontSize: 11, fontFamily: typography.medium, color: '#94a3b8', flex: 1, lineHeight: 16 },
 });
-

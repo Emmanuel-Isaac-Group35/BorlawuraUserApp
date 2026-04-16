@@ -98,25 +98,18 @@ const ProfilePage: React.FC = () => {
   const [addresses, setAddresses] = useState<any[]>([]);
 
   useEffect(() => {
-    const loadStoredAddresses = async () => {
-      try {
-        const stored = await RNAsyncStorage.getItem('user_addresses');
-        if (stored) {
-          setAddresses(JSON.parse(stored));
-        } else {
-          setAddresses([{
-            id: 1,
-            label: 'Register Location',
-            address: authUser?.location || 'No location set',
-            isDefault: true
-          }]);
-        }
-      } catch (e) {
-        console.error("Failed to load addresses", e);
+    const fetchAddressCount = async () => {
+      const searchId = authUser?.supabase_id || authUser?.id;
+      if (searchId && !String(searchId).startsWith('user_')) {
+        const { count } = await supabase
+          .from('user_addresses')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', searchId);
+        setAddresses(new Array(count || 0).fill({}));
       }
     };
-    loadStoredAddresses();
-  }, [authUser?.location]);
+    fetchAddressCount();
+  }, [authUser]);
 
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [showAddAddress, setShowAddAddress] = useState(false);
@@ -137,8 +130,7 @@ const ProfilePage: React.FC = () => {
   };
 
   const menuItems = [
-    { icon: 'ri-map-pin-2-fill', title: 'Saved Addresses', subtitle: `${addresses.length} locations`, action: () => setShowAddAddress(true), color: '#10b981' },
-    { icon: 'ri-bank-card-fill', title: 'Payment Methods', subtitle: 'Manage your cards', action: () => navigateTo('/payment-methods'), color: '#3b82f6' },
+    { icon: 'ri-map-pin-2-fill', title: 'Saved Addresses', subtitle: `${addresses.length} locations`, action: () => navigateTo('/saved-addresses'), color: '#10b981' },
     { icon: 'ri-history-fill', title: 'Pickup History', subtitle: 'View past orders', action: () => navigateTo('/orders'), color: '#8b5cf6' },
     { icon: 'ri-customer-service-2-fill', title: 'Help Center', subtitle: 'FAQs & Support', action: () => navigateTo('/support'), color: '#f59e0b' },
     { icon: 'ri-settings-4-fill', title: 'App Settings', subtitle: 'Version 1.1.0', action: () => {}, color: '#64748b' }

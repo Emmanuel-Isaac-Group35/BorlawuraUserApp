@@ -239,7 +239,15 @@ export const FindingRider: React.FC<FindingRiderProps> = ({ userLat, userLng, or
                 <View style={styles.loaderLine}>
                    <Animated.View style={[styles.loaderFill, { width: '100%', opacity: 0.6 }]} />
                 </View>
-                <TouchableOpacity onPress={onCancel} style={styles.cancelBtn}>
+                <TouchableOpacity 
+                   onPress={async () => {
+                      if (orderId) {
+                        await supabase.from('orders').update({ status: 'cancelled', sub_status: 'cancelled' }).eq('id', orderId);
+                      }
+                      onCancel();
+                   }} 
+                   style={styles.cancelBtn}
+                >
                    <Text style={styles.cancelText}>Cancel Search</Text>
                 </TouchableOpacity>
              </View>
