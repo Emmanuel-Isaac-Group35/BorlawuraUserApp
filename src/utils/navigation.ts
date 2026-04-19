@@ -19,6 +19,7 @@ export const routeMap: { [key: string]: string } = {
   '/support-chat': 'SupportChat',
   '/live-support': 'SupportChat',
   '/track-order': 'TrackOrder',
+  '/saved-addresses': 'SavedAddresses',
   '/profile/payment-methods': 'PaymentMethods',
   '/profile/notifications': 'Notifications',
   '/profile/terms': 'Terms',

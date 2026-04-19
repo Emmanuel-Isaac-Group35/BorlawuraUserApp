@@ -75,20 +75,17 @@ export const ActiveStatusCard: React.FC = React.memo(() => {
         <TouchableOpacity 
           style={styles.impactCard}
           onPress={() => navigateTo('/services')}
-          activeOpacity={0.9}
+          activeOpacity={0.8}
         >
           <View style={styles.impactContent}>
-            <View style={styles.impactIcon}>
-              <RemixIcon name="ri-leaf-fill" size={24} color="#059669" />
+            <View style={styles.iconBox}>
+              <RemixIcon name="ri-shield-check-fill" size={24} color="#10b981" />
             </View>
             <View style={styles.impactText}>
-              <Text style={styles.impactTitle}>Community Impact</Text>
-              <Text style={styles.impactSub}>{Math.round(impactStats.current)}kg collected of {impactStats.goal}kg goal</Text>
-              <View style={styles.progressBarBg}>
-                <View style={[styles.progressBarFill, { width: `${(impactStats.current / impactStats.goal) * 100}%` }]} />
-              </View>
+              <Text style={styles.impactTitle}>Eco-Friendly & Secure</Text>
+              <Text style={styles.impactSub}>Your pickups are processed with zero-waste goals in mind.</Text>
             </View>
-            <RemixIcon name="ri-arrow-right-s-line" size={20} color="#059669" />
+            <RemixIcon name="ri-arrow-right-s-line" size={18} color="#94a3b8" />
           </View>
         </TouchableOpacity>
       </View>
@@ -102,31 +99,31 @@ export const ActiveStatusCard: React.FC = React.memo(() => {
       <TouchableOpacity 
         style={[styles.statusCard, isLive ? styles.liveCard : styles.pendingCard]}
         onPress={() => navigateTo('/track-order', { id: activeOrder.id })}
-        activeOpacity={0.9}
+        activeOpacity={0.85}
       >
         <View style={styles.statusHeader}>
           <View style={styles.badgeRow}>
-            <View style={[styles.liveBadge, { backgroundColor: isLive ? '#ffffff' : '#fef3c7' }]}>
-              <View style={[styles.dot, { backgroundColor: isLive ? '#10b981' : '#f59e0b' }]} />
-              <Text style={[styles.badgeText, { color: isLive ? '#10b981' : '#92400e' }]}>
-                {isLive ? 'LIVE TRACKING' : 'SCHEDULED'}
+            <View style={[styles.liveBadge, { backgroundColor: isLive ? 'rgba(255,255,255,0.2)' : '#f8fafc' }]}>
+              <View style={[styles.dot, { backgroundColor: isLive ? '#ffffff' : '#10b981' }]} />
+              <Text style={[styles.badgeText, { color: isLive ? '#ffffff' : '#64748b' }]}>
+                {isLive ? 'LIVE TRACKING' : 'ORDER PENDING'}
               </Text>
             </View>
           </View>
-          <RemixIcon name="ri-share-forward-box-line" size={20} color={isLive ? '#fff' : '#64748b'} />
+          <RemixIcon name="ri-arrow-right-up-line" size={18} color={isLive ? '#fff' : '#64748b'} />
         </View>
 
-        <Text style={[styles.mainMsg, { color: isLive ? '#fff' : '#1e293b' }]}>
-          {isLive ? 'Your Rider is on the way!' : 'Scheduled for Collection'}
+        <Text style={[styles.mainMsg, { color: isLive ? '#fff' : '#0f172a' }]}>
+          {isLive ? 'Rider heading to you!' : 'Collection Request Sent'}
         </Text>
         
-        <Text style={[styles.subMsg, { color: isLive ? 'rgba(255,255,255,0.8)' : '#64748b' }]}>
-          {isLive ? 'Estimated arrival in 12-15 mins' : `${activeOrder.service_type} at ${activeOrder.address}`}
+        <Text style={[styles.subMsg, { color: isLive ? 'rgba(255,255,255,0.7)' : '#64748b' }]}>
+          {isLive ? 'Estimated arrival in 12-15 mins' : `Collecting from: ${activeOrder.address}`}
         </Text>
 
-        <View style={styles.footer}>
+        <View style={[styles.footer, isLive && { borderTopColor: 'rgba(255,255,255,0.2)' }]}>
           <View style={styles.riderBtn}>
-            <Text style={[styles.btnText, { color: isLive ? '#fff' : '#10b981' }]}>Track Now</Text>
+            <Text style={[styles.btnText, { color: isLive ? '#fff' : '#10b981' }]}>Open Tracker</Text>
             <RemixIcon name="ri-arrow-right-line" size={16} color={isLive ? '#fff' : '#10b981'} />
           </View>
         </View>
@@ -137,28 +134,32 @@ export const ActiveStatusCard: React.FC = React.memo(() => {
 
 const styles = StyleSheet.create({
   container: {
-    paddingHorizontal: 20,
-    marginBottom: 20,
+    marginBottom: 30,
   },
   impactCard: {
-    backgroundColor: '#ecfdf5',
-    padding: 16,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#d1fae5',
+    backgroundColor: '#ffffff',
+    padding: 20,
+    borderRadius: 30,
+    borderWidth: 1.5,
+    borderColor: '#f8fafc',
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.04,
+    shadowRadius: 15,
+    elevation: 3,
   },
   impactContent: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  impactIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: '#ffffff',
+  iconBox: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    backgroundColor: '#f1fef8',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
+    marginRight: 16,
   },
   impactText: {
     flex: 1,
@@ -166,48 +167,38 @@ const styles = StyleSheet.create({
   impactTitle: {
     fontSize: 16,
     fontFamily: typography.bold,
-    color: '#065f46',
+    color: '#0f172a',
+    letterSpacing: -0.4,
   },
   impactSub: {
     fontSize: 12,
     fontFamily: typography.medium,
-    color: '#047857',
+    color: '#94a3b8',
     marginTop: 2,
-  },
-  progressBarBg: {
-    height: 6,
-    backgroundColor: 'rgba(5, 150, 105, 0.15)',
-    borderRadius: 3,
-    marginTop: 8,
-    width: '90%',
-  },
-  progressBarFill: {
-    height: '100%',
-    backgroundColor: '#10b981',
-    borderRadius: 3,
+    lineHeight: 18,
   },
   statusCard: {
-    padding: 20,
-    borderRadius: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
+    padding: 24,
+    borderRadius: 30,
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.1,
-    shadowRadius: 15,
-    elevation: 8,
+    shadowRadius: 18,
+    elevation: 6,
   },
   liveCard: {
     backgroundColor: '#10b981',
   },
   pendingCard: {
     backgroundColor: '#ffffff',
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: '#f1f5f9',
   },
   statusHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 20,
   },
   badgeRow: {
     flexDirection: 'row',
@@ -215,10 +206,10 @@ const styles = StyleSheet.create({
   liveBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 10,
+    gap: 8,
   },
   dot: {
     width: 6,
@@ -226,32 +217,35 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   badgeText: {
-    fontSize: 10,
+    fontSize: 9,
     fontFamily: typography.bold,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   mainMsg: {
-    fontSize: 20,
+    fontSize: 22,
     fontFamily: typography.bold,
-    marginBottom: 4,
+    marginBottom: 6,
+    letterSpacing: -0.8,
   },
   subMsg: {
     fontSize: 14,
     fontFamily: typography.medium,
-    lineHeight: 20,
-    marginBottom: 16,
+    lineHeight: 22,
+    marginBottom: 20,
   },
   footer: {
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.15)',
-    paddingTop: 12,
+    borderTopWidth: 1.5,
+    borderTopColor: '#f1f5f9',
+    paddingTop: 16,
   },
   riderBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
   },
   btnText: {
-    fontSize: 14,
+    fontSize: 15,
     fontFamily: typography.bold,
   },
 });

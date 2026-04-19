@@ -9,7 +9,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import SplashView from './components/SplashView';
 
 enableScreens();
-LogBox.ignoreLogs(['setLayoutAnimationEnabledExperimental']);
+LogBox.ignoreLogs(['Non-serializable values were found in the navigation state']);
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { 
   useFonts, 
@@ -25,7 +25,7 @@ import AuthPage from './pages/auth/page';
 import SignupPage from './pages/auth/signup';
 import OTPPage from './pages/auth/otp';
 import ForgotPasswordPage from './pages/auth/forgot-password';
-import CompleteProfilePage from './pages/auth/complete-profile';
+import ResetPasswordPage from './pages/auth/reset-password';
 import BookingPage from './pages/booking/page';
 import OrdersPage from './pages/orders/page';
 import ServicesPage from './pages/services/page';
@@ -33,7 +33,6 @@ import ProfilePage from './pages/profile/page';
 import SupportPage from './pages/support/page';
 import SupportChatPage from './pages/support/chat';
 import TrackOrderPage from './pages/track-order/page';
-import PaymentMethodsPage from './pages/profile/payment-methods/page';
 import NotificationsPage from './pages/profile/notifications/page';
 import TermsPage from './pages/profile/terms/page';
 import AboutPage from './pages/profile/about/page';
@@ -49,10 +48,11 @@ import { navigationRef } from './utils/navigation';
 const Stack = createNativeStackNavigator();
 
 const linking = {
-  prefixes: [Linking.createURL('/')],
+  prefixes: [Linking.createURL('/'), 'borlawura-user://'],
   config: {
     screens: {
       Auth: 'auth-callback',
+      ResetPassword: 'reset-password'
     },
   },
 };
@@ -62,7 +62,7 @@ import { GlobalOrderListener } from './components/feature/GlobalOrderListener';
 import SavedAddressesPage from './pages/profile/addresses/page';
 
 function AppNavigator() {
-  const { isLoggedIn, isSuspended, isLoading, needsProfileCompletion } = useAuth();
+  const { isLoggedIn, isSuspended, isLoading } = useAuth();
 
   if (isLoading) return null; // Or a loading spinner
 
@@ -83,10 +83,7 @@ function AppNavigator() {
             <Stack.Screen name="Signup" component={SignupPage} />
             <Stack.Screen name="OTP" component={OTPPage} />
             <Stack.Screen name="ForgotPassword" component={ForgotPasswordPage} />
-          </>
-        ) : needsProfileCompletion ? (
-          <>
-            <Stack.Screen name="CompleteProfile" component={CompleteProfilePage} />
+            <Stack.Screen name="ResetPassword" component={ResetPasswordPage} />
           </>
         ) : (
           <>
@@ -115,6 +112,7 @@ function AppNavigator() {
 }
 
 import { SettingsProvider } from './context/SettingsContext';
+import { AlertProvider } from './context/AlertContext';
 import { MaintenanceOverlay } from './components/feature/MaintenanceOverlay';
 
 function App() {
@@ -144,11 +142,13 @@ function App() {
     <ErrorBoundary>
       <AuthProvider>
         <SettingsProvider>
-          <SafeAreaProvider>
-            <AppNavigator />
-            <NotificationOverlay />
-            <MaintenanceOverlay />
-          </SafeAreaProvider>
+          <AlertProvider>
+            <SafeAreaProvider>
+              <AppNavigator />
+              <NotificationOverlay />
+              <MaintenanceOverlay />
+            </SafeAreaProvider>
+          </AlertProvider>
         </SettingsProvider>
       </AuthProvider>
     </ErrorBoundary>

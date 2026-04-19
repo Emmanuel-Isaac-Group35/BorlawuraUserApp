@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, Animated } from 'react-native';
+import { View, Text, StyleSheet, Animated, Image } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { typography } from '../utils/typography';
 
@@ -16,10 +16,13 @@ const SplashView = () => {
 
   return (
     <View style={styles.container}>
-      <StatusBar style="light" />
+      <StatusBar style="dark" />
       <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
-        <Text style={styles.logoText}>Borla Wura</Text>
-        <View style={styles.dot} />
+        <Image 
+          source={require('../../assets/Borla Wura Logo.png')} 
+          style={styles.logo}
+          resizeMode="contain"
+        />
       </Animated.View>
     </View>
   );
@@ -28,26 +31,16 @@ const SplashView = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#32BA7C',
+    backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
   },
   content: {
     alignItems: 'center',
   },
-  logoText: {
-    color: '#FFFFFF',
-    fontSize: 48,
-    fontFamily: typography.bold,
-    textAlign: 'center',
-    letterSpacing: -1.5,
-  },
-  dot: {
-    width: 10,
-    height: 10,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 5,
-    marginTop: 8,
+  logo: {
+    width: 200,
+    height: 200,
   },
 });
 

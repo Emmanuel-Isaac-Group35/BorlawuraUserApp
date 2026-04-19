@@ -10,6 +10,8 @@ import * as Sharing from 'expo-sharing';
 import { WebView } from 'react-native-webview';
 import { typography } from '../../utils/typography';
 import { sendLocalNotification } from '../../utils/notifications';
+import { getDistanceMatrix } from '../../utils/maps';
+import { useAlert } from '../../context/AlertContext';
 
 const getMapHtml = (riderLat: number, riderLng: number, userLat?: number, userLng?: number) => `
 <!DOCTYPE html>
@@ -82,6 +84,7 @@ const TrackOrderPage: React.FC = () => {
   const navigation = useNavigation<any>();
   const route = useRoute();
   const { id: orderId } = (route.params as { id?: string }) || {};
+  const { showAlert } = useAlert();
   const [order, setOrder] = useState<any>(null);
   const [riderLocation, setRiderLocation] = useState({ lat: 5.6037, lng: -0.1870 });
   const [isLiveTracking, setIsLiveTracking] = useState(true);
@@ -104,6 +107,8 @@ const TrackOrderPage: React.FC = () => {
         if (orderError) throw orderError;
 
         let riderObj = null;
+        let estimatedTime = 'Calculating...';
+
         if (orderData.rider_id) {
           const { data: riderData, error: riderError } = await supabase
             .from('riders')
@@ -123,6 +128,18 @@ const TrackOrderPage: React.FC = () => {
               lng: riderData.longitude || -0.1870
             };
             setRiderLocation({ lat: riderObj.lat, lng: riderObj.lng });
+
+            // Calculate Dynamic ETA
+            try {
+              const matrix = await getDistanceMatrix(
+                [`${riderObj.lat},${riderObj.lng}`],
+                [`${orderData.pickup_latitude},${orderData.pickup_longitude}`]
+              );
+              if (matrix?.status === 'OK' && matrix.rows?.[0]?.elements?.[0]?.duration?.text) {
+                estimatedTime = matrix.rows[0].elements[0].duration.text;
+                if (orderData.status === 'completed') estimatedTime = 'Arrived';
+              }
+            } catch (e) { console.log("ETA calculation failed:", e); }
           }
         }
 
@@ -139,7 +156,7 @@ const TrackOrderPage: React.FC = () => {
           rider: riderObj,
           wasteType: orderData.waste_type || 'General Household',
           bagSize: (orderData.waste_size || 'Standard').charAt(0).toUpperCase() + (orderData.waste_size || 'Standard').slice(1),
-          estimatedArrival: riderObj ? '12 mins' : 'Calculating...',
+          estimatedArrival: estimatedTime,
           currentLocation: ['in_progress', 'active'].includes(orderData.status) ? 'Approaching your location' : (['accepted', 'assigned', 'confirmed'].includes(orderData.status) ? 'Rider heading out' : 'Waiting for dispatch')
         });
       } catch (error) {
@@ -185,6 +202,19 @@ const TrackOrderPage: React.FC = () => {
                 };
                 setRiderLocation({ lat: riderObj.lat, lng: riderObj.lng });
               }
+            }
+
+            if (riderObj) {
+               // Update ETA as the rider moves
+               try {
+                 const matrix = await getDistanceMatrix(
+                   [`${riderObj.lat},${riderObj.lng}`],
+                   [`${orderData.pickup_latitude},${orderData.pickup_longitude}`]
+                 );
+                 if (matrix?.status === 'OK' && matrix.rows?.[0]?.elements?.[0]?.duration?.text) {
+                   setOrder((prev: any) => ({ ...prev, estimatedArrival: matrix.rows[0].elements[0].duration.text }));
+                 }
+               } catch (e) { console.log("Live ETA update failed:", e); }
             }
 
             setOrder((prev: any) => ({
@@ -250,14 +280,14 @@ const TrackOrderPage: React.FC = () => {
       message = "A rider has already been assigned and may be moving. Are you sure you want to cancel?";
     }
 
-    Alert.alert(
-      "Cancel Order",
+    showAlert({
+      title: "Cancel Order",
       message,
-      [
-        { text: "No, Keep Order", style: "cancel" },
-        { text: "Yes, Cancel", style: "destructive", onPress: performCancellation }
-      ]
-    );
+      type: 'warning',
+      showCancel: true,
+      confirmLabel: "Yes, Cancel",
+      onConfirm: performCancellation
+    });
   };
 
   const performCancellation = async () => {
@@ -272,16 +302,18 @@ const TrackOrderPage: React.FC = () => {
         .eq('id', order.realId);
 
       if (error) {
-        console.error("Supabase Cancellation Error:", error);
-        Alert.alert("Cancellation Failed", `Database says: ${error.message} (Code: ${error.code})`);
+        showAlert({ title: "Cancellation Failed", message: error.message, type: 'error' });
         return;
       }
       
-      Alert.alert("Success", "Your order has been cancelled.");
-      navigation.navigate('Home');
+      showAlert({ 
+        title: "Success", 
+        message: "Your order has been cancelled.", 
+        type: 'success', 
+        onConfirm: () => navigation.navigate('Home') 
+      });
     } catch (e: any) {
-      console.error("General Cancellation Error:", e);
-      Alert.alert("Error", "A system error occurred. Please try again.");
+      showAlert({ title: "Error", message: "A system error occurred. Please try again.", type: 'error' });
     }
   };
 
@@ -313,7 +345,11 @@ const TrackOrderPage: React.FC = () => {
 
         <View style={styles.mapCard}>
           <View style={styles.mapWrapper}>
-            <WebView source={{ html: getMapHtml(riderLocation.lat, riderLocation.lng, order.latitude, order.longitude) }} style={styles.map} />
+            <WebView 
+              key={`${riderLocation.lat}-${riderLocation.lng}-${order?.id}`}
+              source={{ html: getMapHtml(riderLocation.lat, riderLocation.lng, order.latitude, order.longitude) }} 
+              style={styles.map} 
+            />
           </View>
           <View style={styles.mapInfo}>
             <View>
@@ -363,10 +399,20 @@ const TrackOrderPage: React.FC = () => {
           </View>
 
         {order?.status !== 'completed' && order?.status !== 'cancelled' && (
-          <TouchableOpacity onPress={handleCancelOrder} style={styles.cancelBtn}>
-             <RemixIcon name="ri-close-circle-line" size={18} color="#ef4444" />
-             <Text style={styles.cancelBtnText}>Cancel Order</Text>
-          </TouchableOpacity>
+          <View style={styles.actionButtons}>
+            <TouchableOpacity 
+              onPress={() => navigation.navigate('Booking', { editId: order.realId })} 
+              style={styles.modifyBtn}
+            >
+              <RemixIcon name="ri-edit-2-line" size={18} color="#0f172a" />
+              <Text style={styles.modifyBtnText}>Modify Details</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity onPress={handleCancelOrder} style={styles.cancelBtn}>
+              <RemixIcon name="ri-close-circle-line" size={18} color="#ef4444" />
+              <Text style={styles.cancelBtnText}>Cancel Order</Text>
+            </TouchableOpacity>
+          </View>
         )}
 
         <TouchableOpacity onPress={() => navigation.navigate('Home')} style={styles.backHomeBtn}>
@@ -425,7 +471,10 @@ const styles = StyleSheet.create({
   stepDesc: { fontSize: 12, fontFamily: typography.regular, color: '#64748b', marginTop: 2 },
   backHomeBtn: { alignItems: 'center', paddingVertical: 12, marginTop: 10 },
   backHomeText: { fontSize: 14, fontFamily: typography.semiBold, color: '#64748b' },
-  cancelBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#fef2f2', paddingVertical: 16, borderRadius: 20, gap: 8, marginTop: 8 },
+  actionButtons: { gap: 12, marginTop: 8 },
+  modifyBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc', paddingVertical: 16, borderRadius: 20, gap: 8, borderWidth: 1.5, borderColor: '#f1f5f9' },
+  modifyBtnText: { fontSize: 15, fontFamily: typography.bold, color: '#0f172a' },
+  cancelBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#fef2f2', paddingVertical: 16, borderRadius: 20, gap: 8 },
   cancelBtnText: { fontSize: 15, fontFamily: typography.bold, color: '#ef4444' }
 });
 

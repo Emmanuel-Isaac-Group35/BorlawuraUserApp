@@ -6,9 +6,10 @@ import { navigateTo } from '../../../utils/navigation';
 import { useAuth } from '../../../context/AuthContext';
 import { supabase } from '../../../lib/supabase';
 
-if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
-}
+import { resolveRealUserId } from '../../../utils/user';
+
+// LayoutAnimation is handled automatically in the new architecture
+// No manual configuration needed for Android here.
 
 interface Order {
   id: string;
@@ -33,36 +34,11 @@ export const RecentOrders: React.FC = React.memo(() => {
 
   React.useEffect(() => {
     const fetchRecentOrders = async () => {
-      if (!user) return;
+      const searchId = await resolveRealUserId(user);
+      if (!searchId) return;
+
       setIsLoading(true);
       try {
-        let searchId = user.supabase_id || user.id;
-        if (searchId && String(searchId).startsWith('user_')) {
-          let searchPhone = (user.phone_number || user.phoneNumber || '').replace(/\s+/g, '');
-          if (searchPhone.startsWith('0')) {
-            searchPhone = '+233' + searchPhone.substring(1);
-          } else if (searchPhone && !searchPhone.startsWith('+')) {
-            searchPhone = '+233' + searchPhone;
-          }
-          const searchEmail = user.email && user.email.includes('@') ? user.email : null;
-          
-          let query = supabase.from('users').select('id');
-          if (searchPhone && searchEmail) {
-            query = query.or(`phone_number.eq.${searchPhone},email.eq.${searchEmail}`);
-          } else if (searchPhone) {
-            query = query.eq('phone_number', searchPhone);
-          } else if (searchEmail) {
-            query = query.eq('email', searchEmail);
-          }
-          
-          const { data: dbUser } = await query.single();
-          if (dbUser) searchId = dbUser.id;
-        }
-
-        if (!searchId || String(searchId).startsWith('user_')) {
-          setIsLoading(false);
-          return;
-        }
         const { data, error } = await supabase
           .from('orders')
           .select('*')
@@ -116,10 +92,12 @@ export const RecentOrders: React.FC = React.memo(() => {
 
     fetchRecentOrders();
 
-    let searchId = user?.supabase_id || user?.id;
-    if (searchId && !String(searchId).startsWith('user_')) {
+    const setupSubscription = async () => {
+      const searchId = await resolveRealUserId(user);
+      if (!searchId) return;
+
       const channel = supabase
-        .channel('recent-order-updates')
+        .channel(`recent-orders-${searchId}`)
         .on(
           'postgres_changes',
           {
@@ -132,10 +110,15 @@ export const RecentOrders: React.FC = React.memo(() => {
         )
         .subscribe();
 
-      return () => {
-        supabase.removeChannel(channel);
-      };
-    }
+      return channel;
+    };
+
+    let subChannel: any;
+    setupSubscription().then(ch => { subChannel = ch; });
+
+    return () => {
+      if (subChannel) supabase.removeChannel(subChannel);
+    };
   }, [user]);
 
   const getStatusStyle = (status: string) => {
@@ -148,13 +131,6 @@ export const RecentOrders: React.FC = React.memo(() => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Recent Activity</Text>
-        <TouchableOpacity onPress={() => navigateTo('/orders')}>
-          <Text style={styles.viewAll}>See All</Text>
-        </TouchableOpacity>
-      </View>
-      
       <View style={styles.ordersList}>
         {orders.length === 0 ? (
           <View style={styles.emptyState}>
@@ -169,20 +145,20 @@ export const RecentOrders: React.FC = React.memo(() => {
                 key={order.id} 
                 style={styles.orderItem}
                 onPress={() => navigateTo('/track-order', { id: order.id })}
-                activeOpacity={0.7}
+                activeOpacity={0.75}
               >
                 <View style={styles.iconBox}>
-                  <RemixIcon name={order.icon} size={20} color="#64748b" />
+                  <RemixIcon name={order.icon} size={22} color="#10b981" />
                 </View>
                 
                 <View style={styles.orderInfo}>
                   <Text style={styles.orderType}>{order.type}</Text>
                   <Text style={styles.orderSubtext}>{order.date} • {order.time}</Text>
                 </View>
-
-                <View style={styles.statusBox}>
+ 
+                <View style={[styles.statusBox, { backgroundColor: status.dot + '10' }]}>
                   <View style={[styles.statusDot, { backgroundColor: status.dot }]} />
-                  <Text style={styles.statusLabel}>{status.label}</Text>
+                  <Text style={[styles.statusLabel, { color: status.dot }]}>{status.label}</Text>
                 </View>
               </TouchableOpacity>
             );
@@ -192,70 +168,59 @@ export const RecentOrders: React.FC = React.memo(() => {
     </View>
   );
 });
-
+ 
 const styles = StyleSheet.create({
   container: {
-    paddingHorizontal: 20,
-    marginTop: 8,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-  },
-  title: {
-    fontSize: 18,
-    fontFamily: typography.bold,
-    color: '#0f172a',
-  },
-  viewAll: {
-    fontSize: 14,
-    fontFamily: typography.semiBold,
-    color: '#10b981',
+    marginTop: 10,
+    marginBottom: 40,
   },
   ordersList: {
-    gap: 12,
+    gap: 16,
   },
   orderItem: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#ffffff',
-    padding: 12,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#f1f5f9',
+    padding: 18,
+    borderRadius: 30,
+    borderWidth: 1.5,
+    borderColor: '#f8fafc',
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.03,
+    shadowRadius: 12,
+    elevation: 2,
   },
   iconBox: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: '#f8fafc',
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    backgroundColor: '#f1fef8',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
+    marginRight: 16,
   },
   orderInfo: {
     flex: 1,
   },
   orderType: {
-    fontSize: 14,
-    fontFamily: typography.semiBold,
-    color: '#1e293b',
+    fontSize: 16,
+    fontFamily: typography.bold,
+    color: '#0f172a',
+    letterSpacing: -0.4,
   },
   orderSubtext: {
     fontSize: 12,
-    fontFamily: typography.regular,
-    color: '#64748b',
+    fontFamily: typography.medium,
+    color: '#94a3b8',
     marginTop: 2,
   },
   statusBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f8fafc',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
     gap: 6,
   },
   statusDot: {
@@ -264,24 +229,25 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   statusLabel: {
-    fontSize: 11,
-    fontFamily: typography.semiBold,
-    color: '#475569',
+    fontSize: 10,
+    fontFamily: typography.bold,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   emptyState: {
-    padding: 32,
+    padding: 60,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#f8fafc',
-    borderRadius: 20,
-    borderWidth: 1,
+    backgroundColor: '#ffffff',
+    borderRadius: 32,
+    borderWidth: 1.5,
     borderStyle: 'dashed',
-    borderColor: '#e2e8f0',
+    borderColor: '#f1f5f9',
   },
   emptyText: {
-    fontSize: 14,
-    fontFamily: typography.medium,
+    fontSize: 15,
+    fontFamily: typography.semiBold,
     color: '#94a3b8',
-    marginTop: 10,
+    marginTop: 12,
   },
 });

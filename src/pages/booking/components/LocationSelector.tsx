@@ -6,6 +6,8 @@ import { RemixIcon } from '../../../utils/icons';
 import { useAuth } from '../../../context/AuthContext';
 import { supabase } from '../../../lib/supabase';
 import { typography } from '../../../utils/typography';
+import { resolveRealUserId } from '../../../utils/user';
+import { reverseGeocode, fetchPlacesAutocomplete, fetchPlaceDetails } from '../../../utils/maps';
 
 interface LocationSelectorProps {
   value: string;
@@ -18,6 +20,8 @@ export const LocationSelector: React.FC<LocationSelectorProps> = ({ value, onCha
   const [isDetecting, setIsDetecting] = useState(false);
   const [savedAddresses, setSavedAddresses] = useState<any[]>([]);
   const [onlineRiders, setOnlineRiders] = useState<any[]>([]);
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
 
   useEffect(() => {
     fetchCloudAddresses();
@@ -26,28 +30,10 @@ export const LocationSelector: React.FC<LocationSelectorProps> = ({ value, onCha
   }, []);
 
   const fetchCloudAddresses = async () => {
-    if (!user) return;
+    const searchId = await resolveRealUserId(user);
+    if (!searchId) return;
+
     try {
-      let searchId = user.supabase_id || user.id;
-      
-      // Handle mobile 'user_' prefix if present
-      if (searchId && String(searchId).startsWith('user_')) {
-        let searchPhone = (user.phone_number || user.phoneNumber || '').replace(/\s+/g, '');
-        if (searchPhone.startsWith('0')) searchPhone = '+233' + searchPhone.substring(1);
-        else if (searchPhone && !searchPhone.startsWith('+')) searchPhone = '+233' + searchPhone;
-        
-        const searchEmail = user.email && user.email.includes('@') ? user.email : null;
-        let query = supabase.from('users').select('id');
-        if (searchPhone && searchEmail) query = query.or(`phone_number.eq.${searchPhone},email.eq.${searchEmail}`);
-        else if (searchPhone) query = query.eq('phone_number', searchPhone);
-        else if (searchEmail) query = query.eq('email', searchEmail);
-        
-        const { data: dbUser } = await query.single();
-        if (dbUser) searchId = dbUser.id;
-      }
-
-      if (!searchId || String(searchId).startsWith('user_')) return;
-
       const { data } = await supabase.from('user_addresses').select('*').eq('user_id', searchId);
       if (data) setSavedAddresses(data);
     } catch (e) {
@@ -76,11 +62,16 @@ export const LocationSelector: React.FC<LocationSelectorProps> = ({ value, onCha
       
       setCoords({ latitude, longitude });
       
-      const addresses = await Location.reverseGeocodeAsync({ latitude, longitude });
-      const addr = addresses[0];
-      const formatted = addr 
-        ? `${addr.streetNumber || ''} ${addr.street || ''}, ${addr.district || addr.city || ''}`.trim() 
-        : `GPS Pin: ${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
+      // Try Google Maps first, then fallback to Expo
+      let formatted = await reverseGeocode(latitude, longitude);
+      
+      if (formatted.startsWith('GPS:')) {
+        const addresses = await Location.reverseGeocodeAsync({ latitude, longitude });
+        const addr = addresses[0];
+        formatted = addr 
+          ? `${addr.streetNumber || ''} ${addr.street || ''}, ${addr.district || addr.city || ''}`.trim() 
+          : formatted;
+      }
       
       selectAddress(formatted, latitude, longitude);
     } catch (e) {
@@ -89,6 +80,28 @@ export const LocationSelector: React.FC<LocationSelectorProps> = ({ value, onCha
     } finally {
       setIsDetecting(false);
     }
+  };
+
+  const handleSearch = async (text: string) => {
+    onChange(text, null);
+    if (text.length > 2) {
+      setIsSearching(true);
+      const results = await fetchPlacesAutocomplete(text);
+      setSearchResults(results);
+      setIsSearching(false);
+    } else {
+      setSearchResults([]);
+    }
+  };
+
+  const handleSelectPlace = async (placeId: string) => {
+    setIsSearching(true);
+    const details = await fetchPlaceDetails(placeId);
+    if (details) {
+      selectAddress(details.address, details.latitude, details.longitude);
+      setSearchResults([]);
+    }
+    setIsSearching(false);
   };
 
   const selectAddress = (addrText: string, lat: number, lng: number) => {
@@ -145,6 +158,41 @@ export const LocationSelector: React.FC<LocationSelectorProps> = ({ value, onCha
          <Text style={styles.panelTitle}>Select Pickup Address</Text>
          
          <ScrollView style={styles.addressList} showsVerticalScrollIndicator={false}>
+            <View style={styles.manualInput}>
+               <View style={styles.inputWrapper}>
+                  <TextInput 
+                     value={value} 
+                     onChangeText={handleSearch}
+                     placeholder="Or type address manually..."
+                     style={styles.input}
+                  />
+                  {isSearching && <ActivityIndicator size="small" color="#10b981" style={styles.searchIndicator} />}
+               </View>
+
+               {searchResults.length > 0 ? (
+                 <View style={styles.searchResults}>
+                   {searchResults.map((item, idx) => (
+                     <TouchableOpacity 
+                        key={item.place_id} 
+                        style={styles.searchResultItem}
+                        onPress={() => handleSelectPlace(item.place_id)}
+                     >
+                       <RemixIcon name="ri-map-pin-2-line" size={16} color="#64748b" />
+                       <View style={styles.searchResultInfo}>
+                          <Text style={styles.searchResultText} numberOfLines={1}>{item.description}</Text>
+                       </View>
+                     </TouchableOpacity>
+                   ))}
+                 </View>
+               ) : (
+                 value.length > 2 && !isSearching && (
+                   <View style={styles.noResults}>
+                      <Text style={styles.noResultsText}>No addresses found in Ghana</Text>
+                   </View>
+                 )
+               )}
+            </View>
+
             {/* Automatic Detection Result */}
             <TouchableOpacity 
                onPress={() => selectAddress(value, coords.latitude, coords.longitude)}
@@ -159,13 +207,13 @@ export const LocationSelector: React.FC<LocationSelectorProps> = ({ value, onCha
             </TouchableOpacity>
 
             {/* Saved Addresses */}
-            {savedAddresses.map((s) => (
+            {savedAddresses.map((s, idx) => (
                <TouchableOpacity 
-                  key={s.id} 
+                  key={`${s.id}-${idx}`} 
                   onPress={() => selectAddress(s.address_text, s.latitude, s.longitude)}
                   style={styles.addressItem}
                >
-                  <View style={[styles.addrIconBox, { backgroundColor: '#f1f5f9' }]}><RemixIcon name={s.label.toLowerCase().includes('home') ? "ri-home-fill" : "ri-briefcase-fill"} size={18} color="#64748b" /></View>
+                  <View style={[styles.addrIconBox, { backgroundColor: '#f1f5f9' }]}><RemixIcon name={s.label.toLowerCase().includes('home') ? "ri-home-6-fill" : "ri-briefcase-4-fill"} size={18} color="#64748b" /></View>
                   <View style={styles.addrInfo}>
                      <Text style={styles.addrLabel}>{s.label}</Text>
                      <Text style={styles.addrText}>{s.address_text}</Text>
@@ -173,15 +221,6 @@ export const LocationSelector: React.FC<LocationSelectorProps> = ({ value, onCha
                   {value === s.address_text && <RemixIcon name="ri-checkbox-circle-fill" size={20} color="#10b981" />}
                </TouchableOpacity>
             ))}
-
-            <View style={styles.manualInput}>
-               <TextInput 
-                  value={value} 
-                  onChangeText={(t) => onChange(t, null)}
-                  placeholder="Or type address manually..."
-                  style={styles.input}
-               />
-            </View>
          </ScrollView>
       </View>
     </View>
@@ -202,7 +241,16 @@ const styles = StyleSheet.create({
   addrInfo: { flex: 1 },
   addrLabel: { fontSize: 12, fontFamily: typography.bold, color: '#64748b' },
   addrText: { fontSize: 13, fontFamily: typography.medium, color: '#1e293b', marginTop: 1 },
-  manualInput: { marginTop: 4 },
-  input: { borderBottomWidth: 1.5, borderBottomColor: '#f1f5f9', paddingVertical: 10, fontSize: 14, fontFamily: typography.medium, color: '#1e293b' },
+  manualInput: { marginTop: 4, position: 'relative' },
+  inputWrapper: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1.5, borderBottomColor: '#f1f5f9' },
+  input: { flex: 1, paddingVertical: 10, fontSize: 14, fontFamily: typography.medium, color: '#1e293b' },
+  searchIndicator: { paddingLeft: 8 },
+  searchResults: { backgroundColor: '#ffffff', borderRadius: 16, marginTop: 8, borderWidth: 1, borderColor: '#f1f5f9', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 10, elevation: 3, overflow: 'hidden' },
+  searchResultItem: { flexDirection: 'row', alignItems: 'center', padding: 14, borderBottomWidth: 1, borderBottomColor: '#f8fafc', gap: 10 },
+  searchResultInfo: { flex: 1 },
+  searchResultText: { fontSize: 13, fontFamily: typography.medium, color: '#475569' },
+  searchResultSubtext: { fontSize: 11, fontFamily: typography.medium, color: '#94a3b8', marginTop: 1 },
+  noResults: { padding: 16, backgroundColor: '#f8fafc', borderRadius: 16, marginTop: 8, alignItems: 'center' },
+  noResultsText: { fontSize: 13, fontFamily: typography.medium, color: '#64748b' },
 });
 

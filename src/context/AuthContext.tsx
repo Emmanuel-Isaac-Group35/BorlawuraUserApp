@@ -31,8 +31,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSuspended, setIsSuspended] = useState(false);
-  const [needsProfileCompletion, setNeedsProfileCompletion] = useState(false);
-
   const processingRef = React.useRef(false);
 
   useEffect(() => {
@@ -61,10 +59,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // 2. Listen for Supabase Auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('🔄 Auth State Event:', event, session?.user?.email);
-      if (session?.user && !processingRef.current) {
-        handleSupabaseSession(session.user);
-      } else if (event === 'SIGNED_OUT') {
-        logout();
+      
+      if (session?.user) {
+        if (!processingRef.current) {
+          handleSupabaseSession(session.user);
+        }
+      } else if (event === 'SIGNED_OUT' || event === 'USER_DELETED') {
+        // Clear local state only - do NOT call logout() as it triggers another signOut()
+        await RNAsyncStorage.removeItem('user');
+        setUser(null);
+        setIsLoggedIn(false);
+        setIsSuspended(false);
+        setIsLoading(false);
       }
     });
 
@@ -106,10 +112,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           await RNAsyncStorage.setItem('user', JSON.stringify(storageUser));
           setUser(storageUser);
           
-          // Check if profile is complete (needs address and phone)
-          const isComplete = storageUser.location && storageUser.phone_number;
-          setNeedsProfileCompletion(!isComplete);
-          
           setIsLoggedIn(true);
           const isRestricted = ['suspended', 'flagged', 'rejected', 'pending'].includes(finalUser.status);
           setIsSuspended(isRestricted);
@@ -132,11 +134,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             if (userData && (userData.id || userData.supabase_id)) {
               setUser(userData);
               setIsLoggedIn(true);
-              
-              // Re-check profile completion on startup
-              const isComplete = userData.location && userData.phone_number;
-              setNeedsProfileCompletion(!isComplete);
-
               const isRestricted = ['suspended', 'flagged', 'rejected', 'pending'].includes(userData.status);
               setIsSuspended(isRestricted);
             } else {
@@ -299,7 +296,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       await RNAsyncStorage.setItem('user', JSON.stringify(storageUser));
       setUser(storageUser);
-      setNeedsProfileCompletion(false);
       setIsLoggedIn(true);
       setIsSuspended(['suspended', 'flagged', 'rejected', 'pending'].includes(storageUser.status));
       setIsLoading(false);
@@ -375,7 +371,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ isLoggedIn, isSuspended, user, login, logout, refreshUser, signInWithGoogle, isLoading, needsProfileCompletion }}>
+    <AuthContext.Provider value={{ isLoggedIn, isSuspended, user, login, logout, refreshUser, signInWithGoogle, isLoading }}>
       {children}
       <Modal visible={isSuspended} transparent={true} animationType="fade">
         <View style={styles.modalOverlay}>

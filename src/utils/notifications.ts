@@ -19,7 +19,8 @@ export async function registerForPushNotificationsAsync() {
   const isExpoGo = Constants.appOwnership === 'expo';
   
   if (isExpoGo && Platform.OS === 'android') {
-    console.log('🚀 Running in Expo Go: Skipping remote push notification setup (SDK 53+ restriction)');
+    console.warn('⚠️ SDK 53+ Alert: Android Push Notifications are not supported in Expo Go.');
+    console.warn('To test push notifications, you must use a Development Build (npx expo run:android).');
     return null;
   }
 

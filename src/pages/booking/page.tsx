@@ -13,11 +13,18 @@ import { navigateTo } from '../../utils/navigation';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { typography } from '../../utils/typography';
+import { resolveRealUserId } from '../../utils/user';
+
+import { useRoute } from '@react-navigation/native';
 
 const BookingPage: React.FC = () => {
   const insets = useSafeAreaInsets();
+  const route = useRoute();
+  const { editId } = (route.params as { editId?: string }) || {};
+  
   const [step, setStep] = useState(1);
   const [showFindingRider, setShowFindingRider] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const [bookingData, setBookingData] = useState({
     location: '',
     latitude: null as number | null,
@@ -32,7 +39,49 @@ const BookingPage: React.FC = () => {
 
   const [completedOrder, setCompletedOrder] = useState<any>(null);
   const { user } = useAuth();
-  
+
+  React.useEffect(() => {
+    if (editId) {
+      const fetchEditData = async () => {
+        try {
+          const { data, error } = await supabase
+            .from('orders')
+            .select('*')
+              .eq('id', editId)
+            .single();
+          
+          if (error) throw error;
+          
+          if (data) {
+            setIsEditing(true);
+            setBookingData({
+              location: data.address || '',
+              latitude: data.pickup_latitude,
+              longitude: data.pickup_longitude,
+              serviceType: data.service_type?.toLowerCase().includes('scheduled') ? 'scheduled' : 'instant',
+              wasteTypes: data.waste_type?.split(', ').filter(Boolean) || [],
+              bagSize: data.waste_size || '',
+              scheduledTime: data.scheduled_at ? formatDateForSelector(data.scheduled_at) : '',
+              notes: data.notes || '',
+              riderId: data.rider_id
+            });
+          }
+        } catch (e) {
+          console.error("Failed to load order for editing:", e);
+        }
+      };
+      fetchEditData();
+    }
+  }, [editId]);
+
+  const formatDateForSelector = (isoDate: string) => {
+    const d = new Date(isoDate);
+    const options: any = { day: 'numeric', month: 'short' };
+    const dateStr = d.toLocaleDateString('en-US', options);
+    const timeStr = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+    return `${dateStr} | ${timeStr}`;
+  };
+
   const steps = [
     { id: 1, label: 'Location' },
     { id: 2, label: 'Service' },
@@ -59,12 +108,15 @@ const BookingPage: React.FC = () => {
       const now = new Date();
       let targetDate = new Date();
       if (datePart === 'Tomorrow') targetDate.setDate(now.getDate() + 1);
-      else if (datePart !== 'Today') {
-        const dayMatch = datePart.match(/\d+/);
-        if (dayMatch) targetDate.setDate(parseInt(dayMatch[0]));
+      else if (datePart === 'Today') targetDate = new Date();
+      else {
+          // Attempt to parse "15 Apr" or similar
+          const parsed = Date.parse(`${datePart} ${now.getFullYear()}`);
+          if (!isNaN(parsed)) targetDate = new Date(parsed);
       }
-      const startTime = timePart.split('-')[0].trim();
-      const [hourMin, ampm] = startTime.split(' ');
+      
+      const timeClean = timePart.split('-')[0].trim(); // Handle "08:00 AM - 10:00 AM" or just "08:00 AM"
+      const [hourMin, ampm] = timeClean.split(' ');
       let [hours, minutes] = hourMin.split(':').map(Number);
       if (ampm === 'PM' && hours < 12) hours += 12;
       if (ampm === 'AM' && hours === 12) hours = 0;
@@ -75,25 +127,12 @@ const BookingPage: React.FC = () => {
 
   const handleBooking = async () => {
     try {
-      if (!user) { Alert.alert("Error", "Logout and login again."); return; }
-      let realUserId = user.supabase_id || user.id;
-
-      if (realUserId && String(realUserId).startsWith('user_')) {
-        let searchPhone = (user.phoneNumber || user.phone_number || '').replace(/\s+/g, '');
-        if (searchPhone.startsWith('0')) searchPhone = '+233' + searchPhone.substring(1);
-        else if (searchPhone && !searchPhone.startsWith('+')) searchPhone = '+233' + searchPhone;
-        const searchEmail = user.email && user.email.includes('@') ? user.email : null;
-        let query = supabase.from('users').select('id');
-        if (searchPhone && searchEmail) query = query.or(`phone_number.eq.${searchPhone},email.eq.${searchEmail}`);
-        else if (searchPhone) query = query.eq('phone_number', searchPhone);
-        else if (searchEmail) query = query.eq('email', searchEmail);
-        const { data: dbUser } = await query.single();
-        if (dbUser) realUserId = dbUser.id;
-      }
+      const realUserId = await resolveRealUserId(user);
+      if (!realUserId) { Alert.alert("Error", "Logout and login again."); return; }
 
       const scheduled_at = bookingData.serviceType === 'instant' ? new Date().toISOString() : parseScheduledTime(bookingData.scheduledTime);
 
-      const { data, error } = await supabase.from('orders').insert([{
+      const orderPayload: any = {
         user_id: realUserId,
         customer_name: user?.full_name || user?.name || 'Customer',
         service_type: bookingData.serviceType === 'instant' ? 'Instant Pickup' : 'Scheduled Pickup',
@@ -103,15 +142,29 @@ const BookingPage: React.FC = () => {
         waste_type: bookingData.wasteTypes.join(', '),
         waste_size: bookingData.bagSize,
         notes: `${bookingData.notes || ''} [Phone: ${user?.phone_number || ''}]`.trim(),
-        status: 'pending',
+        status: isEditing ? 'pending' : 'pending', // Reset to pending if modified? Or keep status?
         scheduled_at: scheduled_at,
         rider_id: bookingData.riderId
-      }]).select('id').single();
+      };
 
-      if (error || !data) throw error;
-      setCompletedOrder({ id: data.id });
-      setShowFindingRider(true);
-    } catch (e) { Alert.alert("Booking Failed", "Check your connection and try again."); }
+      if (isEditing && editId) {
+        const { error } = await supabase
+          .from('orders')
+          .update(orderPayload)
+          .eq('id', editId);
+        
+        if (error) throw error;
+        
+        Alert.alert("Order Updated", "Your changes have been saved.", [
+          { text: "OK", onPress: () => navigateTo('/track-order', { id: editId }) }
+        ]);
+      } else {
+        const { data, error } = await supabase.from('orders').insert([orderPayload]).select('id').single();
+        if (error || !data) throw error;
+        setCompletedOrder({ id: data.id });
+        setShowFindingRider(true);
+      }
+    } catch (e) { Alert.alert("Action Failed", "Check your connection and try again."); }
   };
 
   const handleRiderFound = (rider: any) => {
@@ -170,7 +223,7 @@ const BookingPage: React.FC = () => {
           <View style={styles.footerNav}>
              {step > 1 && <TouchableOpacity onPress={prevStep} style={styles.backBtn}><RemixIcon name="ri-arrow-left-s-line" size={20} color="#64748b" /><Text style={styles.backBtnText}>Back</Text></TouchableOpacity>}
              <TouchableOpacity onPress={step < 5 ? nextStep : handleBooking} style={[styles.nextBtn, (step < 5 && !canGoNext(step, bookingData)) && styles.nextBtnDisabled]} disabled={step < 5 && !canGoNext(step, bookingData)}>
-                <Text style={styles.nextBtnText}>{step < 5 ? 'Continue' : 'Place Order'}</Text>
+                <Text style={styles.nextBtnText}>{step < 5 ? 'Continue' : (isEditing ? 'Save Changes' : 'Place Order')}</Text>
                 <RemixIcon name={step < 5 ? "ri-arrow-right-s-line" : "ri-check-line"} size={20} color="#fff" />
              </TouchableOpacity>
           </View>
@@ -204,10 +257,10 @@ const styles = StyleSheet.create({
   connectorActive: { backgroundColor: '#10b981' },
   stepLabelMain: { marginTop: 12, fontSize: 14, fontFamily: typography.bold, color: '#0f172a', textTransform: 'uppercase', letterSpacing: 1 },
   mainCard: { backgroundColor: '#ffffff', borderRadius: 24, padding: 2, marginBottom: 32 },
-  footerNav: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  backBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, height: 54, borderRadius: 18, backgroundColor: '#f8fafc', gap: 4 },
-  backBtnText: { fontSize: 15, fontFamily: typography.bold, color: '#64748b' },
-  nextBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', height: 54, borderRadius: 18, backgroundColor: '#10b981', gap: 8, elevation: 4 },
+  footerNav: { flexDirection: 'row', alignItems: 'center', gap: 12, width: '100%', justifyContent: 'space-between' },
+  backBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, height: 50, borderRadius: 16, backgroundColor: '#f8fafc', gap: 4 },
+  backBtnText: { fontSize: 14, fontFamily: typography.bold, color: '#64748b' },
+  nextBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', height: 50, borderRadius: 16, backgroundColor: '#10b981', gap: 8, elevation: 4 },
   nextBtnDisabled: { backgroundColor: '#cbd5e1', elevation: 0 },
-  nextBtnText: { fontSize: 16, fontFamily: typography.bold, color: '#ffffff' },
+  nextBtnText: { fontSize: 15, fontFamily: typography.bold, color: '#ffffff' },
 });

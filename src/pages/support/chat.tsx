@@ -43,10 +43,9 @@ const SupportChatPage: React.FC = () => {
     };
 
     try {
-      // 1. Indicate creator_type and persist to database
       const { error } = await supabase.from('support_tickets').insert([{
         creator_id: user?.id || user?.supabase_id,
-        creator_type: 'user', // Explicitly indicate this is coming from the User App
+        creator_type: 'user',
         subject: `User Support Request: ${user?.full_name || 'Resident'}`,
         description: inputText,
         priority: 'medium',
@@ -55,11 +54,9 @@ const SupportChatPage: React.FC = () => {
 
       if (error) throw error;
 
-      // 2. Update local UI
       setMessages([...messages, newMessage]);
       setInputText('');
 
-      // 3. Simulate agent response
       setIsTyping(true);
       setTimeout(() => {
         const agentResponse: Message = {
@@ -85,95 +82,112 @@ const SupportChatPage: React.FC = () => {
   return (
     <View style={styles.container}>
       {/* Absolute Dynamic Header */}
-      <View style={[styles.header, { paddingTop: Math.max(insets.top, 20), height: Math.max(insets.top, 20) + 60 }]}>
+      <View style={[styles.header, { paddingTop: Math.max(insets.top, 20), height: Math.max(insets.top, 20) + 70 }]}>
         <TouchableOpacity onPress={() => navigateTo('/support')} style={styles.backButton}>
-          <RemixIcon name="ri-arrow-left-line" size={24} color="#1f2937" />
+          <RemixIcon name="ri-arrow-left-s-line" size={28} color="#0f172a" />
         </TouchableOpacity>
         <View style={styles.agentInfo}>
           <View style={styles.agentAvatar}>
-            <RemixIcon name="ri-customer-service-2-line" size={24} color="#fff" />
+            <RemixIcon name="ri-customer-service-2-fill" size={20} color="#fff" />
             <View style={styles.onlineStatus} />
           </View>
           <View>
-            <Text style={styles.agentName}>Live Support</Text>
-            <Text style={styles.agentStatus}>Online</Text>
+            <View style={styles.agentNameRow}>
+               <Text style={styles.agentName}>Support Desk</Text>
+               <RemixIcon name="ri-checkbox-circle-fill" size={14} color="#10b981" />
+            </View>
+            <Text style={styles.agentStatus}>Active Response</Text>
           </View>
         </View>
       </View>
  
-      <ScrollView
-        ref={scrollViewRef}
-        style={styles.chatArea}
-        contentContainerStyle={[
-          styles.chatContent,
-          { paddingTop: 20 }
-        ]}
-        showsVerticalScrollIndicator={false}
-      >
-        {messages.map((msg) => (
-          <View
-            key={msg.id}
-            style={[
-              styles.messageWrapper,
-              msg.sender === 'user' ? styles.userWrapper : styles.agentWrapper
-            ]}
-          >
-            <View
-              style={[
-                styles.messageBubble,
-                msg.sender === 'user' ? styles.userBubble : styles.agentBubble
-              ]}
-            >
-              {msg.sender === 'user' && <Text style={styles.roleTag}>USER REPORT</Text>}
-              <Text style={[
-                styles.messageText,
-                msg.sender === 'user' ? styles.userText : styles.agentText
-              ]}>
-                {msg.text}
-              </Text>
-              <Text style={[
-                styles.timestamp,
-                msg.sender === 'user' ? styles.userTimestamp : styles.agentTimestamp
-              ]}>
-                {msg.timestamp}
-              </Text>
-            </View>
-          </View>
-        ))}
-        {isTyping && (
-          <View style={styles.typingContainer}>
-            <Text style={styles.typingText}>Borla Wura Support is typing...</Text>
-          </View>
-        )}
-      </ScrollView>
- 
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1 }}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
-        <View style={[styles.inputArea, { paddingBottom: Math.max(insets.bottom, 12) + 8 }]}>
-          <TouchableOpacity style={styles.attachButton}>
-            <RemixIcon name="ri-add-line" size={24} color="#6b7280" />
-          </TouchableOpacity>
-          <TextInput
-            style={styles.input}
-            placeholder="Type your message..."
-            value={inputText}
-            onChangeText={setInputText}
-            multiline
-            placeholderTextColor="#9ca3af"
-          />
-          <TouchableOpacity 
-            onPress={sendMessage}
-            style={[styles.sendButton, !inputText.trim() && styles.sendButtonDisabled]}
-            disabled={!inputText.trim() || isSending}
-          >
-            {isSending ? (
-               <ActivityIndicator size="small" color="#fff" />
-            ) : (
-               <RemixIcon name="ri-send-plane-2-fill" size={24} color="#fff" />
-            )}
-          </TouchableOpacity>
+        <ScrollView
+          ref={scrollViewRef}
+          style={styles.chatArea}
+          contentContainerStyle={[
+            styles.chatContent,
+            { 
+              paddingTop: 30,
+              paddingBottom: 20 
+            }
+          ]}
+          showsVerticalScrollIndicator={false}
+        >
+          {messages.map((msg) => (
+            <View
+              key={msg.id}
+              style={[
+                styles.messageWrapper,
+                msg.sender === 'user' ? styles.userWrapper : styles.agentWrapper
+              ]}
+            >
+              <View
+                style={[
+                  styles.messageBubble,
+                  msg.sender === 'user' ? styles.userBubble : styles.agentBubble
+                ]}
+              >
+                <Text style={[
+                  styles.messageText,
+                  msg.sender === 'user' ? styles.userText : styles.agentText
+                ]}>
+                  {msg.text}
+                </Text>
+                <View style={styles.metaRow}>
+                  <Text style={[
+                    styles.timestamp,
+                    msg.sender === 'user' ? styles.userTimestamp : styles.agentTimestamp
+                  ]}>
+                    {msg.timestamp}
+                  </Text>
+                  {msg.sender === 'user' && (
+                    <RemixIcon name="ri-check-double-line" size={14} color="rgba(255,255,255,0.6)" />
+                  )}
+                </View>
+              </View>
+            </View>
+          ))}
+          {isTyping && (
+            <View style={styles.typingContainer}>
+              <View style={styles.typingBubble}>
+                 <View style={styles.typingDot} />
+                 <View style={[styles.typingDot, { opacity: 0.6 }]} />
+                 <View style={[styles.typingDot, { opacity: 0.3 }]} />
+              </View>
+            </View>
+          )}
+        </ScrollView>
+
+        <View style={[styles.inputArea, { paddingBottom: Math.max(insets.bottom, 20) }]}>
+           <View style={styles.inputContainer}>
+              <TouchableOpacity style={styles.attachButton}>
+                <RemixIcon name="ri-attachment-2" size={22} color="#94a3b8" />
+              </TouchableOpacity>
+              <TextInput
+                style={styles.input}
+                placeholder="Message support..."
+                value={inputText}
+                onChangeText={setInputText}
+                multiline
+                placeholderTextColor="#94a3b8"
+              />
+              <TouchableOpacity 
+                onPress={sendMessage}
+                style={[styles.sendButton, !inputText.trim() && styles.sendButtonDisabled]}
+                disabled={!inputText.trim() || isSending}
+              >
+                {isSending ? (
+                   <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                   <RemixIcon name="ri-send-plane-2-fill" size={20} color="#fff" />
+                )}
+              </TouchableOpacity>
+           </View>
         </View>
       </KeyboardAvoidingView>
     </View>
@@ -190,10 +204,10 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
+    borderBottomWidth: 1.5,
+    borderBottomColor: '#f1f5f9',
     zIndex: 50,
   },
   backButton: {
@@ -205,45 +219,51 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   agentAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#10b981',
+    width: 44,
+    height: 44,
+    borderRadius: 16,
+    backgroundColor: '#0f172a',
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
   },
   onlineStatus: {
     position: 'absolute',
-    bottom: 0,
-    right: 0,
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+    bottom: -2,
+    right: -2,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
     backgroundColor: '#10b981',
-    borderWidth: 2,
+    borderWidth: 2.5,
     borderColor: '#fff',
   },
+  agentNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
   agentName: {
-    fontSize: 16,
+    fontSize: 17,
     fontFamily: typography.bold,
-    color: '#1f2937',
+    color: '#0f172a',
+    letterSpacing: -0.5,
   },
   agentStatus: {
     fontSize: 12,
     fontFamily: typography.medium,
     color: '#10b981',
+    marginTop: -2,
   },
   chatArea: {
     flex: 1,
   },
   chatContent: {
-    padding: 16,
-    paddingBottom: 24,
+    paddingHorizontal: 20,
   },
   messageWrapper: {
-    marginVertical: 8,
-    maxWidth: '80%',
+    marginVertical: 10,
+    maxWidth: '85%',
   },
   userWrapper: {
     alignSelf: 'flex-end',
@@ -252,96 +272,119 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   messageBubble: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    borderRadius: 24,
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.03,
+    shadowRadius: 10,
   },
   userBubble: {
     backgroundColor: '#10b981',
-    borderBottomRightRadius: 4,
+    borderBottomRightRadius: 6,
   },
   agentBubble: {
     backgroundColor: '#fff',
-    borderBottomLeftRadius: 4,
+    borderBottomLeftRadius: 6,
     borderWidth: 1,
-    borderColor: '#f3f4f6',
+    borderColor: '#f1f5f9',
   },
   messageText: {
     fontSize: 15,
-    fontFamily: typography.regular,
-    lineHeight: 20,
+    fontFamily: typography.medium,
+    lineHeight: 22,
   },
   userText: {
     color: '#fff',
   },
   agentText: {
-    color: '#1f2937',
+    color: '#334155',
+  },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 4,
+    marginTop: 6,
   },
   timestamp: {
     fontSize: 10,
-    fontFamily: typography.regular,
-    marginTop: 4,
-    alignSelf: 'flex-end',
+    fontFamily: typography.bold,
   },
   userTimestamp: {
     color: 'rgba(255, 255, 255, 0.7)',
   },
   agentTimestamp: {
-    color: '#9ca3af',
-  },
-  roleTag: {
-    fontSize: 9,
-    fontFamily: typography.bold,
-    color: 'rgba(255, 255, 255, 0.7)',
-    marginBottom: 4,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    color: '#94a3b8',
   },
   typingContainer: {
-    paddingVertical: 8,
+    paddingVertical: 12,
   },
-  typingText: {
-    fontSize: 12,
-    color: '#6b7280',
-    fontFamily: typography.medium,
-    fontStyle: 'italic',
+  typingBubble: {
+    backgroundColor: '#f1f5f9',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 20,
+    flexDirection: 'row',
+    gap: 4,
+    alignSelf: 'flex-start',
+  },
+  typingDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#94a3b8',
   },
   inputArea: {
+    backgroundColor: '#fff',
+    borderTopWidth: 1.5,
+    borderTopColor: '#f1f5f9',
+    paddingHorizontal: 16,
+    paddingTop: 12,
+  },
+  inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 12,
-    backgroundColor: '#fff',
-    borderTopWidth: 1,
-    borderTopColor: '#f3f4f6',
+    backgroundColor: '#f8fafc',
+    borderRadius: 24,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: '#f1f5f9',
     gap: 8,
   },
   attachButton: {
-    width: 40,
-    height: 40,
+    width: 36,
+    height: 36,
     alignItems: 'center',
     justifyContent: 'center',
   },
   input: {
     flex: 1,
     minHeight: 40,
-    maxHeight: 100,
-    backgroundColor: '#f3f4f6',
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    maxHeight: 120,
     fontSize: 15,
     fontFamily: typography.medium,
-    color: '#1f2937',
+    color: '#1e293b',
+    paddingTop: Platform.OS === 'ios' ? 10 : 8,
   },
   sendButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 14,
     backgroundColor: '#10b981',
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#10b981',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 3,
   },
   sendButtonDisabled: {
-    backgroundColor: '#d1d5db',
+    backgroundColor: '#e2e8f0',
+    shadowOpacity: 0,
+    elevation: 0,
   },
 });

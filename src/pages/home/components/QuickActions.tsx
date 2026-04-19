@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import { navigateTo } from '../../../utils/navigation';
 import { typography } from '../../../utils/typography';
+import { RemixIcon } from '../../../utils/icons';
 
 interface Action {
   icon: any;
@@ -19,17 +20,17 @@ export const QuickActions: React.FC = () => {
     {
       icon: 'lightning-bolt',
       iconLib: 'MCI',
-      title: 'Rapid Pickup',
+      title: 'Fast Pickup',
       subtitle: 'Trash out in 30m',
-      color: '#f97316',
+      color: '#fb923c',
       gradient: ['#fb923c', '#f97316'],
       path: '/booking'
     },
     {
-      icon: 'calendar-clock',
+      icon: 'calendar-heart',
       iconLib: 'MCI',
-      title: 'Subscription',
-      subtitle: 'Scheduled plans',
+      title: 'Monthly Plan',
+      subtitle: 'Save 20% yearly',
       color: '#3b82f6',
       gradient: ['#60a5fa', '#3b82f6'],
       path: '/booking'
@@ -37,8 +38,8 @@ export const QuickActions: React.FC = () => {
     {
       icon: 'map-marker-path',
       iconLib: 'MCI',
-      title: 'Live Tracking',
-      subtitle: 'Watch your rider',
+      title: 'Track Rider',
+      subtitle: 'Real-time GPS',
       color: '#8b5cf6',
       gradient: ['#a78bfa', '#8b5cf6'],
       path: '/orders'
@@ -46,8 +47,8 @@ export const QuickActions: React.FC = () => {
     {
       icon: 'headset',
       iconLib: 'Ionicons',
-      title: 'Help Center',
-      subtitle: '24/7 Support',
+      title: 'Support',
+      subtitle: 'Always online',
       color: '#10b981',
       gradient: ['#34d399', '#10b981'],
       path: '/support'
@@ -60,7 +61,6 @@ export const QuickActions: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Premium Services</Text>
       <View style={styles.grid}>
         {actions.map((action, index) => (
           <TouchableOpacity
@@ -69,7 +69,7 @@ export const QuickActions: React.FC = () => {
             activeOpacity={0.8}
             style={styles.actionCard}
           >
-            <View style={[styles.iconBox, { backgroundColor: action.gradient[0] + '20' }]}>
+            <View style={[styles.iconBox, { backgroundColor: action.color + '10' }]}>
                {action.iconLib === 'MCI' ? (
                  <MaterialCommunityIcons name={action.icon} size={28} color={action.color} />
                ) : (
@@ -77,8 +77,11 @@ export const QuickActions: React.FC = () => {
                )}
             </View>
             <View style={styles.textContainer}>
-              <Text style={styles.actionTitle}>{action.title}</Text>
+              <Text style={styles.actionTitle} numberOfLines={1} adjustsFontSizeToFit>{action.title}</Text>
               <Text style={styles.actionSubtitle} numberOfLines={1}>{action.subtitle}</Text>
+            </View>
+            <View style={[styles.arrowBox, { borderColor: action.color + '20' }]}>
+               <RemixIcon name="ri-arrow-right-line" size={12} color={action.color} />
             </View>
           </TouchableOpacity>
         ))}
@@ -89,15 +92,7 @@ export const QuickActions: React.FC = () => {
 
 const styles = StyleSheet.create({
   container: {
-    paddingHorizontal: 20,
-    marginBottom: 24,
-  },
-  title: {
-    fontSize: 19,
-    fontFamily: typography.bold,
-    color: '#0f172a',
-    marginBottom: 16,
-    letterSpacing: -0.5
+    marginBottom: 32,
   },
   grid: {
     flexDirection: 'row',
@@ -105,19 +100,21 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   actionCard: {
-    width: '48%',
+    flex: 1,
+    minWidth: '46%',
     flexDirection: 'column',
     alignItems: 'flex-start',
     backgroundColor: '#ffffff',
-    padding: 16,
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: '#f1f5f9',
-    shadowColor: '#000',
+    padding: 20,
+    borderRadius: 30,
+    borderWidth: 1.5,
+    borderColor: '#f8fafc',
+    shadowColor: '#0f172a',
     shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.04,
     shadowRadius: 15,
-    elevation: 4,
+    elevation: 3,
+    position: 'relative',
   },
   iconBox: {
     width: 52,
@@ -125,7 +122,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 14,
+    marginBottom: 16,
   },
   textContainer: {
     width: '100%',
@@ -133,14 +130,25 @@ const styles = StyleSheet.create({
   actionTitle: {
     fontSize: 15,
     fontFamily: typography.bold,
-    color: '#1e293b',
-    letterSpacing: -0.3
+    color: '#0f172a',
+    letterSpacing: -0.5
   },
   actionSubtitle: {
     fontSize: 11,
     fontFamily: typography.medium,
     color: '#64748b',
-    marginTop: 4,
-    opacity: 0.8
+    marginTop: 2,
+  },
+  arrowBox: {
+    position: 'absolute',
+    top: 20,
+    right: 20,
+    width: 24,
+    height: 24,
+    borderRadius: 8,
+    backgroundColor: '#ffffff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
   },
 });

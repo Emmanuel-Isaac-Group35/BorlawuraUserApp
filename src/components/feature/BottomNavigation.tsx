@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Platform, Animated } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { navigateTo, navigationRef } from '../../utils/navigation';
@@ -11,32 +11,29 @@ export const BottomNavigation: React.FC = () => {
   const [isNavReady, setIsNavReady] = useState(false);
 
   useEffect(() => {
-    // Immediate check
-    if (navigationRef.isReady()) {
-      setIsNavReady(true);
-    }
-
-    // Polling as a fallback for initial state
-    const interval = setInterval(() => {
+    const checkReady = () => {
       if (navigationRef.isReady()) {
         setIsNavReady(true);
         const route = navigationRef.getCurrentRoute();
         if (route) updatePath(route.name);
-        clearInterval(interval);
+        return true;
       }
-    }, 100);
+      return false;
+    };
+
+    if (!checkReady()) {
+      const interval = setInterval(() => {
+        if (checkReady()) clearInterval(interval);
+      }, 100);
+      return () => clearInterval(interval);
+    }
 
     const unsub = navigationRef.addListener('state', () => {
-      if (navigationRef.isReady()) {
-        const route = navigationRef.getCurrentRoute();
-        if (route) updatePath(route.name);
-      }
+      const route = navigationRef.getCurrentRoute();
+      if (route) updatePath(route.name);
     });
 
-    return () => {
-      clearInterval(interval);
-      unsub();
-    };
+    return unsub;
   }, []);
 
   const updatePath = (routeName: string) => {
@@ -45,35 +42,33 @@ export const BottomNavigation: React.FC = () => {
       'Booking': '/booking',
       'Orders': '/orders',
       'Profile': '/profile',
+      'SupportChat': '/support-chat',
+      'RiderChat': '/rider-chat',
+      'Support': '/support',
+      'TrackOrder': '/track-order',
+      'Chatbot': '/chatbot',
     };
     setCurrentPath(routeValues[routeName] || '/');
   };
 
   const navItems = [
     { path: '/', icon: 'home', iconOutline: 'home-outline', label: 'Home' },
-    { path: '/booking', icon: 'calendar', iconOutline: 'calendar-outline', label: 'Book' },
-    { path: '/orders', icon: 'receipt', iconOutline: 'receipt-outline', label: 'Orders' },
+    { path: '/booking', icon: 'add-circle', iconOutline: 'add-circle-outline', label: 'Book' },
+    { path: '/orders', icon: 'receipt', iconOutline: 'receipt-outline', label: 'History' },
     { path: '/profile', icon: 'person', iconOutline: 'person-outline', label: 'Profile' }
   ];
 
-  const isVisible = (() => {
-    if (!isNavReady) return false;
-    const route = navigationRef.getCurrentRoute();
-    if (!route) return true; // Default to visible if we're not sure
-    
-    // Explicitly hide on screens that occupy the whole bottom area
-    const hideOn = [
-      'Auth', 'Signup', 'OTP', 'ForgotPassword', 
-      'TrackOrder', 'SupportChat', 'RiderChat', 'Chatbot',
-      'CompleteProfile'
-    ];
-    return !hideOn.includes(route.name);
-  })();
+  const route = navigationRef.isReady() ? navigationRef.getCurrentRoute() : null;
+  const hideOn = [
+    'Auth', 'Signup', 'OTP', 'ForgotPassword', 'ResetPassword',
+    'TrackOrder', 'SupportChat', 'RiderChat', 'Chatbot', 'support-chat'
+  ];
+  const isVisible = isNavReady && route && !hideOn.includes(route.name);
 
   if (!isVisible) return null;
 
   return (
-    <View style={[styles.navWrapper, { bottom: Math.max(insets.bottom, 20) }]}>
+    <View style={[styles.navWrapper, { paddingBottom: Math.max(insets.bottom, 12) }]}>
       <View style={styles.nav}>
         <View style={styles.navGrid}>
           {navItems.map((item) => {
@@ -85,21 +80,15 @@ export const BottomNavigation: React.FC = () => {
                 style={styles.navItem}
                 activeOpacity={0.7}
               >
-                <View style={[
-                  styles.iconContainer,
-                  isActive && styles.iconContainerActive
-                ]}>
+                <View style={[styles.iconContainer, isActive && styles.iconContainerActive]}>
                   <Ionicons 
-                    name={isActive ? item.icon : item.iconOutline} 
-                    size={22} 
+                    name={isActive ? (item.icon as any) : (item.iconOutline as any)} 
+                    size={25} 
                     color={isActive ? '#10b981' : '#64748b'} 
                   />
                   {isActive && <View style={styles.glow} />}
                 </View>
-                <Text style={[
-                  styles.label,
-                  isActive ? styles.labelActive : styles.labelInactive
-                ]}>
+                <Text style={[styles.label, isActive ? styles.labelActive : styles.labelInactive]}>
                   {item.label}
                 </Text>
               </TouchableOpacity>
@@ -114,30 +103,21 @@ export const BottomNavigation: React.FC = () => {
 const styles = StyleSheet.create({
   navWrapper: {
     position: 'absolute',
+    bottom: 0,
     left: 0,
     right: 0,
-    alignItems: 'center',
-    zIndex: 999, // Max priority
-    elevation: 20, // Critical for Android visibility
+    backgroundColor: '#ffffff',
+    borderTopWidth: 1,
+    borderTopColor: '#f1f5f9',
+    zIndex: 9999,
+    paddingTop: 8,
   },
   nav: {
-    backgroundColor: '#ffffff',
-    borderRadius: 30,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.1,
-    shadowRadius: 20,
-    elevation: 10,
-    width: '90%',
-    alignSelf: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 8,
-    borderWidth: 1,
-    borderColor: '#f1f5f9',
+    paddingHorizontal: 20,
   },
   navGrid: {
     flexDirection: 'row',
-    height: 56,
+    height: 54,
     alignItems: 'center',
     justifyContent: 'space-between',
   },
@@ -145,7 +125,6 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    height: '100%',
   },
   iconContainer: {
     width: 44,
@@ -160,13 +139,12 @@ const styles = StyleSheet.create({
   },
   glow: {
     position: 'absolute',
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
     backgroundColor: '#10b981',
     opacity: 0.1,
     zIndex: -1,
-    transform: [{ scale: 1.5 }],
   },
   label: {
     fontSize: 11,

@@ -10,6 +10,8 @@ import { Navigation } from '../../../components/feature/Navigation';
 import { RemixIcon } from '../../../utils/icons';
 import { typography } from '../../../utils/typography';
 import * as Location from 'expo-location';
+import { resolveRealUserId } from '../../../utils/user';
+import { fetchPlacesAutocomplete, fetchPlaceDetails } from '../../../utils/maps';
 
 const SavedAddressesPage: React.FC = () => {
   const insets = useSafeAreaInsets();
@@ -23,15 +25,19 @@ const SavedAddressesPage: React.FC = () => {
   const [addressText, setAddressText] = useState('');
   const [coords, setCoords] = useState<{lat: number, lng: number} | null>(null);
   const [isLocating, setIsLocating] = useState(false);
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
 
   const fetchAddresses = async () => {
-    if (!user?.id) return;
+    const searchId = await resolveRealUserId(user);
+    if (!searchId) return;
+    
     setLoading(true);
     try {
       const { data, error } = await supabase
         .from('user_addresses')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', searchId)
         .order('created_at', { ascending: false });
       
       if (error) throw error;
@@ -75,8 +81,37 @@ const SavedAddressesPage: React.FC = () => {
       setIsLocating(false);
     }
   };
+  
+  const handleAddressInputChange = async (text: string) => {
+    setAddressText(text);
+    if (text.length > 3) {
+      setIsSearching(true);
+      const results = await fetchPlacesAutocomplete(text);
+      setSearchResults(results);
+      setIsSearching(false);
+    } else {
+      setSearchResults([]);
+    }
+  };
+
+  const handleSelectPlace = async (placeId: string) => {
+    setIsSearching(true);
+    const details = await fetchPlaceDetails(placeId);
+    if (details) {
+      setAddressText(details.address);
+      setCoords({ lat: details.latitude, lng: details.longitude });
+      setSearchResults([]);
+    }
+    setIsSearching(false);
+  };
 
   const handleSaveAddress = async () => {
+    const searchId = await resolveRealUserId(user);
+    if (!searchId) {
+      Alert.alert('Error', 'Please login again to manage addresses');
+      return;
+    }
+
     if (!label || !addressText) {
       Alert.alert('Incomplete', 'Please provide a label and an address');
       return;
@@ -87,7 +122,7 @@ const SavedAddressesPage: React.FC = () => {
       const { error } = await supabase
         .from('user_addresses')
         .insert([{
-          user_id: user.id,
+          user_id: searchId,
           label,
           address_text: addressText,
           latitude: coords?.lat,
@@ -132,6 +167,7 @@ const SavedAddressesPage: React.FC = () => {
           styles.content,
           { paddingTop: insets.top + 70, paddingBottom: insets.bottom + 40 }
         ]}
+        showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
           <Text style={styles.title}>Saved Addresses</Text>
@@ -142,8 +178,8 @@ const SavedAddressesPage: React.FC = () => {
           <ActivityIndicator color="#10b981" style={{ marginTop: 40 }} />
         ) : (
           <View style={styles.addressList}>
-            {addresses.map((item) => (
-              <View key={item.id} style={styles.addressCard}>
+            {addresses.map((item, idx) => (
+              <View key={`${item.id}-${idx}`} style={styles.addressCard}>
                 <View style={styles.cardHeader}>
                   <View style={styles.labelRow}>
                     <RemixIcon 
@@ -152,7 +188,7 @@ const SavedAddressesPage: React.FC = () => {
                     />
                     <Text style={styles.label}>{item.label}</Text>
                   </View>
-                  <TouchableOpacity onPress={() => handleDeleteAddress(item.id)}>
+                  <TouchableOpacity onPress={() => handleDeleteAddress(item.id)} style={styles.deleteBtn}>
                     <RemixIcon name="ri-delete-bin-line" size={18} color="#ef4444" />
                   </TouchableOpacity>
                 </View>
@@ -201,13 +237,30 @@ const SavedAddressesPage: React.FC = () => {
 
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Full Address</Text>
-                <TextInput 
-                  style={[styles.input, { height: 80 }]} 
-                  placeholder="Street name, Area" 
-                  multiline
-                  value={addressText}
-                  onChangeText={setAddressText}
-                />
+                <View style={styles.inputWrapper}>
+                  <TextInput 
+                    style={[styles.input, { height: 'auto', minHeight: 56 }]} 
+                    placeholder="Street name, Area" 
+                    value={addressText}
+                    onChangeText={handleAddressInputChange}
+                  />
+                  {isSearching && <ActivityIndicator size="small" color="#10b981" style={styles.searchIndicator} />}
+                </View>
+                
+                {searchResults.length > 0 && (
+                  <View style={styles.searchResults}>
+                    {searchResults.map((item, idx) => (
+                      <TouchableOpacity 
+                         key={`${item.place_id}-${idx}`} 
+                         style={styles.searchResultItem}
+                         onPress={() => handleSelectPlace(item.place_id)}
+                      >
+                         <RemixIcon name="ri-map-pin-2-line" size={16} color="#64748b" />
+                         <Text style={styles.searchResultText} numberOfLines={1}>{item.description}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
               </View>
 
               <TouchableOpacity 
@@ -264,7 +317,12 @@ const styles = StyleSheet.create({
   form: { gap: 20 },
   inputGroup: { gap: 8 },
   inputLabel: { fontSize: 14, fontFamily: typography.medium, color: '#64748b' },
+  inputWrapper: { position: 'relative', justifyContent: 'center' },
   input: { backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#f1f5f9', borderRadius: 16, padding: 16, fontSize: 14, fontFamily: typography.medium, color: '#1e293b' },
+  searchIndicator: { position: 'absolute', right: 16 },
+  searchResults: { backgroundColor: '#fff', borderRadius: 16, marginTop: 8, borderWidth: 1, borderColor: '#f1f5f9', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 10, elevation: 3, overflow: 'hidden' },
+  searchResultItem: { flexDirection: 'row', alignItems: 'center', padding: 14, borderBottomWidth: 1, borderBottomColor: '#f8fafc', gap: 10 },
+  searchResultText: { fontSize: 13, fontFamily: typography.medium, color: '#475569', flex: 1 },
   locateButton: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#eff6ff', padding: 16, borderRadius: 16, borderWidth: 1, borderColor: '#dbeafe' },
   locateText: { flex: 1, fontSize: 14, fontFamily: typography.bold, color: '#3b82f6' },
   saveBtn: { backgroundColor: '#0f172a', padding: 18, borderRadius: 16, alignItems: 'center', marginTop: 10 },

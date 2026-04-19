@@ -9,6 +9,8 @@ import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { generateReceipt } from '../../utils/receiptGenerator';
 
+import { resolveRealUserId } from '../../utils/user';
+
 const OrdersPage: React.FC = () => {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
@@ -30,10 +32,12 @@ const OrdersPage: React.FC = () => {
   useEffect(() => {
     fetchOrders();
 
-    let searchId = user?.supabase_id || user?.id;
-    if (searchId && !String(searchId).startsWith('user_')) {
+    const setupSubscription = async () => {
+      const searchId = await resolveRealUserId(user);
+      if (!searchId) return;
+
       const channel = supabase
-        .channel('order-updates')
+        .channel(`orders-${searchId}`)
         .on(
           'postgres_changes',
           { event: '*', schema: 'public', table: 'orders', filter: `user_id=eq.${searchId}` },
@@ -41,35 +45,21 @@ const OrdersPage: React.FC = () => {
         )
         .subscribe();
 
-      return () => { supabase.removeChannel(channel); };
-    }
+      return channel;
+    };
+
+    let subChannel: any;
+    setupSubscription().then(ch => { subChannel = ch; });
+
+    return () => { if (subChannel) supabase.removeChannel(subChannel); };
   }, [user]);
 
   const fetchOrders = async () => {
-    if (!user) return;
+    const searchId = await resolveRealUserId(user);
+    if (!searchId) return;
+    
     setIsLoading(true);
     try {
-      let searchId = user.supabase_id || user.id;
-      if (searchId && String(searchId).startsWith('user_')) {
-        let searchPhone = (user.phone_number || user.phoneNumber || '').replace(/\s+/g, '');
-        if (searchPhone.startsWith('0')) {
-          searchPhone = '+233' + searchPhone.substring(1);
-        } else if (searchPhone && !searchPhone.startsWith('+')) {
-          searchPhone = '+233' + searchPhone;
-        }
-        const searchEmail = user.email && user.email.includes('@') ? user.email : null;
-        let query = supabase.from('users').select('id');
-        if (searchPhone && searchEmail) query = query.or(`phone_number.eq.${searchPhone},email.eq.${searchEmail}`);
-        else if (searchPhone) query = query.eq('phone_number', searchPhone);
-        else if (searchEmail) query = query.eq('email', searchEmail);
-        const { data: dbUser } = await query.single();
-        if (dbUser) searchId = dbUser.id;
-      }
-
-      if (!searchId || String(searchId).startsWith('user_')) {
-        setIsLoading(false);
-        return;
-      }
       const { data, error } = await supabase
         .from('orders')
         .select('*')
@@ -130,7 +120,7 @@ const OrdersPage: React.FC = () => {
     }
   };
 
-  const activeOrders = orders.filter(order => ['in_progress', 'scheduled'].includes(order.status));
+  const activeOrders = orders.filter(order => ['in_progress', 'active', 'accepted', 'assigned', 'confirmed', 'scheduled'].includes(order.status));
   const historyOrders = orders.filter(order => ['completed', 'cancelled'].includes(order.status));
 
   const handleTrackOrder = (orderId: string) => navigateTo('/track-order', { id: orderId });
@@ -219,7 +209,7 @@ const OrdersPage: React.FC = () => {
               </View>
 
               <View style={styles.cardActions}>
-                {order.status === 'in_progress' ? (
+                {['in_progress', 'active', 'accepted', 'assigned', 'confirmed'].includes(order.status) ? (
                   <TouchableOpacity onPress={() => handleTrackOrder(order.realId)} style={styles.trackBtn}>
                     <Text style={styles.trackBtnText}>Track Order</Text>
                   </TouchableOpacity>
@@ -275,29 +265,104 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#ffffff' },
   scrollView: { flex: 1 },
   content: { paddingHorizontal: 20 },
-  tabs: { flexDirection: 'row', backgroundColor: '#f1f5f9', borderRadius: 14, padding: 4, marginBottom: 24 },
-  tab: { flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center' },
-  tabActive: { backgroundColor: '#ffffff', elevation: 2 },
-  tabText: { fontSize: 13, fontFamily: typography.semiBold, color: '#64748b' },
-  tabTextActive: { color: '#10b981' },
-  orderCard: { backgroundColor: '#ffffff', borderRadius: 24, padding: 20, borderWidth: 1, borderColor: '#f1f5f9', marginBottom: 16 },
-  orderHeader: { marginBottom: 16 },
-  orderIdRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 4 },
-  orderId: { fontSize: 16, fontFamily: typography.bold, color: '#0f172a' },
-  statusBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
-  statusText: { fontSize: 10, fontFamily: typography.bold },
-  orderService: { fontSize: 14, fontFamily: typography.semiBold, color: '#475569' },
-  orderDetails: { gap: 10, marginBottom: 20, paddingBottom: 20, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
-  orderDetailRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  tabs: { 
+    flexDirection: 'row', 
+    backgroundColor: '#f8fafc', 
+    borderRadius: 18, 
+    padding: 6, 
+    marginBottom: 28,
+    borderWidth: 1,
+    borderColor: '#f1f5f9',
+  },
+  tab: { 
+    flex: 1, 
+    paddingVertical: 12, 
+    borderRadius: 14, 
+    alignItems: 'center' 
+  },
+  tabActive: { 
+    backgroundColor: '#ffffff', 
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 3 
+  },
+  tabText: { fontSize: 14, fontFamily: typography.semiBold, color: '#64748b' },
+  tabTextActive: { color: '#10b981', fontFamily: typography.bold },
+  orderCard: { 
+    backgroundColor: '#ffffff', 
+    borderRadius: 28, 
+    padding: 20, 
+    borderWidth: 1.5, 
+    borderColor: '#f8fafc', 
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.03,
+    shadowRadius: 15,
+    elevation: 4
+  },
+  orderHeader: { marginBottom: 18 },
+  orderIdRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
+  orderId: { fontSize: 17, fontFamily: typography.bold, color: '#0f172a', letterSpacing: -0.5 },
+  statusBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10 },
+  statusText: { fontSize: 10, fontFamily: typography.bold, letterSpacing: 0.5 },
+  orderService: { fontSize: 15, fontFamily: typography.bold, color: '#475569' },
+  orderDetails: { 
+    gap: 12, 
+    marginBottom: 24, 
+    paddingVertical: 18, 
+    borderTopWidth: 1, 
+    borderBottomWidth: 1, 
+    borderColor: '#f8fafc' 
+  },
+  orderDetailRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   orderDetailText: { fontSize: 14, fontFamily: typography.medium, color: '#64748b', flex: 1 },
   cardActions: { flexDirection: 'row', gap: 12 },
-  trackBtn: { flex: 2, backgroundColor: '#10b981', paddingVertical: 12, borderRadius: 14, alignItems: 'center' },
+  trackBtn: { 
+    flex: 1, 
+    backgroundColor: '#10b981', 
+    paddingVertical: 15, 
+    borderRadius: 16, 
+    alignItems: 'center',
+    shadowColor: '#10b981',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+  },
   trackBtnText: { fontSize: 14, fontFamily: typography.bold, color: '#ffffff' },
-  modifyBtn: { flex: 2, backgroundColor: '#f1f5f9', paddingVertical: 12, borderRadius: 14, alignItems: 'center' },
+  modifyBtn: { 
+    flex: 1, 
+    backgroundColor: '#f1f5f9', 
+    paddingVertical: 15, 
+    borderRadius: 16, 
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
   modifyBtnText: { fontSize: 14, fontFamily: typography.bold, color: '#475569' },
-  cancelBtn: { flex: 1, backgroundColor: '#fef2f2', paddingVertical: 12, borderRadius: 14, alignItems: 'center', borderWidth: 1, borderColor: '#fee2e2' },
+  cancelBtn: { 
+    width: 60, 
+    backgroundColor: '#fef2f2', 
+    paddingVertical: 15, 
+    borderRadius: 16, 
+    alignItems: 'center', 
+    borderWidth: 1, 
+    borderColor: '#fee2e2' 
+  },
   cancelBtnText: { fontSize: 14, fontFamily: typography.bold, color: '#dc2626' },
-  reorderBtn: { flex: 1, backgroundColor: '#0f172a', paddingVertical: 12, borderRadius: 14, alignItems: 'center' },
+  reorderBtn: { 
+    flex: 1, 
+    backgroundColor: '#0f172a', 
+    paddingVertical: 15, 
+    borderRadius: 16, 
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+  },
   reorderBtnText: { fontSize: 14, fontFamily: typography.bold, color: '#ffffff' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(15, 23, 42, 0.6)', justifyContent: 'center', alignItems: 'center', padding: 20 },
   modalContent: { backgroundColor: '#ffffff', borderRadius: 32, padding: 32, width: '100%', alignItems: 'center' },

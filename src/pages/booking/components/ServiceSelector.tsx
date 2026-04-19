@@ -12,9 +12,22 @@ interface ServiceSelectorProps {
 
 export const ServiceSelector: React.FC<ServiceSelectorProps> = ({ value, onChange, scheduledTime, onTimeChange }) => {
   // ... (keep logic, but update styles and typography usage)
-  const [selectedDate, setSelectedDate] = useState('');
-  const [selectedTime, setSelectedTime] = useState('');
+  const initialDate = scheduledTime ? scheduledTime.split('|')[0].trim() : '';
+  const initialTime = scheduledTime ? scheduledTime.split('|')[1].trim() : '';
+
+  const [selectedDate, setSelectedDate] = useState(initialDate);
+  const [selectedTime, setSelectedTime] = useState(initialTime);
   const [showDatePicker, setShowDatePicker] = useState(false);
+
+  React.useEffect(() => {
+    if (scheduledTime) {
+      const parts = scheduledTime.split('|');
+      if (parts.length === 2) {
+        setSelectedDate(parts[0].trim());
+        setSelectedTime(parts[1].trim());
+      }
+    }
+  }, [scheduledTime]);
 
   const availableDates = Array.from({ length: 7 }, (_, i) => {
     const d = new Date();
