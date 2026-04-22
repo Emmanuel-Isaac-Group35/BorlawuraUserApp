@@ -100,7 +100,7 @@ function AppNavigator() {
             <Stack.Screen name="Terms" component={TermsPage} />
             <Stack.Screen name="About" component={AboutPage} />
             <Stack.Screen name="Chatbot" component={ChatbotPage} />
-            <Stack.Screen name="RiderChat" component={RiderChatPage} />
+            <Stack.Screen name="ChatRider" component={RiderChatPage} />
           </>
         )}
         <Stack.Screen name="NotFound" component={NotFound} />

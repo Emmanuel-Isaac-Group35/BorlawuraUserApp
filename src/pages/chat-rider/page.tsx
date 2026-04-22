@@ -9,11 +9,14 @@ import {
     KeyboardAvoidingView,
     Platform,
     Image,
-    StatusBar
+    StatusBar,
+    Linking
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { RemixIcon } from '../../utils/icons';
+import { supabase } from '../../lib/supabase';
+import { typography } from '../../utils/typography';
 
 interface Message {
     id: string;
@@ -23,37 +26,54 @@ interface Message {
 }
 
 const RiderChatPage: React.FC = () => {
-    const navigation = useNavigation();
+    const navigation = useNavigation<any>();
+    const route = useRoute();
+    const { riderId, orderId } = (route.params as any) || {};
     const flatListRef = useRef<FlatList>(null);
     const [inputText, setInputText] = useState('');
-
-    // Mock data for the rider
-    const rider = {
-        name: 'Kwame Asante',
-        status: 'Online',
-        image: 'https://readdy.ai/api/search-image?query=Professional%20African%20male%20waste%20collection%20worker%2C%20friendly%20smile%2C%20uniform%2C%20safety%20equipment%2C%20confident%20expression%2C%20clean%20background%2C%20high-quality%20portrait%20photography&width=80&height=80&seq=rider1&orientation=squarish'
-    };
+    const [rider, setRider] = useState<any>(null);
+    const [isLoading, setIsLoading] = useState(true);
 
     const [messages, setMessages] = useState<Message[]>([
         {
             id: '1',
-            text: 'Hello! I am on my way to your location.',
+            text: 'Hello! I am on my way to your location for the pickup.',
             sender: 'rider',
-            timestamp: '14:35',
-        },
-        {
-            id: '2',
-            text: 'Great, thanks! I have the bags ready outside.',
-            sender: 'user',
-            timestamp: '14:36',
-        },
-        {
-            id: '3',
-            text: 'Perfect. I should be there in about 10 minutes.',
-            sender: 'rider',
-            timestamp: '14:37',
+            timestamp: 'Just now',
         }
     ]);
+
+    useEffect(() => {
+        const fetchRider = async () => {
+            if (riderId) {
+                const { data } = await supabase.from('riders').select('*').eq('id', riderId).maybeSingle();
+                if (data) setRider(data);
+            } else {
+                // Fallback for demo
+                setRider({
+                    full_name: 'Kwame Asante',
+                    avatar_url: 'https://cdn-icons-png.flaticon.com/512/149/149071.png',
+                    is_online: true
+                });
+            }
+            setIsLoading(false);
+        };
+        fetchRider();
+
+        // Real-time messages listener (Mocking logic since no messages table yet, but structured for future)
+        const channel = supabase.channel(`order-chat-${orderId}`)
+            .on('broadcast', { event: 'new-message' }, (payload) => {
+                const msg = payload.payload;
+                setMessages(prev => [...prev, {
+                    id: Date.now().toString(),
+                    text: msg.text,
+                    sender: 'rider',
+                    timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                }]);
+            }).subscribe();
+
+        return () => { supabase.removeChannel(channel); };
+    }, [riderId, orderId]);
 
     const handleSend = () => {
         if (inputText.trim().length === 0) return;
@@ -131,18 +151,23 @@ const RiderChatPage: React.FC = () => {
                 <View style={styles.headerRiderInfo}>
                     <View style={styles.avatarContainer}>
                         <Image
-                            source={{ uri: rider.image }}
+                            source={{ uri: rider?.avatar_url || 'https://cdn-icons-png.flaticon.com/512/149/149071.png' }}
                             style={styles.avatar}
                         />
-                        <View style={styles.onlineStatus} />
+                        <View style={[styles.onlineStatus, { backgroundColor: rider?.is_online ? '#10b981' : '#94a3b8' }]} />
                     </View>
                     <View>
-                        <Text style={styles.riderName}>{rider.name}</Text>
-                        <Text style={styles.riderStatus}>{rider.status}</Text>
+                        <Text style={styles.riderName}>{rider?.full_name || 'Rider'}</Text>
+                        <Text style={[styles.riderStatus, { color: rider?.is_online ? '#10b981' : '#64748b' }]}>
+                            {rider?.is_online ? 'Online' : 'Offline'}
+                        </Text>
                     </View>
                 </View>
 
-                <TouchableOpacity style={styles.callButton}>
+                <TouchableOpacity 
+                    style={styles.callButton}
+                    onPress={() => rider?.phone_number && Linking.openURL(`tel:${rider.phone_number}`)}
+                >
                     <RemixIcon name="ri-phone-fill" size={20} color="#10b981" />
                 </TouchableOpacity>
             </View>
@@ -245,13 +270,13 @@ const styles = StyleSheet.create({
     },
     riderName: {
         fontSize: 16,
-        fontWeight: '600',
+        fontFamily: typography.bold,
         color: '#1f2937',
     },
     riderStatus: {
         fontSize: 12,
         color: '#10b981',
-        fontWeight: '500',
+        fontFamily: typography.semiBold,
     },
     callButton: {
         width: 40,
@@ -295,6 +320,7 @@ const styles = StyleSheet.create({
     },
     messageText: {
         fontSize: 16,
+        fontFamily: typography.medium,
         lineHeight: 22,
     },
     userMessageText: {
@@ -305,6 +331,7 @@ const styles = StyleSheet.create({
     },
     timestamp: {
         fontSize: 10,
+        fontFamily: typography.medium,
         marginTop: 4,
         alignSelf: 'flex-end',
     },
@@ -334,6 +361,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingVertical: 10,
         fontSize: 16,
+        fontFamily: typography.medium,
         color: '#1f2937',
         maxHeight: 100,
     },

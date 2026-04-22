@@ -6,11 +6,12 @@ import { RemixIcon } from '../../utils/icons';
 import { navigateTo } from '../../utils/navigation';
 import { typography } from '../../utils/typography';
 import { useAuth } from '../../context/AuthContext';
-import { supabase } from '../../lib/supabase';
+import { OrderService } from '../../services/OrderService';
+import { Order as OrderType } from '../../types';
 import { generateReceipt } from '../../utils/receiptGenerator';
 
 import { resolveRealUserId } from '../../utils/user';
-
+import { supabase } from '../../lib/supabase';
 const OrdersPage: React.FC = () => {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
@@ -60,22 +61,18 @@ const OrdersPage: React.FC = () => {
     
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('orders')
-        .select('*')
-        .eq('user_id', searchId)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
+      const data = await OrderService.getOrdersByUserId(searchId);
 
       const riderIds = [...new Set((data || []).map(p => p.rider_id).filter(id => id))];
       let ridersMap: { [key: string]: any } = {};
       if (riderIds.length > 0) {
-        const { data: ridersData } = await supabase.from('riders').select('id, full_name, phone_number').in('id', riderIds);
+        // Riders are still fetched directly here for simplicity in this turn,
+        // but can be moved to a RiderService later.
+        const { data: ridersData } = await supabase.from('riders').select('id, full_name, phone_number').in('id', riderIds as string[]);
         if (ridersData) ridersData.forEach(r => { ridersMap[r.id] = r; });
       }
 
-      const formattedOrders = (data || []).map(p => ({
+      const formattedOrders = data.map(p => ({
         id: p.id.slice(0, 8).toUpperCase(),
         realId: p.id,
         status: p.status === 'pending' ? 'scheduled' : (p.status === 'in_progress' ? 'in_progress' : p.status),
@@ -87,8 +84,8 @@ const OrdersPage: React.FC = () => {
         longitude: p.pickup_longitude,
         wasteType: p.waste_type || 'General',
         bagSize: p.waste_size || 'Standard',
-        rider: ridersMap[p.rider_id]?.full_name || null,
-        riderPhone: ridersMap[p.rider_id]?.phone_number || null,
+        rider: p.rider_id ? (ridersMap[p.rider_id]?.full_name || null) : null,
+        riderPhone: p.rider_id ? (ridersMap[p.rider_id]?.phone_number || null) : null,
         notes: p.notes || ''
       }));
 
@@ -141,23 +138,13 @@ const OrdersPage: React.FC = () => {
   const confirmCancelOrder = async () => {
     if (!selectedOrder) return;
     try {
-      const { error } = await supabase.from('orders').update({ 
-        status: 'cancelled', 
-        sub_status: 'cancelled', 
-        cancelled_at: new Date().toISOString() 
-      }).eq('id', selectedOrder.realId);
-
-      if (error) {
-        console.error("Cancel Error:", error);
-        Alert.alert("Failed to Cancel", `Database Error: ${error.message} (${error.code})`);
-        return;
-      }
+      await OrderService.updateStatus(selectedOrder.realId, 'cancelled', 'cancelled');
 
       setOrders(orders.map(o => o.id === selectedOrder.id ? { ...o, status: 'cancelled' } : o));
       setShowCancelModal(false);
       Alert.alert("Success", "Your order has been cancelled.");
     } catch (e: any) { 
-      Alert.alert("Error", "Communication failure. Please try again."); 
+      Alert.alert("Error", `Action failed: ${e.message}`); 
     }
   };
 

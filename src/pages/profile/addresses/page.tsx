@@ -308,6 +308,11 @@ const styles = StyleSheet.create({
   addressText: { fontSize: 14, fontFamily: typography.medium, color: '#64748b', lineHeight: 20 },
   gpsBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#eff6ff', alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, marginTop: 12 },
   gpsText: { fontSize: 10, fontFamily: typography.bold, color: '#3b82f6', textTransform: 'uppercase' },
+  deleteBtn: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: '#fff1f2',
+  },
   addButton: { backgroundColor: '#10b981', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: 18, borderRadius: 20, gap: 10, marginTop: 10, shadowColor: '#10b981', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.2, shadowRadius: 15, elevation: 8 },
   addButtonText: { fontSize: 16, fontFamily: typography.bold, color: '#fff' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },

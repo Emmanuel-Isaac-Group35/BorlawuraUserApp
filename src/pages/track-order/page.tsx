@@ -10,74 +10,10 @@ import * as Sharing from 'expo-sharing';
 import { WebView } from 'react-native-webview';
 import { typography } from '../../utils/typography';
 import { sendLocalNotification } from '../../utils/notifications';
+import { NavigatrMap } from '../../components/feature/NavigatrMap';
 import { getDistanceMatrix } from '../../utils/maps';
 import { useAlert } from '../../context/AlertContext';
 
-const getMapHtml = (riderLat: number, riderLng: number, userLat?: number, userLng?: number) => `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <style>
-    body { margin: 0; padding: 0; }
-    #map { width: 100%; height: 100vh; background: #f8fafc; }
-    .rider-container { display: flex; flex-direction: column; align-items: center; }
-    .rider-pulse {
-      width: 44px; height: 44px;
-      background: rgba(16, 185, 129, 0.2);
-      border-radius: 50%;
-      position: absolute;
-      animation: pulse 2s infinite;
-    }
-    .rider-icon {
-      width: 24px; height: 24px;
-      background: #10b981;
-      border-radius: 50%;
-      border: 3px solid #ffffff;
-      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-      z-index: 10;
-    }
-    .user-icon {
-      width: 20px; height: 20px;
-      background: #0f172a;
-      border-radius: 50%;
-      border: 3px solid #ffffff;
-      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-    }
-    @keyframes pulse {
-      0% { transform: scale(1); opacity: 0.8; }
-      100% { transform: scale(2.5); opacity: 0; }
-    }
-  </style>
-</head>
-<body>
-  <div id="map"></div>
-  <script>
-    const map = L.map('map', { zoomControl: false, attributionControl: false });
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { maxZoom: 20 }).addTo(map);
-    const riderIcon = L.divIcon({
-      className: 'rider-container',
-      html: '<div class="rider-pulse"></div><div class="rider-icon"></div>',
-      iconSize: [44, 44],
-      iconAnchor: [22, 22]
-    });
-    const userIcon = L.divIcon({ className: 'user-icon', iconSize: [20, 20], iconAnchor: [10, 10] });
-    const riderMarker = L.marker([${riderLat}, ${riderLng}], { icon: riderIcon }).addTo(map);
-    const markers = [[${riderLat}, ${riderLng}]];
-    if (${!!(userLat && userLng)}) {
-      L.marker([${userLat || 0}, ${userLng || 0}], { icon: userIcon }).addTo(map);
-      markers.push([${userLat || 0}, ${userLng || 0}]);
-      const bounds = L.latLngBounds(markers);
-      map.fitBounds(bounds, { padding: [50, 50], maxZoom: 16 });
-    } else {
-      map.setView([${riderLat}, ${riderLng}], 16);
-    }
-  </script>
-</body>
-</html>
-`;
 
 const TrackOrderPage: React.FC = () => {
   const insets = useSafeAreaInsets();
@@ -157,7 +93,7 @@ const TrackOrderPage: React.FC = () => {
           wasteType: orderData.waste_type || 'General Household',
           bagSize: (orderData.waste_size || 'Standard').charAt(0).toUpperCase() + (orderData.waste_size || 'Standard').slice(1),
           estimatedArrival: estimatedTime,
-          currentLocation: ['in_progress', 'active'].includes(orderData.status) ? 'Approaching your location' : (['accepted', 'assigned', 'confirmed'].includes(orderData.status) ? 'Rider heading out' : 'Waiting for dispatch')
+          currentLocation: orderData.status === 'arrived' ? 'Rider at your location' : (['in_progress', 'active', 'heading'].includes(orderData.status) ? 'Approaching your location' : (['accepted', 'assigned', 'confirmed'].includes(orderData.status) ? 'Rider heading out' : 'Waiting for dispatch'))
         });
       } catch (error) {
         console.error("Error fetching order data:", error);
@@ -221,7 +157,7 @@ const TrackOrderPage: React.FC = () => {
               ...prev,
               status: orderData.status,
               rider: riderObj || prev?.rider,
-              currentLocation: orderData.status === 'in_progress' ? 'Approaching your location' : (orderData.status === 'accepted' ? 'Rider heading out' : 'Waiting for dispatch')
+              currentLocation: orderData.status === 'arrived' ? 'Rider at your location' : (['in_progress', 'active', 'heading'].includes(orderData.status) ? 'Approaching your location' : (['accepted', 'assigned', 'confirmed'].includes(orderData.status) ? 'Rider heading out' : 'Waiting for dispatch'))
             }));
 
             if (['accepted', 'assigned', 'confirmed', 'active'].includes(orderData.status) && riderObj) {
@@ -263,7 +199,7 @@ const TrackOrderPage: React.FC = () => {
   const trackingSteps = [
     { title: 'Order Confirmed', description: 'Request received', completed: true },
     { title: 'Rider Assigned', description: order?.rider ? `${order.rider.name} is on the way` : 'Assigning rider', completed: !!order?.rider },
-    { title: 'Pickup Progress', description: 'Rider approaching', active: ['in_progress', 'active'].includes(order?.status) },
+    { title: 'Rider Arrived', description: order?.status === 'arrived' ? 'Rider is outside!' : 'At your location', active: order?.status === 'arrived', completed: order?.status === 'completed' },
     { title: 'Completed', description: 'Waste collected', completed: order?.status === 'completed' }
   ];
 
@@ -345,10 +281,18 @@ const TrackOrderPage: React.FC = () => {
 
         <View style={styles.mapCard}>
           <View style={styles.mapWrapper}>
-            <WebView 
-              key={`${riderLocation.lat}-${riderLocation.lng}-${order?.id}`}
-              source={{ html: getMapHtml(riderLocation.lat, riderLocation.lng, order.latitude, order.longitude) }} 
-              style={styles.map} 
+            <NavigatrMap 
+              height={240}
+              style={styles.map}
+              centerLat={riderLocation.lat} 
+              centerLng={riderLocation.lng}
+              markers={[
+                { lat: riderLocation.lat, lng: riderLocation.lng, type: 'rider', label: 'Rider' },
+                { lat: order.latitude, lng: order.longitude, type: 'user', label: 'You' }
+              ]}
+              showRoute={true}
+              routeOrigin={{ lat: riderLocation.lat, lng: riderLocation.lng }}
+              routeDestination={{ lat: order.latitude, lng: order.longitude }}
             />
           </View>
           <View style={styles.mapInfo}>
@@ -375,9 +319,17 @@ const TrackOrderPage: React.FC = () => {
                </View>
                <Text style={styles.vehicleText}>{order.rider.vehicle} • {order.rider.vehicleNumber}</Text>
             </View>
-            <TouchableOpacity onPress={handleCallRider} style={styles.callSmallBtn}>
-                <RemixIcon name="ri-phone-fill" size={18} color="#fff" />
-            </TouchableOpacity>
+            <View style={styles.riderActionRow}>
+                <TouchableOpacity 
+                    onPress={() => navigation.navigate('ChatRider', { riderId: order.rider.id, orderId: order.realId })} 
+                    style={styles.messageSmallBtn}
+                >
+                    <RemixIcon name="ri-message-3-fill" size={18} color="#10b981" />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={handleCallRider} style={styles.callSmallBtn}>
+                    <RemixIcon name="ri-phone-fill" size={18} color="#fff" />
+                </TouchableOpacity>
+            </View>
           </View>
         )}
 
@@ -440,8 +392,8 @@ const styles = StyleSheet.create({
   statusDotActive: { backgroundColor: '#10b981' },
   statusBadgeText: { fontSize: 10, fontFamily: typography.bold, color: '#64748b' },
   mapCard: { backgroundColor: '#ffffff', borderRadius: 24, overflow: 'hidden', borderWidth: 1, borderColor: '#f1f5f9', marginBottom: 24, elevation: 4 },
-  mapWrapper: { height: 220 },
-  map: { flex: 1 },
+  mapWrapper: { },
+  map: { borderRadius: 24 },
   mapInfo: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16 },
   currentLocation: { fontSize: 15, fontFamily: typography.bold, color: '#1e293b', marginBottom: 2 },
   etaText: { fontSize: 13, fontFamily: typography.medium, color: '#64748b' },
@@ -456,6 +408,8 @@ const styles = StyleSheet.create({
   ratingBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.1)', paddingHorizontal: 5, paddingVertical: 2, borderRadius: 6, gap: 3 },
   ratingText: { fontSize: 10, fontFamily: typography.bold, color: '#fbbf24' },
   vehicleText: { fontSize: 11, fontFamily: typography.medium, color: '#94a3b8' },
+  riderActionRow: { flexDirection: 'row', gap: 10 },
+  messageSmallBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: '#f0fdf4', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#dcfce7' },
   callSmallBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: '#10b981', alignItems: 'center', justifyContent: 'center' },
   trackerList: { paddingLeft: 8, marginBottom: 24 },
   stepItem: { flexDirection: 'row' },

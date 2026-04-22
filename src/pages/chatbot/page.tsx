@@ -1,9 +1,10 @@
 import React from 'react';
-import { View, StyleSheet, TouchableOpacity, Text, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Text, ActivityIndicator, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import { useNavigation } from '@react-navigation/native';
 import { RemixIcon } from '../../utils/icons';
+import { typography } from '../../utils/typography';
 
 const CHATBOT_WIDGET_HTML = `
 <!doctype html>
@@ -72,18 +73,30 @@ const ChatbotPage: React.FC = () => {
                 </View>
             </View>
             <View style={styles.webviewContainer}>
-                <WebView
-                    originWhitelist={['*']}
-                    source={{ html: CHATBOT_WIDGET_HTML }}
-                    startInLoadingState
-                    renderLoading={() => (
-                        <View style={styles.loadingContainer}>
-                            <ActivityIndicator size="large" color="#10B981" />
-                        </View>
-                    )}
-                    javaScriptEnabled={true}
-                    domStorageEnabled={true}
-                />
+                {Platform.OS === 'web' ? (
+                    <iframe
+                        srcDoc={CHATBOT_WIDGET_HTML}
+                        style={{
+                            width: '100%',
+                            height: '100%',
+                            border: 'none',
+                        }}
+                        title="Chatbot Support"
+                    />
+                ) : (
+                    <WebView
+                        originWhitelist={['*']}
+                        source={{ html: CHATBOT_WIDGET_HTML }}
+                        startInLoadingState
+                        renderLoading={() => (
+                            <View style={styles.loadingContainer}>
+                                <ActivityIndicator size="large" color="#10B981" />
+                            </View>
+                        )}
+                        javaScriptEnabled={true}
+                        domStorageEnabled={true}
+                    />
+                )}
             </View>
         </SafeAreaView>
     );
@@ -120,11 +133,12 @@ const styles = StyleSheet.create({
     },
     title: {
         fontSize: 18,
-        fontWeight: 'bold',
+        fontFamily: typography.bold,
         color: '#1f2937',
     },
     subtitle: {
         fontSize: 14,
+        fontFamily: typography.medium,
         color: '#4b5563',
     },
     webviewContainer: {

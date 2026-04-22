@@ -60,7 +60,7 @@ const ServicesPage: React.FC = () => {
 
   const filteredServices = selectedCategory === 'all' 
     ? services 
-    : services.filter(service => service.category === selectedCategory);
+    : services.filter((service: any) => service.category === selectedCategory);
 
   const handleBookService = (serviceId: number) => {
     navigateTo('/booking');
@@ -144,7 +144,7 @@ const ServicesPage: React.FC = () => {
                   <Text style={styles.serviceDescription}>{service.description}</Text>
                   
                   <View style={styles.featuresContainer}>
-                    {service.features.map((feature, index) => (
+                    {service.features.map((feature: string, index: number) => (
                       <View key={index} style={styles.featureTag}>
                         <RemixIcon name="ri-checkbox-circle-fill" size={14} color="#10b981" />
                         <Text style={styles.featureText}>{feature}</Text>

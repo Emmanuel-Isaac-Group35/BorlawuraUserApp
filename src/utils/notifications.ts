@@ -3,24 +3,28 @@ import { Platform } from 'react-native';
 import * as Device from 'expo-device';
 import Constants from 'expo-constants';
 
-// Configure how notifications are handled when the app is in the foreground
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-  }),
-});
+// ── Detect Expo Go (SDK 53+ lost remote push support) ──────────────────────
+const executionEnv = (Constants as any).executionEnvironment || '';
+const isExpoGo = executionEnv === 'storeClient';
 
-export async function registerForPushNotificationsAsync() {
-  let token;
+// ── Only set the handler if the notifications module is functional ──────────
+try {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowBanner: true,
+      shouldShowList: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+    }),
+  });
+} catch (e) {
+  console.log('[Notifications] Handler setup skipped (Expo Go limitation):', e);
+}
 
-  // Check if we are running in Expo Go
-  const isExpoGo = Constants.appOwnership === 'expo';
-  
+export async function registerForPushNotificationsAsync(): Promise<string | null> {
+  // Expo Go on Android SDK 53+ does not support remote push notifications
   if (isExpoGo && Platform.OS === 'android') {
-    console.warn('⚠️ SDK 53+ Alert: Android Push Notifications are not supported in Expo Go.');
-    console.warn('To test push notifications, you must use a Development Build (npx expo run:android).');
+    console.warn('[Notifications] Remote push notifications are not supported in Expo Go on Android SDK 53+. Use a development build.');
     return null;
   }
 
@@ -33,11 +37,16 @@ export async function registerForPushNotificationsAsync() {
         lightColor: '#10b981',
       });
     } catch (e) {
-      console.log('Error setting notification channel:', e);
+      console.log('[Notifications] Error setting notification channel:', e);
     }
   }
 
-  if (Device.isDevice) {
+  if (!Device.isDevice) {
+    console.log('[Notifications] Physical device recommended for push notification testing.');
+    return null;
+  }
+
+  try {
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
     let finalStatus = existingStatus;
     if (existingStatus !== 'granted') {
@@ -45,24 +54,38 @@ export async function registerForPushNotificationsAsync() {
       finalStatus = status;
     }
     if (finalStatus !== 'granted') {
-      console.log('Permission not granted for notifications');
-      return;
+      console.log('[Notifications] Permission not granted.');
+      return null;
     }
-    
-    try {
-        const projectId = Constants?.expoConfig?.extra?.eas?.projectId || Constants?.easConfig?.projectId;
-        token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
-    } catch (e) {
-        console.log('Error getting push token (this is expected in Expo Go for Android):', e);
-    }
-  } else {
-    console.log('Note: Physical device recommended for full push notification testing');
-  }
 
-  return token;
+    const projectId =
+      Constants?.expoConfig?.extra?.eas?.projectId ||
+      (Constants as any)?.easConfig?.projectId;
+
+    if (!projectId) {
+      console.warn('[Notifications] No EAS projectId found — push token skipped.');
+      return null;
+    }
+
+    const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
+    return tokenData.data;
+  } catch (e) {
+    console.log('[Notifications] Error getting push token (expected in Expo Go for Android):', e);
+    return null;
+  }
 }
 
-export async function sendLocalNotification(title: string, body: string, data = {}) {
+export async function sendLocalNotification(
+  title: string,
+  body: string,
+  data: Record<string, any> = {}
+): Promise<void> {
+  // Guard: local notifications also have limited support in Expo Go
+  if (isExpoGo) {
+    console.log(`[Notifications] Local notification suppressed in Expo Go: "${title}" — ${body}`);
+    return;
+  }
+
   try {
     await Notifications.scheduleNotificationAsync({
       content: {
@@ -75,6 +98,6 @@ export async function sendLocalNotification(title: string, body: string, data = 
       trigger: null, // trigger immediately
     });
   } catch (e) {
-    console.log('Local notification failed (not supported in this environment):', e);
+    console.log('[Notifications] Local notification failed:', e);
   }
 }

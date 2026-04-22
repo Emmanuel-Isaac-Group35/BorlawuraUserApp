@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Animated, TouchableOpacity, Image, useWindowDimensions } from 'react-native';
-import { WebView } from 'react-native-webview';
+import { NavigatrMap } from '../../../components/feature/NavigatrMap';
 import { RemixIcon } from '../../../utils/icons';
 import { typography } from '../../../utils/typography';
 import { supabase } from '../../../lib/supabase';
@@ -26,64 +26,6 @@ interface FindingRiderProps {
   onCancel: () => void;
 }
 
-const getMapHtml = (userLat: number, userLng: number, riders: any[]) => `
-<!DOCTYPE html>
-<html>
-<head>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <style>
-        body { margin: 0; padding: 0; }
-        #map { width: 100%; height: 100vh; background: #f8fafc; }
-        .user-marker {
-            width: 20px; height: 20px;
-            background: #10b981;
-            border-radius: 50%;
-            border: 3px solid #ffffff;
-            box-shadow: 0 0 10px rgba(16,185,129,0.5);
-        }
-        .rider-marker {
-            width: 12px; height: 12px;
-            background: #3b82f6;
-            border-radius: 50%;
-            border: 2px solid #ffffff;
-            opacity: 0.7;
-        }
-        .search-circle {
-            animation: pulse 3s infinite ease-out;
-            fill: #10b981;
-            fill-opacity: 0.1;
-            stroke: #10b981;
-            stroke-opacity: 0.3;
-        }
-        @keyframes pulse {
-            0% { transform: scale(1); opacity: 0.8; }
-            100% { transform: scale(3); opacity: 0; }
-        }
-    </style>
-</head>
-<body>
-    <div id="map"></div>
-    <script>
-        const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([${userLat}, ${userLng}], 15);
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { maxZoom: 20 }).addTo(map);
-        
-        const userIcon = L.divIcon({ className: 'user-marker', iconSize: [20, 20], iconAnchor: [10, 10] });
-        L.marker([${userLat}, ${userLng}], { icon: userIcon }).addTo(map);
-
-        const riderIcon = L.divIcon({ className: 'rider-marker', iconSize: [12, 12], iconAnchor: [6, 6] });
-        const riders = ${JSON.stringify(riders)};
-        riders.forEach(r => L.marker([r.lat, r.lng], { icon: riderIcon }).addTo(map));
-
-        const circle = L.circle([${userLat}, ${userLng}], {
-            radius: 400,
-            className: 'search-circle'
-        }).addTo(map);
-    </script>
-</body>
-</html>
-`;
 
 export const FindingRider: React.FC<FindingRiderProps> = ({ userLat, userLng, orderId, selectedRiderId, onRiderFound, onCancel }) => {
   const { width } = useWindowDimensions();
@@ -193,7 +135,17 @@ export const FindingRider: React.FC<FindingRiderProps> = ({ userLat, userLng, or
   return (
     <View style={styles.container}>
       <View style={styles.mapWrap}>
-        <WebView source={{ html: getMapHtml(lat, lng, onlineRiders) }} style={styles.map} scrollEnabled={false} />
+        <NavigatrMap 
+          style={styles.map}
+          centerLat={lat} 
+          centerLng={lng}
+          zoom={15}
+          interactive={false}
+          markers={[
+            { lat, lng, type: 'user', label: 'Scanning...' },
+            ...onlineRiders.filter(r => r.lat && r.lng).map(r => ({ lat: r.lat, lng: r.lng, type: 'rider' as const, label: 'Rider' }))
+          ]}
+        />
         <View style={styles.topOverlay}>
           <View style={styles.statusBadge}>
             <View style={styles.pulseDot} />
@@ -260,8 +212,8 @@ export const FindingRider: React.FC<FindingRiderProps> = ({ userLat, userLng, or
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff' },
-  mapWrap: { flex: 1 },
-  map: { flex: 1 },
+  mapWrap: { flex: 1, minHeight: 300, overflow: 'hidden' },
+  map: { flex: 1, borderRadius: 0 },
   topOverlay: { position: 'absolute', top: 100, left: 0, right: 0, alignItems: 'center' },
   statusBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 25, elevation: 5, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 10 },
   pulseDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#10b981', marginRight: 10 },

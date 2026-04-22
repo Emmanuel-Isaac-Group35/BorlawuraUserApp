@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, ActivityIndicator, Alert, ScrollView } from 'react-native';
-import { WebView } from 'react-native-webview';
+import { NavigatrMap } from '../../../components/feature/NavigatrMap';
 import * as Location from 'expo-location';
 import { RemixIcon } from '../../../utils/icons';
 import { useAuth } from '../../../context/AuthContext';
@@ -109,49 +109,42 @@ export const LocationSelector: React.FC<LocationSelectorProps> = ({ value, onCha
     onChange(addrText, { latitude: lat, longitude: lng });
   };
 
-  const getMapHtml = () => `
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-        <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-        <style>
-            body { margin: 0; padding: 0; }
-            #map { width: 100%; height: 100vh; background: #f8fafc; }
-            .user-marker { width: 18px; height: 18px; background: #10b981; border-radius: 50%; border: 3px solid #ffffff; box-shadow: 0 0 10px rgba(16,185,129,0.5); }
-            .rider-marker { width: 12px; height: 12px; background: #3b82f6; border-radius: 50%; border: 2px solid #ffffff; opacity: 0.8; }
-        </style>
-    </head>
-    <body>
-        <div id="map"></div>
-        <script>
-            const map = L.map('map', { zoomControl: false, attributionControl: false }).setView([${coords.latitude}, ${coords.longitude}], 15);
-            L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { maxZoom: 20 }).addTo(map);
-            L.marker([${coords.latitude}, ${coords.longitude}], { icon: L.divIcon({ className: 'user-marker', iconSize: [18, 18], iconAnchor: [9, 9] }) }).addTo(map);
-            const riders = ${JSON.stringify(onlineRiders)};
-            riders.forEach(r => {
-                if(r.latitude && r.longitude) {
-                   L.marker([r.latitude, r.longitude], { icon: L.divIcon({ className: 'rider-marker', iconSize: [12, 12], iconAnchor: [6, 6] }) }).addTo(map);
-                }
-            });
-        </script>
-    </body>
-    </html>
-  `;
+  const [isMapExpanded, setIsMapExpanded] = useState(false);
 
   return (
     <View style={styles.container}>
-      <View style={styles.mapWrap}>
-         <WebView 
-           key={`${coords.latitude}-${coords.longitude}-${onlineRiders.length}`}
-           source={{ html: getMapHtml() }} 
-           style={styles.map} 
-           scrollEnabled={false} 
+      <View style={[styles.mapWrap, isMapExpanded && styles.mapWrapExpanded]}>
+         <NavigatrMap 
+           height={isMapExpanded ? 380 : 200}
+           centerLat={coords.latitude} 
+           centerLng={coords.longitude}
+           zoom={isMapExpanded ? 16 : 14}
+           interactive={isMapExpanded}
+           style={styles.map}
+           markers={[
+             { lat: coords.latitude, lng: coords.longitude, type: 'user' },
+             ...onlineRiders.map((r, i) => ({ 
+               lat: r.latitude ? parseFloat(r.latitude) : coords.latitude + (Math.random() - 0.5) * 0.05, 
+               lng: r.longitude ? parseFloat(r.longitude) : coords.longitude + (Math.random() - 0.5) * 0.05, 
+               type: 'rider' as const 
+             }))
+           ]}
          />
-         <TouchableOpacity onPress={handleDetectLocation} style={styles.gpsBtn}>
-            {isDetecting ? <ActivityIndicator size="small" color="#10b981" /> : <RemixIcon name="ri-focus-3-fill" size={20} color="#10b981" />}
-         </TouchableOpacity>
+         
+         <View style={styles.mapControls}>
+            <TouchableOpacity onPress={() => setIsMapExpanded(!isMapExpanded)} style={styles.mapActionBtn}>
+                <RemixIcon name={isMapExpanded ? "ri-collapse-diagonal-line" : "ri-expand-diagonal-line"} size={20} color="#1e293b" />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleDetectLocation} style={styles.mapActionBtn}>
+                {isDetecting ? <ActivityIndicator size="small" color="#10b981" /> : <RemixIcon name="ri-focus-3-fill" size={20} color="#10b981" />}
+            </TouchableOpacity>
+         </View>
+         
+         {!isMapExpanded && (
+            <View style={styles.interactiveHint}>
+                <Text style={styles.interactiveHintText}>Expand to zoom & pan</Text>
+            </View>
+         )}
       </View>
 
       <View style={styles.selectionPanel}>
@@ -229,9 +222,13 @@ export const LocationSelector: React.FC<LocationSelectorProps> = ({ value, onCha
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  mapWrap: { height: 180, borderRadius: 20, overflow: 'hidden', backgroundColor: '#f1f5f9', position: 'relative', marginBottom: 20 },
-  map: { flex: 1 },
-  gpsBtn: { position: 'absolute', bottom: 12, right: 12, width: 40, height: 40, borderRadius: 12, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', elevation: 3 },
+  mapWrap: { borderRadius: 20, overflow: 'hidden', backgroundColor: '#f1f5f9', position: 'relative', marginBottom: 20 },
+  mapWrapExpanded: { },
+  map: { },
+  mapControls: { position: 'absolute', bottom: 12, right: 12, gap: 8 },
+  mapActionBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', elevation: 3 },
+  interactiveHint: { position: 'absolute', top: 12, left: 12, backgroundColor: 'rgba(255,255,255,0.9)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 },
+  interactiveHintText: { fontSize: 12, fontFamily: typography.medium, color: '#475569' },
   selectionPanel: { gap: 12 },
   panelTitle: { fontSize: 14, fontFamily: typography.bold, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5 },
   addressList: { maxHeight: 300 },

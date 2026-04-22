@@ -74,7 +74,6 @@ const iconMap: { [key: string]: { lib: 'Ionicons' | 'MCI', name: any } } = {
   'ri-arrow-down-s-line': { lib: 'Ionicons', name: 'chevron-down-outline' },
   'ri-check-fill': { lib: 'Ionicons', name: 'checkmark-circle' },
   'ri-star-fill': { lib: 'Ionicons', name: 'star' },
-  'ri-flashlight-line': { lib: 'Ionicons', name: 'flash-outline' },
   'ri-truck-fill': { lib: 'Ionicons', name: 'car' },
   'ri-customer-service-fill': { lib: 'Ionicons', name: 'headset' },
   'ri-chat-smile-fill': { lib: 'Ionicons', name: 'chatbubble-ellipses' },
@@ -89,6 +88,28 @@ const iconMap: { [key: string]: { lib: 'Ionicons' | 'MCI', name: any } } = {
   'ri-briefcase-4-fill': { lib: 'Ionicons', name: 'briefcase' },
   'ri-briefcase-fill': { lib: 'Ionicons', name: 'briefcase' },
   'ri-home-fill': { lib: 'Ionicons', name: 'home' },
+
+  // Additional icons for Notifications & Rider pages
+  'ri-walk-line':             { lib: 'Ionicons', name: 'walk-outline' },
+  'ri-gift-line':             { lib: 'Ionicons', name: 'gift-outline' },
+  'ri-coupon-3-line':         { lib: 'Ionicons', name: 'pricetag-outline' },
+  'ri-volume-up-line':        { lib: 'Ionicons', name: 'volume-high-outline' },
+  'ri-smartphone-line':       { lib: 'Ionicons', name: 'phone-portrait-outline' },
+  'ri-mail-send-line':        { lib: 'Ionicons', name: 'send-outline' },
+  'ri-map-pin-user-line':     { lib: 'Ionicons', name: 'pin-outline' },
+  'ri-phone-fill':            { lib: 'Ionicons', name: 'call' },
+  'ri-message-3-fill':        { lib: 'Ionicons', name: 'chatbubbles' },
+  'ri-edit-2-line':           { lib: 'Ionicons', name: 'create-outline' },
+  'ri-user-follow-line':      { lib: 'Ionicons', name: 'person-add-outline' },
+  'ri-lightbulb-flash-line':  { lib: 'Ionicons', name: 'bulb-outline' },
+  'ri-seedling-fill':         { lib: 'MCI',      name: 'sprout' },
+  'ri-medal-fill':            { lib: 'Ionicons', name: 'medal-outline' },
+  'ri-wifi-line':             { lib: 'Ionicons', name: 'wifi-outline' },
+  'ri-wifi-off-line':         { lib: 'Ionicons', name: 'wifi-outline' },
+  'ri-radar-line':            { lib: 'Ionicons', name: 'radio-outline' },
+  'ri-collapse-diagonal-line':{ lib: 'Ionicons', name: 'contract-outline' },
+  'ri-expand-diagonal-line':  { lib: 'Ionicons', name: 'expand-outline' },
+  'ri-shopping-bag-line':     { lib: 'Ionicons', name: 'bag-outline' },
 };
 
 export const RemixIcon: React.FC<IconProps> = ({ name, size = 24, color = '#000', style }) => {

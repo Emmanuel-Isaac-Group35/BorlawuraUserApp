@@ -20,18 +20,7 @@ import * as Notifications from 'expo-notifications';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 
-// Configure notification behavior for foreground notifications
-try {
-  Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowAlert: true,
-      shouldPlaySound: true,
-      shouldSetBadge: false,
-    } as Notifications.NotificationBehavior),
-  });
-} catch (e) {
-  console.warn('Notification handler setup skip');
-}
+// Navigation handled via AppNavigator routes
 
 import { typography } from '../../utils/typography';
 
@@ -323,7 +312,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8fafc',
     borderRadius: 18,
     paddingHorizontal: 20,
-    paddingHorizontal: 10,
     fontSize: 16,
     fontFamily: typography.medium,
     color: '#0f172a',

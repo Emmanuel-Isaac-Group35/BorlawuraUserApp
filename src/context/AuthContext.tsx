@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { View, Alert, Modal, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { typography } from '../utils/typography';
 import RNAsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import * as Linking from 'expo-linking';
@@ -57,14 +58,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
     // 2. Listen for Supabase Auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const authListener = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('🔄 Auth State Event:', event, session?.user?.email);
       
       if (session?.user) {
         if (!processingRef.current) {
           handleSupabaseSession(session.user);
         }
-      } else if (event === 'SIGNED_OUT' || event === 'USER_DELETED') {
+      } else if (event === 'SIGNED_OUT' || (event as any) === 'USER_DELETED') {
         // Clear local state only - do NOT call logout() as it triggers another signOut()
         await RNAsyncStorage.removeItem('user');
         setUser(null);
@@ -73,56 +74,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setIsLoading(false);
       }
     });
-
-    const handleSupabaseSession = async (supabaseUser: any) => {
-      if (processingRef.current) return;
-      processingRef.current = true;
-      setIsLoading(true);
-      try {
-        const { data: dbUser, error } = await supabase
-          .from('users')
-          .select('*')
-          .eq('email', supabaseUser.email)
-          .maybeSingle();
-
-        let finalUser = dbUser;
-        if (!dbUser && !error) {
-          // Auto-create user if they don't exist yet (First time Google Login)
-          const { data: newUser, error: insertError } = await supabase
-            .from('users')
-            .insert([{
-              email: supabaseUser.email,
-              full_name: supabaseUser.user_metadata?.full_name || supabaseUser.user_metadata?.name || 'New User',
-              avatar_url: supabaseUser.user_metadata?.avatar_url || supabaseUser.user_metadata?.picture,
-              status: 'active',
-              registration_status: 'approved'
-            }])
-            .select()
-            .single();
-            
-          if (insertError) throw insertError;
-          finalUser = newUser;
-        }
-
-        if (finalUser) {
-          const storageUser = { 
-            ...finalUser, 
-            supabase_id: finalUser.id 
-          };
-          await RNAsyncStorage.setItem('user', JSON.stringify(storageUser));
-          setUser(storageUser);
-          
-          setIsLoggedIn(true);
-          const isRestricted = ['suspended', 'flagged', 'rejected', 'pending'].includes(finalUser.status);
-          setIsSuspended(isRestricted);
-        }
-      } catch (err) {
-        console.error('OAuth sync error:', err);
-      } finally {
-        setIsLoading(false);
-        processingRef.current = false;
-      }
-    };
 
     // 2. Check for persisted login state on app open
     const checkAuth = async () => {
@@ -154,22 +105,80 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     checkAuth();
     return () => {
-      subscription.unsubscribe();
+      if (authListener?.data?.subscription) {
+        authListener.data.subscription.unsubscribe();
+      }
       linkSubscription.remove();
     };
   }, []);
+
+  const handleSupabaseSession = async (supabaseUser: any) => {
+    if (processingRef.current) return;
+    processingRef.current = true;
+    setIsLoading(true);
+    try {
+      const { data: dbUser, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('email', supabaseUser.email)
+        .maybeSingle();
+
+      let finalUser = dbUser;
+      if (!dbUser && !error) {
+        // Auto-create user if they don't exist yet (First time Google Login)
+        const { data: newUser, error: insertError } = await supabase
+          .from('users')
+          .insert([{
+            email: supabaseUser.email,
+            full_name: supabaseUser.user_metadata?.full_name || supabaseUser.user_metadata?.name || 'New User',
+            avatar_url: supabaseUser.user_metadata?.avatar_url || supabaseUser.user_metadata?.picture,
+            status: 'active',
+            registration_status: 'approved'
+          }])
+          .select()
+          .single();
+          
+        if (insertError) throw insertError;
+        finalUser = newUser;
+      }
+
+      if (finalUser) {
+        const storageUser = { 
+          ...finalUser, 
+          supabase_id: finalUser.id 
+        };
+        await RNAsyncStorage.setItem('user', JSON.stringify(storageUser));
+        setUser(storageUser);
+        
+        setIsLoggedIn(true);
+        const isRestricted = ['suspended', 'flagged', 'rejected', 'pending'].includes(finalUser.status);
+        setIsSuspended(isRestricted);
+      }
+    } catch (err) {
+      console.error('OAuth sync error:', err);
+    } finally {
+      setIsLoading(false);
+      processingRef.current = false;
+    }
+  };
 
   // Update push tokens in background
   useEffect(() => {
     const userId = user?.supabase_id || user?.id;
     if (userId && isLoggedIn && !String(userId).startsWith('user_')) {
-      const isExpoGo = Constants.appOwnership === 'expo';
-      if (!isExpoGo || Platform.OS === 'ios') {
+      // SDK 53+ Check: executionEnvironment for Expo Go
+      const executionEnv = (Constants as any).executionEnvironment || '';
+      const isExpoGo = executionEnv === 'storeClient';
+      
+      // Android push notifications are removed from Expo Go in SDK 53
+      const shouldRegister = !isExpoGo || Platform.OS === 'ios';
+      
+      if (shouldRegister) {
         registerForPushNotificationsAsync().then(token => {
           if (token) {
             supabase.from('users').update({ push_token: token }).eq('id', userId).then();
           }
-        });
+        }).catch(err => console.log('Push Token background error:', err));
       }
     }
   }, [user?.id, user?.supabase_id, isLoggedIn]);
@@ -370,8 +379,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const needsProfileCompletion = isLoggedIn && user && !user.phone_number;
+
   return (
-    <AuthContext.Provider value={{ isLoggedIn, isSuspended, user, login, logout, refreshUser, signInWithGoogle, isLoading }}>
+    <AuthContext.Provider value={{ 
+      isLoggedIn, 
+      isSuspended, 
+      user, 
+      login, 
+      logout, 
+      refreshUser, 
+      signInWithGoogle, 
+      isLoading,
+      needsProfileCompletion
+    }}>
       {children}
       <Modal visible={isSuspended} transparent={true} animationType="fade">
         <View style={styles.modalOverlay}>
@@ -403,12 +424,14 @@ export const useAuth = () => {
   return context;
 };
 
+
+
 const styles = StyleSheet.create({
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center', padding: 24 },
-  modalContent: { backgroundColor: '#fff', borderRadius: 20, padding: 30, alignItems: 'center', width: '100%' },
-  iconContainer: { marginBottom: 20, backgroundColor: '#fee2e2', padding: 20, borderRadius: 50 },
-  modalTitle: { fontSize: 24, fontWeight: 'bold', color: '#1f2937', marginBottom: 16, textAlign: 'center' },
-  modalSubtitle: { fontSize: 16, color: '#4b5563', textAlign: 'center', lineHeight: 24, marginBottom: 8 },
-  logoutButton: { backgroundColor: '#dc2626', paddingVertical: 14, paddingHorizontal: 30, borderRadius: 12, marginTop: 24, width: '100%', alignItems: 'center' },
-  logoutButtonText: { color: '#fff', fontSize: 16, fontWeight: 'bold' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(15, 23, 42, 0.75)', justifyContent: 'center', alignItems: 'center', padding: 24 },
+  modalContent: { backgroundColor: '#fff', borderRadius: 32, padding: 32, alignItems: 'center', width: '100%', shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.2, shadowRadius: 20 },
+  iconContainer: { marginBottom: 24, backgroundColor: '#fef2f2', width: 100, height: 100, borderRadius: 50, alignItems: 'center', justifyContent: 'center' },
+  modalTitle: { fontSize: 24, fontFamily: typography.bold, color: '#0f172a', marginBottom: 16, textAlign: 'center' },
+  modalSubtitle: { fontSize: 16, fontFamily: typography.medium, color: '#64748b', textAlign: 'center', lineHeight: 24, marginBottom: 32 },
+  logoutButton: { backgroundColor: '#ef4444', paddingVertical: 16, borderRadius: 16, width: '100%', alignItems: 'center', shadowColor: '#ef4444', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8 },
+  logoutButtonText: { color: '#fff', fontSize: 16, fontFamily: typography.bold },
 });

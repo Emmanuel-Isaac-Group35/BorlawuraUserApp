@@ -325,6 +325,9 @@ const styles = StyleSheet.create({
   selectionCircle: {
     marginLeft: 10,
   },
+  selectionCircleActive: {
+    opacity: 1,
+  },
   unselectedCircle: {
     width: 24,
     height: 24,

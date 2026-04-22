@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { useWindowDimensions, View, StyleSheet, ScrollView, RefreshControl, Text, TouchableOpacity, Platform, Image } from 'react-native';
+import { useWindowDimensions, View, StyleSheet, ScrollView, RefreshControl, Text, TouchableOpacity, Image } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Navigation } from '../../components/feature/Navigation';
 import { ChatFloatingButton } from '../../components/feature/ChatFloatingButton';
@@ -22,7 +22,6 @@ export const HomePage: React.FC = () => {
   const [stats, setStats] = useState({
     tricycles: 0,
     rewards: user?.reward_points || 0,
-    ecoScore: 'Bronze Tier'
   });
 
   const isSmallScreen = screenWidth < 380;
@@ -33,40 +32,24 @@ export const HomePage: React.FC = () => {
       const realUserId = user?.supabase_id || user?.id;
       if (!realUserId) return;
 
-      // 1. Fetch Nearby Tricycles (Total Online for simplicity)
       const { count: tricycleCount } = await supabase
         .from('riders')
         .select('*', { count: 'exact', head: true })
-        .eq('status', 'active');
-      
-      // 2. Fetch User Stats (Rewards & Impact)
+        .eq('is_online', true);
+
       const { data: userData } = await supabase
         .from('users')
         .select('reward_points')
         .eq('id', realUserId)
         .single();
-      
-      // 3. Calculate Eco Tier from completed orders
-      const { count: orderCount } = await supabase
-        .from('orders')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', realUserId)
-        .eq('status', 'completed');
 
-      let tier = 'Newcomer';
-      if (orderCount && orderCount > 0) {
-        if (orderCount >= 20) tier = 'Gold Tier';
-        else if (orderCount >= 5) tier = 'Silver Tier';
-        else tier = 'Bronze Tier';
-      }
-
-      setStats({
-          tricycles: tricycleCount || 0,
-          rewards: userData?.reward_points || 0,
-          ecoScore: tier
-      });
+      setStats(prev => ({
+        ...prev,
+        tricycles: tricycleCount || 0,
+        rewards: userData?.reward_points || 0,
+      }));
     } catch (e) {
-      console.log("Stats fetch error:", e);
+      console.log('Stats fetch error:', e);
     }
   };
 
@@ -124,10 +107,6 @@ export const HomePage: React.FC = () => {
               <View style={{ flex: 1 }}>
                  <View style={styles.nameRow}>
                     <Text style={[styles.userNameText, isSmallScreen && { fontSize: 24 }]} adjustsFontSizeToFit numberOfLines={1}>{firstName} 👋</Text>
-                    <View style={[styles.tierBadge, { backgroundColor: stats.ecoScore.includes('Gold') ? '#fefce8' : (stats.ecoScore.includes('Silver') ? '#f1f5f9' : '#fff7ed') }]}>
-                       <RemixIcon name="ri-medal-fill" size={14} color={stats.ecoScore.includes('Gold') ? '#ca8a04' : (stats.ecoScore.includes('Silver') ? '#64748b' : '#c2410c')} />
-                       <Text style={[styles.tierBadgeText, { color: stats.ecoScore.includes('Gold') ? '#ca8a04' : (stats.ecoScore.includes('Silver') ? '#64748b' : '#c2410c') }]}>{stats.ecoScore.split(' ')[0]}</Text>
-                    </View>
                  </View>
                  <View style={styles.statusRowHeader}>
                     <View style={styles.liveStatusDot} />
@@ -148,36 +127,12 @@ export const HomePage: React.FC = () => {
                  <Text style={[styles.statValue, isSmallScreen && { fontSize: 11 }]}>{stats.tricycles}+ Nearby</Text>
               </View>
               <View style={styles.statDivider} />
-              <View style={styles.statItem}>
-                 <Text style={styles.statLabel}>Eco Tier</Text>
-                 <Text style={[styles.statValue, isSmallScreen && { fontSize: 11 }]}>{stats.ecoScore.split(' ')[0]}</Text>
-              </View>
-              <View style={styles.statDivider} />
               <TouchableOpacity style={styles.statItem} onPress={() => navigateTo('/profile')}>
                  <Text style={styles.statLabel}>Rewards</Text>
                  <Text style={[styles.statValue, { color: '#10b981' }, isSmallScreen && { fontSize: 11 }]}>{stats.rewards} pts</Text>
               </TouchableOpacity>
            </View>
         </View>
-
-        <View style={styles.sectionHeader}>
-           <Text style={styles.sectionTitle}>Sustainability Milestones</Text>
-        </View>
-        <TouchableOpacity style={styles.impactCardMain} activeOpacity={0.95}>
-           <View style={styles.impactDetails}>
-              <View style={styles.impactIconBox}>
-                 <RemixIcon name="ri-seedling-fill" size={28} color="#10b981" />
-              </View>
-              <View style={{ flex: 1 }}>
-                 <Text style={styles.impactMainTitle}>Environmental Hero</Text>
-                 <Text style={styles.impactSubTitle}>You've helped divert waste from local landfills.</Text>
-                 <View style={styles.progressTrack}>
-                    <View style={[styles.progressBar, { width: '42%' }]} />
-                 </View>
-                 <Text style={styles.progressText}>42kg Diverted • Goal: 100kg</Text>
-              </View>
-           </View>
-        </TouchableOpacity>
 
         <View style={styles.sectionHeader}>
            <Text style={styles.sectionTitle}>Featured Offers</Text>
@@ -191,16 +146,6 @@ export const HomePage: React.FC = () => {
 
         <ActiveStatusCard />
 
-        <View style={styles.sectionHeader}>
-           <Text style={styles.sectionTitle}>Recycling Pro-Tip</Text>
-        </View>
-        <View style={styles.tipCard}>
-           <View style={styles.tipIcon}>
-              <RemixIcon name="ri-lightbulb-flash-line" size={20} color="#ca8a04" />
-           </View>
-           <Text style={styles.tipText}>Rinse your plastic containers before disposal to increase their recycling quality!</Text>
-        </View>
-        
         <View style={styles.sectionHeader}>
            <Text style={styles.sectionTitle}>Service History</Text>
            <TouchableOpacity onPress={() => navigateTo('/orders')}>
@@ -481,5 +426,74 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontFamily: typography.bold,
     color: '#64748b',
+  },
+  mapCardMain: {
+    backgroundColor: '#ffffff',
+    borderRadius: 30,
+    marginBottom: 32,
+    overflow: 'hidden',
+    borderWidth: 1.5,
+    borderColor: '#f1f5f9',
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.05,
+    shadowRadius: 20,
+    elevation: 8,
+  },
+  homeMap: {
+    borderRadius: 30,
+  },
+  mapOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 16,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    borderTopWidth: 1,
+    borderTopColor: '#f1f5f9',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  mapLabelBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#f0fdf4',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+  },
+  mapLabelText: {
+    fontSize: 12,
+    fontFamily: typography.bold,
+    color: '#10b981',
+  },
+  mapHint: {
+    fontSize: 11,
+    fontFamily: typography.medium,
+    color: '#94a3b8',
+  },
+  liveIndicater: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#fee2e2',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 20,
+  },
+  livePulse: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#ef4444',
+  },
+  liveText: {
+    fontSize: 10,
+    fontFamily: typography.bold,
+    color: '#ef4444',
+    textTransform: 'uppercase',
   },
 });

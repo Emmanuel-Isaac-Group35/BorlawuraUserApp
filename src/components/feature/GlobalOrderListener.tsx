@@ -3,7 +3,8 @@ import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { sendLocalNotification } from '../../utils/notifications';
 import { navigateTo, navigationRef } from '../../utils/navigation';
-import { Alert } from 'react-native';
+import { Alert, Vibration, Platform } from 'react-native';
+import Constants from 'expo-constants';
 
 export const GlobalOrderListener: React.FC = () => {
   const { user, isLoggedIn } = useAuth();
@@ -73,6 +74,27 @@ export const GlobalOrderListener: React.FC = () => {
           ]
         );
       }
+    } else if (newStatus === 'arrived') {
+      const { data: rider } = await supabase.from('riders').select('full_name').eq('id', order.rider_id).single();
+      const riderName = rider?.full_name || 'Your rider';
+
+      sendLocalNotification(
+        'Rider Arrived! 🔔',
+        `${riderName} has arrived at your location for the pickup.`,
+        { orderId }
+      );
+
+      // Persistent vibration for immediate arrival awareness
+      const pattern = Platform.OS === 'android' ? [0, 1000, 500, 1000, 500, 1000] : [0, 1000, 500, 1000, 500, 1000];
+      Vibration.vibrate(pattern);
+
+      Alert.alert(
+        "Rider Arrived!",
+        `${riderName} is now at your location. Please head out for the collection.`,
+        [
+          { text: "I'm Coming!", onPress: () => navigateTo('/track-order', { id: orderId }) }
+        ]
+      );
     } else if (newStatus === 'completed') {
       sendLocalNotification(
         'Pickup Completed! ✅',
@@ -102,7 +124,6 @@ export const GlobalOrderListener: React.FC = () => {
     // 2. Real-time Subscription (Instant fallback)
     const channel = supabase.channel('global-orders-sync')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders' }, (payload) => {
-        // We still use real-time for instant updates if it's enabled
         const order = payload.new;
         const isMyOrder = order.user_id === user.id;
         
