@@ -11,11 +11,9 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import * as Notifications from 'expo-notifications';
-import Constants from 'expo-constants';
 import { useAuth } from '../../context/AuthContext';
+import { RemixIcon } from '../../utils/icons';
 import { typography } from '../../utils/typography';
 
 const OTPPage = () => {
@@ -28,6 +26,7 @@ const OTPPage = () => {
   const [currentOtp, setCurrentOtp] = useState(initialOtp);
   const [timer, setTimer] = useState(30);
   const [isResending, setIsResending] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
   const inputs = useRef<any>([]);
 
   useEffect(() => {
@@ -38,6 +37,16 @@ const OTPPage = () => {
   }, []);
 
   const handleChange = (text: string, index: number) => {
+    if (text.length > 1) {
+      // Handle paste
+      const digits = text.split('').slice(0, 4);
+      const newOtp = [...otp];
+      digits.forEach((d, i) => { if (index + i < 4) newOtp[index + i] = d; });
+      setOtp(newOtp);
+      if (newOtp.every(d => d !== '')) handleVerify(newOtp.join(''));
+      return;
+    }
+
     const newOtp = [...otp];
     newOtp[index] = text;
     setOtp(newOtp);
@@ -47,7 +56,6 @@ const OTPPage = () => {
     }
 
     if (newOtp.every(digit => digit !== '')) {
-      // Auto verify if all digits are entered
       handleVerify(newOtp.join(''));
     }
   };
@@ -61,17 +69,17 @@ const OTPPage = () => {
   const handleVerify = async (code?: string) => {
     const finalCode = code || otp.join('');
     if (finalCode.length === 4) {
+      setIsVerifying(true);
       if (finalCode === currentOtp) {
-        // Verification and login
         try {
           await login({ phoneNumber, id: 'user_' + Date.now(), name, email, password, isSignup });
-          // Navigation is handled automatically by AuthNavigator in App.tsx
         } catch (error: any) {
+          setIsVerifying(false);
           Alert.alert("Auth Error", error.message || "Failed to log in.");
-          navigation.navigate('Auth');
         }
       } else {
-        Alert.alert('Invalid Code', 'The verification code you entered is incorrect.');
+        setIsVerifying(false);
+        Alert.alert('Verification Failed', 'The code you entered does not match our records.');
         setOtp(['', '', '', '']);
         inputs.current[0]?.focus();
       }
@@ -86,7 +94,7 @@ const OTPPage = () => {
     setCurrentOtp(newOtpCode);
     
     try {
-      const response = await fetch('https://sms.arkesel.com/api/v2/sms/send', {
+      await fetch('https://sms.arkesel.com/api/v2/sms/send', {
         method: 'POST',
         headers: {
           'api-key': 'UEJrVktDRnBqeWZpdmxXSG1WbHk',
@@ -95,23 +103,16 @@ const OTPPage = () => {
         body: JSON.stringify({
           sender: 'BorlaWura',
           message: `Your BorlaWura verification code is: ${newOtpCode}`,
-          recipients: [phoneNumber.replace('+', '')]
+          recipients: [phoneNumber.replace(/\+/g, '').replace(/\s+/g, '')]
         })
       });
       
-      const data = await response.json();
-      console.log('Resend SMS Response:', data);
-      
       setIsResending(false);
-      setTimer(30);
-      
-      // Zero-Latency Fallback: Show the code in an alert immediately
-      Alert.alert('New Verification Code', `Your new code is: ${newOtpCode}. (We are also sending an SMS/Notification)`);
+      setTimer(45); // Increased wait for next resend
+      Alert.alert('Code Resent', `A new verification code has been issued. (Code: ${newOtpCode})`);
     } catch (error) {
-      console.error('Failed to resend OTP:', error);
       setIsResending(false);
       setTimer(30);
-      // Even on failure, we have the generated code, so show it
       Alert.alert('Notice', 'SMS delivery delayed. Please use this code: ' + newOtpCode);
     }
   };
@@ -124,47 +125,72 @@ const OTPPage = () => {
       >
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color="#000" />
+            <RemixIcon name="ri-arrow-left-line" size={24} color="#0f172a" />
           </TouchableOpacity>
         </View>
 
         <View style={styles.content}>
-          <Text style={styles.title}>Enter the code</Text>
+          <View style={styles.iconCircle}>
+            <RemixIcon name="ri-shield-check-line" size={32} color="#10b981" />
+          </View>
+          
+          <Text style={styles.title}>Identity Check</Text>
           <Text style={styles.subtitle}>
-            A 4-digit code was sent to <Text style={styles.bold}>{phoneNumber}</Text>
+            Enter the 4-digit code dispatched to your mobile device <Text style={styles.bold}>{phoneNumber}</Text>
           </Text>
 
           <View style={styles.otpContainer}>
             {otp.map((digit, index) => (
-              <TextInput
-                key={index}
-                ref={(ref) => { inputs.current[index] = ref; }}
-                style={styles.otpInput}
-                keyboardType="number-pad"
-                maxLength={1}
-                value={digit}
-                onChangeText={(text) => handleChange(text, index)}
-                onKeyPress={(e) => handleKeyPress(e, index)}
-                autoFocus={index === 0}
-              />
+              <View key={index} style={[styles.otpBox, digit !== '' && styles.otpBoxActive]}>
+                <TextInput
+                  ref={(ref) => { inputs.current[index] = ref; }}
+                  style={styles.otpInput}
+                  keyboardType="number-pad"
+                  maxLength={1}
+                  value={digit}
+                  onChangeText={(text) => handleChange(text, index)}
+                  onKeyPress={(e) => handleKeyPress(e, index)}
+                  autoFocus={index === 0}
+                  selectionColor="#10b981"
+                />
+              </View>
             ))}
           </View>
 
+          {isVerifying && (
+            <View style={styles.verifyingRow}>
+              <ActivityIndicator size="small" color="#10b981" />
+              <Text style={styles.verifyingText}>AUTHENTICATING...</Text>
+            </View>
+          )}
+
           <View style={styles.footer}>
-            {timer > 0 ? (
-              <Text style={styles.resendText}>Resend code in {timer}s</Text>
-            ) : (
-              <TouchableOpacity onPress={handleResend} disabled={isResending}>
-                {isResending ? (
-                  <ActivityIndicator color="#32BA7C" style={{ marginBottom: 20 }} />
-                ) : (
-                  <Text style={styles.resendLink}>Resend code</Text>
-                )}
-              </TouchableOpacity>
-            )}
+            <View style={styles.timerBox}>
+              {timer > 0 ? (
+                <View style={styles.countdownRow}>
+                  <RemixIcon name="ri-time-line" size={14} color="#94a3b8" />
+                  <Text style={styles.resendText}>Request new code in {timer}s</Text>
+                </View>
+              ) : (
+                <TouchableOpacity 
+                  onPress={handleResend} 
+                  disabled={isResending}
+                  style={styles.resendBtn}
+                >
+                  {isResending ? (
+                    <ActivityIndicator size="small" color="#10b981" />
+                  ) : (
+                    <>
+                      <RemixIcon name="ri-refresh-line" size={16} color="#10b981" />
+                      <Text style={styles.resendLink}>Resend Code</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              )}
+            </View>
             
-            <TouchableOpacity style={styles.helpButton}>
-              <Text style={styles.helpText}>I didn't receive a code</Text>
+            <TouchableOpacity style={styles.helpButton} onPress={() => Alert.alert("Support", "Please contact dispatch at support@borlawura.com if you are having issues with your code.")}>
+              <Text style={styles.helpText}>Technical difficulties?</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -174,79 +200,28 @@ const OTPPage = () => {
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-  },
-  header: {
-    paddingHorizontal: 20,
-    paddingTop: 20,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-  },
-  content: {
-    flex: 1,
-    paddingHorizontal: 30,
-    paddingTop: 40,
-  },
-  title: {
-    fontSize: 28,
-    fontFamily: typography.bold,
-    color: '#000',
-    marginBottom: 10,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#666',
-    lineHeight: 22,
-    marginBottom: 40,
-  },
-  bold: {
-    fontWeight: 'bold',
-    color: '#000',
-  },
-  otpContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 40,
-  },
-  otpInput: {
-    width: 60,
-    height: 70,
-    backgroundColor: '#F3F4F6',
-    borderRadius: 12,
-    fontSize: 28,
-    fontFamily: typography.bold,
-    color: '#000',
-    textAlign: 'center',
-    borderWidth: 1,
-    borderColor: 'transparent',
-  },
-  footer: {
-    alignItems: 'center',
-  },
-  resendText: {
-    fontSize: 14,
-    color: '#999',
-    marginBottom: 20,
-  },
-  resendLink: {
-    fontSize: 14,
-    color: '#32BA7C',
-    fontFamily: typography.semiBold,
-    marginBottom: 20,
-  },
-  helpButton: {
-    marginTop: 10,
-  },
-  helpText: {
-    fontSize: 14,
-    color: '#666',
-    textDecorationLine: 'underline',
-  },
+  container: { flex: 1, backgroundColor: '#FFFFFF' },
+  header: { paddingHorizontal: 20, paddingTop: 10 },
+  backButton: { width: 44, height: 44, borderRadius: 12, backgroundColor: '#f8fafc', alignItems: 'center', justifyContent: 'center' },
+  content: { flex: 1, paddingHorizontal: 32, paddingTop: 20 },
+  iconCircle: { width: 64, height: 64, borderRadius: 24, backgroundColor: '#ecfdf5', alignItems: 'center', justifyContent: 'center', marginBottom: 24 },
+  title: { fontSize: 28, fontFamily: typography.bold, color: '#0f172a', marginBottom: 12 },
+  subtitle: { fontSize: 15, fontFamily: typography.medium, color: '#64748b', lineHeight: 24, marginBottom: 48 },
+  bold: { color: '#0f172a', fontFamily: typography.bold },
+  otpContainer: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 40 },
+  otpBox: { width: 64, height: 74, borderRadius: 18, backgroundColor: '#f8fafc', borderWidth: 2, borderColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center' },
+  otpBoxActive: { borderColor: '#10b981', backgroundColor: '#fff' },
+  otpInput: { width: '100%', height: '100%', fontSize: 28, fontFamily: typography.bold, color: '#0f172a', textAlign: 'center' },
+  verifyingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 30 },
+  verifyingText: { fontSize: 12, fontFamily: typography.bold, color: '#10b981', letterSpacing: 1.5 },
+  footer: { alignItems: 'center', marginTop: 20 },
+  timerBox: { height: 50, justifyContent: 'center' },
+  countdownRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  resendText: { fontSize: 14, fontFamily: typography.medium, color: '#94a3b8' },
+  resendBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#f0fdf4', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 12 },
+  resendLink: { fontSize: 14, fontFamily: typography.bold, color: '#10b981' },
+  helpButton: { marginTop: 40, padding: 10 },
+  helpText: { fontSize: 14, fontFamily: typography.medium, color: '#94a3b8', textDecorationLine: 'underline' },
 });
 
 export default OTPPage;

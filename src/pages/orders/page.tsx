@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, Modal, Linking, Alert, TextInput } from 'react-native';
+import {
+  View, Text, StyleSheet, ScrollView, TouchableOpacity,
+  RefreshControl, Dimensions
+} from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Navigation } from '../../components/feature/Navigation';
 import { RemixIcon } from '../../utils/icons';
@@ -7,367 +10,587 @@ import { navigateTo } from '../../utils/navigation';
 import { typography } from '../../utils/typography';
 import { useAuth } from '../../context/AuthContext';
 import { OrderService } from '../../services/OrderService';
-import { Order as OrderType } from '../../types';
-import { generateReceipt } from '../../utils/receiptGenerator';
-
+import { LinearGradient } from 'expo-linear-gradient';
 import { resolveRealUserId } from '../../utils/user';
 import { supabase } from '../../lib/supabase';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+const { width: SCREEN_W } = Dimensions.get('window');
+const isSmall = SCREEN_W < 360;
+
+const formatDate = (iso: string) =>
+  new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+
+const formatTime = (iso: string) =>
+  new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+
+const getStatusConfig = (status: string) => {
+  const s = status?.toLowerCase() ?? '';
+  if (['in_progress', 'active', 'accepted', 'assigned', 'confirmed', 'heading', 'arrived'].includes(s))
+    return { color: '#3b82f6', bg: '#eff6ff', label: 'Active', icon: 'ri-loader-4-line' };
+  if (s === 'pending' || s === 'scheduled')
+    return { color: '#f59e0b', bg: '#fffbeb', label: 'Pending', icon: 'ri-time-line' };
+  if (s === 'completed' || s === 'done')
+    return { color: '#10b981', bg: '#ecfdf5', label: 'Completed', icon: 'ri-checkbox-circle-line' };
+  return { color: '#ef4444', bg: '#fef2f2', label: 'Cancelled', icon: 'ri-close-circle-line' };
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Page
+// ─────────────────────────────────────────────────────────────────────────────
+
 const OrdersPage: React.FC = () => {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState('active');
-  const [showRatingModal, setShowRatingModal] = useState(false);
-  const [selectedOrder, setSelectedOrder] = useState<any>(null);
-  const [rating, setRating] = useState(0);
-  const [showModifyModal, setShowModifyModal] = useState(false);
-  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [activeTab, setActiveTab] = useState<'active' | 'history'>('active');
   const [isLoading, setIsLoading] = useState(false);
-
   const [orders, setOrders] = useState<any[]>([]);
-  const [modifiedData, setModifiedData] = useState({
-    date: '',
-    time: '',
-    address: ''
-  });
 
+  // ── Real-time subscription ────────────────────────────────────────────────
   useEffect(() => {
     fetchOrders();
-
-    const setupSubscription = async () => {
+    let subChannel: any;
+    const setup = async () => {
       const searchId = await resolveRealUserId(user);
       if (!searchId) return;
-
-      const channel = supabase
-        .channel(`orders-${searchId}`)
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'orders', filter: `user_id=eq.${searchId}` },
-          () => fetchOrders()
-        )
+      subChannel = supabase
+        .channel(`orders-live-${searchId}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `user_id=eq.${searchId}` },
+          () => fetchOrders())
         .subscribe();
-
-      return channel;
     };
-
-    let subChannel: any;
-    setupSubscription().then(ch => { subChannel = ch; });
-
+    setup();
     return () => { if (subChannel) supabase.removeChannel(subChannel); };
   }, [user]);
 
+  // ── Fetch ─────────────────────────────────────────────────────────────────
   const fetchOrders = async () => {
     const searchId = await resolveRealUserId(user);
     if (!searchId) return;
-    
     setIsLoading(true);
     try {
       const data = await OrderService.getOrdersByUserId(searchId);
+      if (!data) { setOrders([]); return; }
 
-      const riderIds = [...new Set((data || []).map(p => p.rider_id).filter(id => id))];
-      let ridersMap: { [key: string]: any } = {};
+      const riderIds = [...new Set(data.map((p: any) => p.rider_id).filter(Boolean))];
+      let ridersMap: Record<string, any> = {};
       if (riderIds.length > 0) {
-        // Riders are still fetched directly here for simplicity in this turn,
-        // but can be moved to a RiderService later.
-        const { data: ridersData } = await supabase.from('riders').select('id, full_name, phone_number').in('id', riderIds as string[]);
-        if (ridersData) ridersData.forEach(r => { ridersMap[r.id] = r; });
+        const { data: rd } = await supabase.from('riders').select('id, full_name, phone_number').in('id', riderIds as string[]);
+        if (rd) rd.forEach((r: any) => { ridersMap[r.id] = r; });
       }
 
-      const formattedOrders = data.map(p => ({
-        id: p.id.slice(0, 8).toUpperCase(),
+      setOrders(data.map((p: any) => ({
+        id: (p.id || '').slice(0, 8).toUpperCase(),
         realId: p.id,
-        status: p.status === 'pending' ? 'scheduled' : (p.status === 'in_progress' ? 'in_progress' : p.status),
+        status: p.status,
         service: p.service_type || 'Waste Pickup',
-        date: new Date(p.created_at).toLocaleDateString('en-GB'),
-        time: p.scheduled_at ? new Date(p.scheduled_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : new Date(p.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
-        address: p.address,
-        latitude: p.pickup_latitude,
-        longitude: p.pickup_longitude,
+        date: p.created_at ? formatDate(p.created_at) : 'Unknown',
+        time: p.scheduled_at ? formatTime(p.scheduled_at) : (p.created_at ? formatTime(p.created_at) : '--:--'),
+        address: p.address || 'No address',
         wasteType: p.waste_type || 'General',
         bagSize: p.waste_size || 'Standard',
         rider: p.rider_id ? (ridersMap[p.rider_id]?.full_name || null) : null,
         riderPhone: p.rider_id ? (ridersMap[p.rider_id]?.phone_number || null) : null,
-        notes: p.notes || ''
-      }));
-
-      setOrders(formattedOrders);
-    } catch (e) {
-      console.error('Error fetching orders:', e);
-    } finally {
-      setIsLoading(false);
-    }
+      })));
+    } catch { setOrders([]); }
+    finally { setIsLoading(false); }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'in_progress': return { bg: '#e0f2fe', text: '#0369a1' };
-      case 'scheduled': return { bg: '#fef3c7', text: '#92400e' };
-      case 'completed': return { bg: '#ecfdf5', text: '#065f46' };
-      case 'cancelled': return { bg: '#fef2f2', text: '#991b1b' };
-      default: return { bg: '#f1f5f9', text: '#475569' };
-    }
-  };
+  const activeOrders = orders.filter(o =>
+    ['pending', 'scheduled', 'in_progress', 'active', 'accepted', 'assigned', 'confirmed', 'heading', 'arrived']
+      .includes(o.status?.toLowerCase())
+  );
+  const historyOrders = orders.filter(o =>
+    ['completed', 'done', 'cancelled'].includes(o.status?.toLowerCase())
+  );
+  const shown = activeTab === 'active' ? activeOrders : historyOrders;
 
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case 'in_progress': return 'In Progress';
-      case 'scheduled': return 'Scheduled';
-      case 'completed': return 'Completed';
-      case 'cancelled': return 'Cancelled';
-      default: return status;
-    }
-  };
-
-  const activeOrders = orders.filter(order => ['in_progress', 'active', 'accepted', 'assigned', 'confirmed', 'scheduled'].includes(order.status));
-  const historyOrders = orders.filter(order => ['completed', 'cancelled'].includes(order.status));
-
-  const handleTrackOrder = (orderId: string) => navigateTo('/track-order', { id: orderId });
-  const handleReorder = () => navigateTo('/booking');
-  const handleCallRider = (phone: string) => Linking.openURL(`tel:${phone}`);
-  
-  const handleModifyOrder = (order: any) => {
-    setSelectedOrder(order);
-    setModifiedData({ date: order.date, time: order.time, address: order.address });
-    setShowModifyModal(true);
-  };
-
-  const handleCancelOrder = (order: any) => {
-    setSelectedOrder(order);
-    setShowCancelModal(true);
-  };
-
-  const confirmCancelOrder = async () => {
-    if (!selectedOrder) return;
-    try {
-      await OrderService.updateStatus(selectedOrder.realId, 'cancelled', 'cancelled');
-
-      setOrders(orders.map(o => o.id === selectedOrder.id ? { ...o, status: 'cancelled' } : o));
-      setShowCancelModal(false);
-      Alert.alert("Success", "Your order has been cancelled.");
-    } catch (e: any) { 
-      Alert.alert("Error", `Action failed: ${e.message}`); 
-    }
-  };
-
-  const handleSaveModification = async () => {
-    if (!selectedOrder) return;
-    try {
-      const { error } = await supabase.from('orders').update({ address: modifiedData.address }).eq('id', selectedOrder.realId);
-      if (error) throw error;
-      setOrders(orders.map(o => o.id === selectedOrder.id ? { ...o, address: modifiedData.address } : o));
-      setShowModifyModal(false);
-      Alert.alert("Success", "Updated successfully.");
-    } catch (error) { Alert.alert("Error", "Failed to update."); }
-  };
+  // ─────────────────────────────────────────────────────────────────────────
+  // Render
+  // ─────────────────────────────────────────────────────────────────────────
 
   return (
     <SafeAreaView style={styles.container}>
       <Navigation />
-      <ScrollView 
-        style={styles.scrollView}
-        contentContainerStyle={[styles.content, { paddingTop: insets.top + 70, paddingBottom: insets.bottom + 100 }]}
-        refreshControl={<RefreshControl refreshing={isLoading} onRefresh={fetchOrders} colors={['#10b981']} />}
+
+      {/* ── Header gradient ── */}
+      <LinearGradient
+        colors={['#10b981', '#065f46', '#022c22']}
+        style={[styles.header, { paddingTop: insets.top + 70 }]}
       >
-        <View style={styles.tabs}>
-          <TouchableOpacity onPress={() => setActiveTab('active')} style={[styles.tab, activeTab === 'active' && styles.tabActive]}>
-            <Text style={[styles.tabText, activeTab === 'active' && styles.tabTextActive]}>Active ({activeOrders.length})</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => setActiveTab('history')} style={[styles.tab, activeTab === 'history' && styles.tabActive]}>
-            <Text style={[styles.tabText, activeTab === 'history' && styles.tabTextActive]}>History ({historyOrders.length})</Text>
-          </TouchableOpacity>
+        {/* Summary row */}
+        <View style={styles.headerRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.headerEyebrow}>YOUR ORDERS</Text>
+            <Text style={styles.headerCount} numberOfLines={1} adjustsFontSizeToFit>
+              {orders.length} {orders.length === 1 ? 'Order' : 'Orders'} Total
+            </Text>
+          </View>
+          {activeOrders.length > 0 && (
+            <View style={styles.livePill}>
+              <View style={styles.liveDot} />
+              <Text style={styles.liveText}>{activeOrders.length} Active</Text>
+            </View>
+          )}
         </View>
 
-        {(activeTab === 'active' ? activeOrders : historyOrders).map((order) => {
-          const colors = getStatusColor(order.status);
-          return (
-            <View key={order.realId} style={styles.orderCard}>
-              <View style={styles.orderHeader}>
-                <View style={styles.orderIdRow}>
-                  <Text style={styles.orderId}>#{order.id}</Text>
-                  <View style={[styles.statusBadge, { backgroundColor: colors.bg }]}>
-                    <Text style={[styles.statusText, { color: colors.text }]}>{getStatusText(order.status).toUpperCase()}</Text>
-                  </View>
-                </View>
-                <Text style={styles.orderService}>{order.service}</Text>
+        {/* Tabs */}
+        <View style={styles.tabRow}>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'active' && styles.tabActive]}
+            onPress={() => setActiveTab('active')}
+            activeOpacity={0.85}
+          >
+            <RemixIcon
+              name="ri-loader-4-line"
+              size={14}
+              color={activeTab === 'active' ? '#0f172a' : 'rgba(255,255,255,0.5)'}
+            />
+            <Text style={[styles.tabLabel, activeTab === 'active' && styles.tabLabelActive]}>
+              Active
+            </Text>
+            {activeOrders.length > 0 && (
+              <View style={styles.tabBadge}>
+                <Text style={styles.tabBadgeText}>{activeOrders.length}</Text>
               </View>
+            )}
+          </TouchableOpacity>
 
-              <View style={styles.orderDetails}>
-                <View style={styles.orderDetailRow}><RemixIcon name="ri-calendar-line" size={16} color="#94a3b8" /><Text style={styles.orderDetailText}>{order.date} • {order.time}</Text></View>
-                <View style={styles.orderDetailRow}><RemixIcon name="ri-map-pin-line" size={16} color="#94a3b8" /><Text style={styles.orderDetailText} numberOfLines={1}>{order.address}</Text></View>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'history' && styles.tabActive]}
+            onPress={() => setActiveTab('history')}
+            activeOpacity={0.85}
+          >
+            <RemixIcon
+              name="ri-history-line"
+              size={14}
+              color={activeTab === 'history' ? '#0f172a' : 'rgba(255,255,255,0.5)'}
+            />
+            <Text style={[styles.tabLabel, activeTab === 'history' && styles.tabLabelActive]}>
+              History
+            </Text>
+            {historyOrders.length > 0 && (
+              <View style={[styles.tabBadge, { backgroundColor: '#94a3b8' }]}>
+                <Text style={styles.tabBadgeText}>{historyOrders.length}</Text>
               </View>
+            )}
+          </TouchableOpacity>
+        </View>
+      </LinearGradient>
 
-              <View style={styles.cardActions}>
-                {['in_progress', 'active', 'accepted', 'assigned', 'confirmed'].includes(order.status) ? (
-                  <TouchableOpacity onPress={() => handleTrackOrder(order.realId)} style={styles.trackBtn}>
-                    <Text style={styles.trackBtnText}>Track Order</Text>
-                  </TouchableOpacity>
-                ) : order.status === 'scheduled' ? (
-                  <TouchableOpacity onPress={() => handleModifyOrder(order)} style={styles.modifyBtn}>
-                    <Text style={styles.modifyBtnText}>Modify Pickup</Text>
-                  </TouchableOpacity>
-                ) : null}
-
-                {order.status === 'scheduled' && (
-                  <TouchableOpacity onPress={() => handleCancelOrder(order)} style={styles.cancelBtn}>
-                    <Text style={styles.cancelBtnText}>Cancel</Text>
-                  </TouchableOpacity>
-                )}
-                
-                {order.status === 'completed' && (
-                  <TouchableOpacity onPress={handleReorder} style={styles.reorderBtn}>
-                    <Text style={styles.reorderBtnText}>Book Again</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            </View>
-          );
-        })}
+      {/* ── List ── */}
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.listContent}
+        refreshControl={<RefreshControl refreshing={isLoading} onRefresh={fetchOrders} tintColor="#10b981" />}
+        showsVerticalScrollIndicator={false}
+      >
+        {shown.length > 0 ? (
+          shown.map(order => <OrderCard key={order.realId} order={order} />)
+        ) : (
+          <EmptyState tab={activeTab} />
+        )}
       </ScrollView>
-
-      {/* Modals */}
-      <Modal visible={showModifyModal} transparent animationType="slide">
-        <View style={styles.modalOverlayBottom}><View style={styles.modalContentBottom}>
-          <View style={styles.modalHeader}><Text style={styles.modalTitle}>Modify Pickup</Text><TouchableOpacity onPress={() => setShowModifyModal(false)}><RemixIcon name="ri-close-line" size={24} color="#0f172a" /></TouchableOpacity></View>
-          <View style={styles.form}>
-            <Text style={styles.formLabel}>Collection Address</Text>
-            <TextInput style={styles.formInput} value={modifiedData.address} onChangeText={(t) => setModifiedData({...modifiedData, address: t})} multiline />
-            <TouchableOpacity onPress={handleSaveModification} style={styles.modalPrimaryBtn}><Text style={styles.modalPrimaryBtnText}>Save Changes</Text></TouchableOpacity>
-          </View>
-        </View></View>
-      </Modal>
-
-      <Modal visible={showCancelModal} transparent animationType="fade">
-        <View style={styles.modalOverlay}><View style={styles.modalContent}>
-          <View style={styles.cancelIconBox}><RemixIcon name="ri-error-warning-fill" size={32} color="#ef4444" /></View>
-          <Text style={styles.modalTitle}>Cancel Pickup?</Text>
-          <Text style={styles.modalSubtitle}>This request will be permanently cancelled.</Text>
-          <TouchableOpacity onPress={confirmCancelOrder} style={styles.modalDangerBtn}><Text style={styles.modalDangerBtnText}>Yes, Cancel</Text></TouchableOpacity>
-          <TouchableOpacity onPress={() => setShowCancelModal(false)} style={styles.modalSecondaryBtn}><Text style={styles.modalSecondaryBtnText}>No, Keep It</Text></TouchableOpacity>
-        </View></View>
-      </Modal>
     </SafeAreaView>
   );
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Order Card
+// ─────────────────────────────────────────────────────────────────────────────
+
+const OrderCard: React.FC<{ order: any }> = ({ order }) => {
+  const cfg = getStatusConfig(order.status);
+  const isHistory = ['completed', 'done', 'cancelled'].includes(order.status?.toLowerCase());
+  const isCompleted = ['completed', 'done'].includes(order.status?.toLowerCase());
+  const isCancelled = order.status?.toLowerCase() === 'cancelled';
+
+  return (
+    <TouchableOpacity
+      style={[styles.card, isHistory && styles.cardHistory]}
+      onPress={() => navigateTo('/track-order', { id: order.realId })}
+      activeOpacity={0.88}
+    >
+      {/* Top row: icon + service + status badge */}
+      <View style={styles.cardTop}>
+        <View style={[styles.serviceIcon, isHistory && styles.serviceIconHistory]}>
+          <RemixIcon
+            name={order.service?.toLowerCase().includes('instant') ? 'ri-flashlight-fill' : 'ri-moped-fill'}
+            size={18}
+            color={isHistory ? '#94a3b8' : '#10b981'}
+          />
+        </View>
+        <View style={styles.cardTopMid}>
+          <Text style={styles.serviceName} numberOfLines={1}>{order.service}</Text>
+          <Text style={styles.orderId}>#{order.id}</Text>
+        </View>
+        <View style={[styles.statusBadge, { backgroundColor: cfg.bg }]}>
+          <RemixIcon name={cfg.icon} size={11} color={cfg.color} />
+          <Text style={[styles.statusLabel, { color: cfg.color }]}>{cfg.label}</Text>
+        </View>
+      </View>
+
+      {/* Divider */}
+      <View style={styles.divider} />
+
+      {/* Body: date, waste type, address */}
+      <View style={styles.cardBody}>
+        <View style={styles.metaRow}>
+          <MetaChip icon="ri-calendar-event-line" label={`${order.date} · ${order.time}`} />
+          <MetaChip icon="ri-recycle-line" label={order.wasteType} />
+        </View>
+        <View style={[styles.metaRow, { marginTop: 8 }]}>
+          <RemixIcon name="ri-map-pin-2-line" size={13} color="#94a3b8" />
+          <Text style={styles.addressText} numberOfLines={1}>{order.address}</Text>
+        </View>
+        {order.rider && (
+          <View style={[styles.metaRow, { marginTop: 8 }]}>
+            <RemixIcon name="ri-user-3-line" size={13} color="#94a3b8" />
+            <Text style={styles.riderText} numberOfLines={1}>{order.rider}</Text>
+          </View>
+        )}
+      </View>
+
+      {/* Footer CTA */}
+      <View style={styles.cardFooter}>
+        {!isHistory ? (
+          // Active → Track button
+          <View style={styles.trackBtn}>
+            <RemixIcon name="ri-radar-line" size={14} color="#10b981" />
+            <Text style={styles.trackBtnText}>Track Order</Text>
+            <RemixIcon name="ri-arrow-right-s-line" size={16} color="#10b981" />
+          </View>
+        ) : isCompleted ? (
+          // Completed → completion note
+          <View style={styles.completedTag}>
+            <RemixIcon name="ri-checkbox-circle-fill" size={14} color="#10b981" />
+            <Text style={styles.completedTagText}>Pickup completed</Text>
+          </View>
+        ) : (
+          // Cancelled → cancelled note
+          <View style={styles.cancelledTag}>
+            <RemixIcon name="ri-close-circle-line" size={14} color="#ef4444" />
+            <Text style={styles.cancelledTagText}>Order cancelled</Text>
+          </View>
+        )}
+      </View>
+    </TouchableOpacity>
+  );
+};
+
+// Small reusable meta chip
+const MetaChip: React.FC<{ icon: string; label: string }> = ({ icon, label }) => (
+  <View style={styles.metaChip}>
+    <RemixIcon name={icon} size={12} color="#94a3b8" />
+    <Text style={styles.metaChipText} numberOfLines={1}>{label}</Text>
+  </View>
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Empty State
+// ─────────────────────────────────────────────────────────────────────────────
+
+const EmptyState: React.FC<{ tab: 'active' | 'history' }> = ({ tab }) => (
+  <View style={styles.empty}>
+    <View style={styles.emptyIconCircle}>
+      <RemixIcon
+        name={tab === 'history' ? 'ri-history-line' : 'ri-archive-line'}
+        size={36}
+        color="#cbd5e1"
+      />
+    </View>
+    <Text style={styles.emptyTitle}>
+      {tab === 'history' ? 'No past orders' : 'No active orders'}
+    </Text>
+    <Text style={styles.emptySub}>
+      {tab === 'history'
+        ? 'Your completed and cancelled pickups will appear here.'
+        : 'You have no ongoing pickups right now.'}
+    </Text>
+    {tab === 'active' && (
+      <TouchableOpacity style={styles.bookBtn} onPress={() => navigateTo('/booking')}>
+        <Text style={styles.bookBtnText}>Schedule a Pickup</Text>
+      </TouchableOpacity>
+    )}
+  </View>
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Styles — all sizes use SCREEN_W-relative values for responsiveness
+// ─────────────────────────────────────────────────────────────────────────────
+
+const PAD = SCREEN_W * 0.05;         // ~20px on 375w phones
+const CARD_RADIUS = SCREEN_W * 0.06; // ~22px
+
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#ffffff' },
-  scrollView: { flex: 1 },
-  content: { paddingHorizontal: 20 },
-  tabs: { 
-    flexDirection: 'row', 
-    backgroundColor: '#f8fafc', 
-    borderRadius: 18, 
-    padding: 6, 
-    marginBottom: 28,
+  container: { flex: 1, backgroundColor: '#f8fafc' },
+
+  // Header
+  header: {
+    paddingHorizontal: PAD,
+    paddingBottom: 28,
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 24,
+    gap: 12,
+  },
+  headerEyebrow: {
+    fontSize: isSmall ? 9 : 10,
+    fontFamily: typography.bold,
+    color: '#a7f3d0',
+    letterSpacing: 2,
+    marginBottom: 4,
+  },
+  headerCount: {
+    fontSize: isSmall ? 20 : 24,
+    fontFamily: typography.bold,
+    color: '#ffffff',
+    letterSpacing: -0.5,
+  },
+  livePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+  },
+  liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#34d399' },
+  liveText: { fontSize: isSmall ? 10 : 11, fontFamily: typography.bold, color: '#ffffff' },
+
+  // Tabs
+  tabRow: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 14,
+    padding: 4,
+    gap: 4,
+  },
+  tab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    height: isSmall ? 40 : 44,
+    borderRadius: 10,
+  },
+  tabActive: { backgroundColor: '#ffffff' },
+  tabLabel: {
+    fontSize: isSmall ? 11 : 12,
+    fontFamily: typography.bold,
+    color: 'rgba(255,255,255,0.45)',
+  },
+  tabLabelActive: { color: '#0f172a' },
+  tabBadge: {
+    backgroundColor: '#059669',
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  tabBadgeText: { color: '#fff', fontSize: 9, fontFamily: typography.bold },
+
+  // Scroll
+  scroll: { flex: 1 },
+  listContent: {
+    paddingHorizontal: PAD,
+    paddingTop: 20,
+    paddingBottom: 120,
+  },
+
+  // Card
+  card: {
+    backgroundColor: '#ffffff',
+    borderRadius: CARD_RADIUS,
+    marginBottom: 16,
     borderWidth: 1,
     borderColor: '#f1f5f9',
-  },
-  tab: { 
-    flex: 1, 
-    paddingVertical: 12, 
-    borderRadius: 14, 
-    alignItems: 'center' 
-  },
-  tabActive: { 
-    backgroundColor: '#ffffff', 
-    shadowColor: '#000',
+    overflow: 'hidden',
+    shadowColor: '#0f172a',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 3 
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    elevation: 2,
   },
-  tabText: { fontSize: 14, fontFamily: typography.semiBold, color: '#64748b' },
-  tabTextActive: { color: '#10b981', fontFamily: typography.bold },
-  orderCard: { 
-    backgroundColor: '#ffffff', 
-    borderRadius: 28, 
-    padding: 20, 
-    borderWidth: 1.5, 
-    borderColor: '#f8fafc', 
+  cardHistory: {
+    // Slightly muted background for completed/cancelled
+    backgroundColor: '#fafafa',
+  },
+
+  // Card top row
+  cardTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: PAD,
+    paddingBottom: 14,
+  },
+  serviceIcon: {
+    width: isSmall ? 40 : 44,
+    height: isSmall ? 40 : 44,
+    borderRadius: 14,
+    backgroundColor: '#ecfdf5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  serviceIconHistory: { backgroundColor: '#f1f5f9' },
+  cardTopMid: { flex: 1, minWidth: 0 },
+  serviceName: {
+    fontSize: isSmall ? 14 : 15,
+    fontFamily: typography.bold,
+    color: '#0f172a',
+    letterSpacing: -0.3,
+  },
+  orderId: {
+    fontSize: 10,
+    fontFamily: typography.bold,
+    color: '#94a3b8',
+    marginTop: 2,
+    letterSpacing: 0.3,
+  },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 10,
+    flexShrink: 0,
+  },
+  statusLabel: { fontSize: isSmall ? 9 : 10, fontFamily: typography.bold },
+
+  // Divider
+  divider: { height: 1, backgroundColor: '#f8fafc', marginHorizontal: PAD },
+
+  // Card body
+  cardBody: { padding: PAD, paddingVertical: 14, gap: 0 },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  metaChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#f8fafc',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  metaChipText: {
+    fontSize: isSmall ? 11 : 12,
+    fontFamily: typography.medium,
+    color: '#64748b',
+  },
+  addressText: {
+    flex: 1,
+    fontSize: isSmall ? 12 : 13,
+    fontFamily: typography.medium,
+    color: '#64748b',
+  },
+  riderText: {
+    flex: 1,
+    fontSize: isSmall ? 12 : 13,
+    fontFamily: typography.medium,
+    color: '#475569',
+  },
+
+  // Card footer
+  cardFooter: {
+    paddingHorizontal: PAD,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#f8fafc',
+  },
+  trackBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  trackBtnText: {
+    fontSize: isSmall ? 12 : 13,
+    fontFamily: typography.bold,
+    color: '#10b981',
+    flex: 1,
+  },
+  completedTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  completedTagText: {
+    fontSize: isSmall ? 11 : 12,
+    fontFamily: typography.medium,
+    color: '#10b981',
+  },
+  cancelledTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  cancelledTagText: {
+    fontSize: isSmall ? 11 : 12,
+    fontFamily: typography.medium,
+    color: '#ef4444',
+  },
+
+  // Empty state
+  empty: {
+    alignItems: 'center',
+    paddingVertical: 72,
+    paddingHorizontal: PAD,
+  },
+  emptyIconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#f1f5f9',
+    alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.03,
-    shadowRadius: 15,
-    elevation: 4
   },
-  orderHeader: { marginBottom: 18 },
-  orderIdRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 },
-  orderId: { fontSize: 17, fontFamily: typography.bold, color: '#0f172a', letterSpacing: -0.5 },
-  statusBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10 },
-  statusText: { fontSize: 10, fontFamily: typography.bold, letterSpacing: 0.5 },
-  orderService: { fontSize: 15, fontFamily: typography.bold, color: '#475569' },
-  orderDetails: { 
-    gap: 12, 
-    marginBottom: 24, 
-    paddingVertical: 18, 
-    borderTopWidth: 1, 
-    borderBottomWidth: 1, 
-    borderColor: '#f8fafc' 
+  emptyTitle: {
+    fontSize: isSmall ? 16 : 18,
+    fontFamily: typography.bold,
+    color: '#0f172a',
+    marginBottom: 8,
   },
-  orderDetailRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  orderDetailText: { fontSize: 14, fontFamily: typography.medium, color: '#64748b', flex: 1 },
-  cardActions: { flexDirection: 'row', gap: 12 },
-  trackBtn: { 
-    flex: 1, 
-    backgroundColor: '#10b981', 
-    paddingVertical: 15, 
-    borderRadius: 16, 
-    alignItems: 'center',
-    shadowColor: '#10b981',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
+  emptySub: {
+    fontSize: isSmall ? 13 : 14,
+    fontFamily: typography.medium,
+    color: '#94a3b8',
+    textAlign: 'center',
+    lineHeight: 22,
   },
-  trackBtnText: { fontSize: 14, fontFamily: typography.bold, color: '#ffffff' },
-  modifyBtn: { 
-    flex: 1, 
-    backgroundColor: '#f1f5f9', 
-    paddingVertical: 15, 
-    borderRadius: 16, 
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
+  bookBtn: {
+    marginTop: 28,
+    backgroundColor: '#0f172a',
+    paddingHorizontal: 28,
+    paddingVertical: 14,
+    borderRadius: 14,
   },
-  modifyBtnText: { fontSize: 14, fontFamily: typography.bold, color: '#475569' },
-  cancelBtn: { 
-    width: 60, 
-    backgroundColor: '#fef2f2', 
-    paddingVertical: 15, 
-    borderRadius: 16, 
-    alignItems: 'center', 
-    borderWidth: 1, 
-    borderColor: '#fee2e2' 
+  bookBtnText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontFamily: typography.bold,
+    letterSpacing: 0.5,
   },
-  cancelBtnText: { fontSize: 14, fontFamily: typography.bold, color: '#dc2626' },
-  reorderBtn: { 
-    flex: 1, 
-    backgroundColor: '#0f172a', 
-    paddingVertical: 15, 
-    borderRadius: 16, 
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-  },
-  reorderBtnText: { fontSize: 14, fontFamily: typography.bold, color: '#ffffff' },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(15, 23, 42, 0.6)', justifyContent: 'center', alignItems: 'center', padding: 20 },
-  modalContent: { backgroundColor: '#ffffff', borderRadius: 32, padding: 32, width: '100%', alignItems: 'center' },
-  modalOverlayBottom: { flex: 1, backgroundColor: 'rgba(15, 23, 42, 0.4)', justifyContent: 'flex-end' },
-  modalContentBottom: { backgroundColor: '#fff', borderTopLeftRadius: 32, borderTopRightRadius: 32, padding: 24, paddingBottom: 40 },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
-  modalTitle: { fontSize: 20, fontFamily: typography.bold, color: '#0f172a' },
-  modalSubtitle: { fontSize: 14, fontFamily: typography.medium, color: '#64748b', textAlign: 'center', marginBottom: 24 },
-  form: { gap: 12 },
-  formLabel: { fontSize: 13, fontFamily: typography.bold, color: '#64748b' },
-  formInput: { backgroundColor: '#f8fafc', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#f1f5f9', minHeight: 80, textAlignVertical: 'top' },
-  modalPrimaryBtn: { width: '100%', backgroundColor: '#10b981', paddingVertical: 16, borderRadius: 16, alignItems: 'center' },
-  modalPrimaryBtnText: { fontSize: 15, fontFamily: typography.bold, color: '#ffffff' },
-  cancelIconBox: { width: 64, height: 64, borderRadius: 32, backgroundColor: '#fef2f2', alignItems: 'center', justifyContent: 'center', marginBottom: 20 },
-  modalDangerBtn: { width: '100%', backgroundColor: '#ef4444', paddingVertical: 16, borderRadius: 16, alignItems: 'center', marginBottom: 8 },
-  modalDangerBtnText: { fontSize: 16, fontFamily: typography.bold, color: '#fff' },
-  modalSecondaryBtn: { width: '100%', paddingVertical: 12, alignItems: 'center' },
-  modalSecondaryBtnText: { fontSize: 15, fontFamily: typography.semiBold, color: '#64748b' },
 });
 
 export default OrdersPage;

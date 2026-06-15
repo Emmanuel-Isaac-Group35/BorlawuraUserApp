@@ -55,28 +55,35 @@ export const LocationSelector: React.FC<LocationSelectorProps> = ({ value, onCha
         return;
       }
       
+      // Try to get current position with high accuracy
+      // If it takes too long or fails, we'll catch it
       const location = await Location.getCurrentPositionAsync({ 
-        accuracy: Location.Accuracy.Highest 
+        accuracy: Location.Accuracy.Balanced, // Balanced is faster and more reliable indoors
       });
-      const { latitude, longitude } = location.coords;
       
+      const { latitude, longitude } = location.coords;
       setCoords({ latitude, longitude });
       
-      // Try Google Maps first, then fallback to Expo
-      let formatted = await reverseGeocode(latitude, longitude);
-      
-      if (formatted.startsWith('GPS:')) {
-        const addresses = await Location.reverseGeocodeAsync({ latitude, longitude });
-        const addr = addresses[0];
-        formatted = addr 
-          ? `${addr.streetNumber || ''} ${addr.street || ''}, ${addr.district || addr.city || ''}`.trim() 
-          : formatted;
-      }
-      
+      // Get human-readable address
+      const formatted = await reverseGeocode(latitude, longitude);
       selectAddress(formatted, latitude, longitude);
+      
     } catch (e) {
-      console.error(e);
-      Alert.alert("GPS Error", "Unable to get high-accuracy location. Please check your GPS settings.");
+      console.error("GPS Detection Error:", e);
+      // Fallback to last known position if current fails
+      try {
+        const lastKnown = await Location.getLastKnownPositionAsync();
+        if (lastKnown) {
+          const { latitude, longitude } = lastKnown.coords;
+          setCoords({ latitude, longitude });
+          const formatted = await reverseGeocode(latitude, longitude);
+          selectAddress(formatted, latitude, longitude);
+        } else {
+           Alert.alert("GPS Error", "Unable to detect your location. Please try typing your address or check your GPS settings.");
+        }
+      } catch (fallbackError) {
+        Alert.alert("GPS Error", "Unable to detect your location. Please check your device settings.");
+      }
     } finally {
       setIsDetecting(false);
     }
@@ -109,48 +116,60 @@ export const LocationSelector: React.FC<LocationSelectorProps> = ({ value, onCha
     onChange(addrText, { latitude: lat, longitude: lng });
   };
 
-  const [isMapExpanded, setIsMapExpanded] = useState(false);
+  const [mapCenter, setMapCenter] = useState({ latitude: coords.latitude, longitude: coords.longitude });
+  const [isReverseGeocoding, setIsReverseGeocoding] = useState(false);
+
+  const handleRegionChange = (region: any) => {
+    setMapCenter({ latitude: region.latitude, longitude: region.longitude });
+  };
+
+  const confirmPinLocation = async () => {
+    setIsReverseGeocoding(true);
+    try {
+      const address = await reverseGeocode(mapCenter.latitude, mapCenter.longitude);
+      selectAddress(address, mapCenter.latitude, mapCenter.longitude);
+    } catch (e) {
+      Alert.alert("Error", "Could not determine address for this location.");
+    } finally {
+      setIsReverseGeocoding(false);
+    }
+  };
 
   return (
     <View style={styles.container}>
-      <View style={[styles.mapWrap, isMapExpanded && styles.mapWrapExpanded]}>
+      <View style={styles.mapWrap}>
          <NavigatrMap 
-           height={isMapExpanded ? 380 : 200}
+           height={280}
            centerLat={coords.latitude} 
            centerLng={coords.longitude}
-           zoom={isMapExpanded ? 16 : 14}
-           interactive={isMapExpanded}
+           zoom={16}
+           interactive={true}
+           fitToMarkers={false}
+           showCenterPin={true}
+           showRadar={false}
+           onRegionChangeComplete={handleRegionChange}
            style={styles.map}
            markers={[
-             { lat: coords.latitude, lng: coords.longitude, type: 'user' },
              ...onlineRiders.map((r, i) => ({ 
+               id: `rider-${r.id}`,
                lat: r.latitude ? parseFloat(r.latitude) : coords.latitude + (Math.random() - 0.5) * 0.05, 
                lng: r.longitude ? parseFloat(r.longitude) : coords.longitude + (Math.random() - 0.5) * 0.05, 
                type: 'rider' as const 
              }))
            ]}
          />
-         
-         <View style={styles.mapControls}>
-            <TouchableOpacity onPress={() => setIsMapExpanded(!isMapExpanded)} style={styles.mapActionBtn}>
-                <RemixIcon name={isMapExpanded ? "ri-collapse-diagonal-line" : "ri-expand-diagonal-line"} size={20} color="#1e293b" />
-            </TouchableOpacity>
-            <TouchableOpacity onPress={handleDetectLocation} style={styles.mapActionBtn}>
-                {isDetecting ? <ActivityIndicator size="small" color="#10b981" /> : <RemixIcon name="ri-focus-3-fill" size={20} color="#10b981" />}
-            </TouchableOpacity>
-         </View>
-         
-         {!isMapExpanded && (
-            <View style={styles.interactiveHint}>
-                <Text style={styles.interactiveHintText}>Expand to zoom & pan</Text>
-            </View>
-         )}
+
+
+
+         <TouchableOpacity onPress={handleDetectLocation} style={styles.recenterBtn}>
+            <RemixIcon name="ri-focus-3-fill" size={20} color="#0f172a" />
+         </TouchableOpacity>
       </View>
 
       <View style={styles.selectionPanel}>
          <Text style={styles.panelTitle}>Select Pickup Address</Text>
          
-         <ScrollView style={styles.addressList} showsVerticalScrollIndicator={false}>
+         <ScrollView style={styles.addressList} showsVerticalScrollIndicator={false} nestedScrollEnabled={true}>
             <View style={styles.manualInput}>
                <View style={styles.inputWrapper}>
                   <TextInput 
@@ -222,13 +241,68 @@ export const LocationSelector: React.FC<LocationSelectorProps> = ({ value, onCha
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  mapWrap: { borderRadius: 20, overflow: 'hidden', backgroundColor: '#f1f5f9', position: 'relative', marginBottom: 20 },
-  mapWrapExpanded: { },
-  map: { },
-  mapControls: { position: 'absolute', bottom: 12, right: 12, gap: 8 },
-  mapActionBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', elevation: 3 },
-  interactiveHint: { position: 'absolute', top: 12, left: 12, backgroundColor: 'rgba(255,255,255,0.9)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 },
-  interactiveHintText: { fontSize: 12, fontFamily: typography.medium, color: '#475569' },
+  mapWrap: { borderRadius: 24, overflow: 'hidden', backgroundColor: '#f1f5f9', position: 'relative', marginBottom: 20, height: 280 },
+  map: { flex: 1 },
+  centerPinContainer: {
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    marginLeft: -16,
+    marginTop: -32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
+  },
+  pinIconWrapper: {
+    transform: [{ translateY: -4 }],
+  },
+  pinShadow: {
+    width: 6,
+    height: 3,
+    backgroundColor: 'rgba(0,0,0,0.2)',
+    borderRadius: 3,
+    position: 'absolute',
+    bottom: -2,
+  },
+  confirmPinBtn: {
+    position: 'absolute',
+    bottom: 16,
+    left: 16,
+    right: 16,
+    backgroundColor: '#0f172a',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 14,
+    gap: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  confirmPinText: {
+    fontSize: 14,
+    fontFamily: typography.bold,
+    color: '#fff',
+  },
+  recenterBtn: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    width: 44,
+    height: 44,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
   selectionPanel: { gap: 12 },
   panelTitle: { fontSize: 14, fontFamily: typography.bold, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5 },
   addressList: { maxHeight: 300 },

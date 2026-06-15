@@ -13,14 +13,15 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import * as Notifications from 'expo-notifications';
 import * as Location from 'expo-location';
 import Constants from 'expo-constants';
 import { useAuth } from '../../context/AuthContext';
+import { RemixIcon } from '../../utils/icons';
 
 import { typography } from '../../utils/typography';
+import { reverseGeocode } from '../../utils/maps';
 
 const COMMON_AREAS = [
   "East Legon", "Adabraka", "Spintex Road", "Osu", "Cantonments", 
@@ -55,18 +56,8 @@ const SignupPage = () => {
       }
 
       const location = await Location.getCurrentPositionAsync({});
-      const reverseGeocode = await Location.reverseGeocodeAsync({
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
-      });
-
-      if (reverseGeocode.length > 0) {
-        const place = reverseGeocode[0];
-        const areaName = place.district || place.street || place.city || place.subregion || '';
-        const cityName = place.city || place.subregion || '';
-        const fullLoc = areaName && cityName ? `${areaName}, ${cityName}` : areaName || cityName || 'Unknown Location';
-        setAddress(fullLoc);
-      }
+      const addr = await reverseGeocode(location.coords.latitude, location.coords.longitude);
+      setAddress(addr);
     } catch (error) {
       console.error(error);
       Alert.alert('Error', 'Could not detect your location automatically.');
@@ -126,7 +117,8 @@ const SignupPage = () => {
     const otpCode = Math.floor(1000 + Math.random() * 9000).toString();
     
     try {
-      const response = await fetch('https://sms.arkesel.com/api/v2/sms/send', {
+      // 1. Dispatch SMS via Arkesel Infrastructure
+      await fetch('https://sms.arkesel.com/api/v2/sms/send', {
         method: 'POST',
         headers: {
           'api-key': 'UEJrVktDRnBqeWZpdmxXSG1WbHk',
@@ -139,34 +131,29 @@ const SignupPage = () => {
         })
       });
       
-      const result = await response.json();
+      setIsLoading(false);
       
-      // 4. In-App Immediate Alert (Fastest Fallback)
+      // 2. Automated Transition to Identity Verification
+      navigation.navigate('OTP', { 
+          phoneNumber: fullNumberWithPlus, 
+          generatedOtp: otpCode, 
+          name: name, 
+          email: mail, 
+          location: loc,
+          password: pass, 
+          isSignup: true 
+      });
+
+      // 3. Fallback Alert for slow SMS networks
       Alert.alert(
-        "Verification Code",
-        `Your secret code is: ${otpCode}. (A copy has also been sent via SMS/Notification)`,
-        [
-          { 
-            text: "Got it!", 
-            onPress: () => {
-              setIsLoading(false);
-              navigation.navigate('OTP', { 
-                  phoneNumber: fullNumberWithPlus, 
-                  generatedOtp: otpCode, 
-                  name: name, 
-                  email: mail, 
-                  location: loc,
-                  password: pass, 
-                  isSignup: true 
-              });
-            }
-          }
-        ]
+        "Security Dispatch",
+        `Verification code issued to ${fullNumberWithPlus}. If SMS is delayed, use: ${otpCode}`,
+        [{ text: "Continue" }]
       );
+
     } catch (error) {
       setIsLoading(false);
-      // Even if SMS fails, the In-App Alert above will still show the code
-      Alert.alert('Notice', 'SMS delivery might be delayed, please use this code: ' + otpCode);
+      Alert.alert('Network Notice', 'SMS gateway is under heavy load. Please use this temporary code: ' + otpCode);
       navigation.navigate('OTP', { 
           phoneNumber: fullNumberWithPlus, 
           generatedOtp: otpCode, 
@@ -207,7 +194,7 @@ const SignupPage = () => {
               <View style={styles.fieldContainer}>
                 <Text style={styles.fieldLabel}>Full Name</Text>
                 <View style={[styles.inputWrapper, styles.row]}>
-                  <Ionicons name="person-outline" size={20} color="#64748b" style={styles.fieldIcon} />
+                  <RemixIcon name="ri-user-line" size={20} color="#64748b" style={styles.fieldIcon} />
                   <TextInput
                     style={styles.input}
                     placeholder="Enter full name"
@@ -221,7 +208,7 @@ const SignupPage = () => {
               <View style={styles.fieldContainer}>
                 <Text style={styles.fieldLabel}>Email Address</Text>
                 <View style={[styles.inputWrapper, styles.row]}>
-                  <Ionicons name="mail-outline" size={20} color="#64748b" style={styles.fieldIcon} />
+                  <RemixIcon name="ri-mail-line" size={20} color="#64748b" style={styles.fieldIcon} />
                   <TextInput
                     style={styles.input}
                     placeholder="name@example.com"
@@ -255,7 +242,7 @@ const SignupPage = () => {
               <View style={styles.fieldContainer}>
                 <Text style={styles.fieldLabel}>Create Password</Text>
                 <View style={styles.passwordWrapper}>
-                  <Ionicons name="lock-closed-outline" size={20} color="#64748b" style={styles.fieldIcon} />
+                  <RemixIcon name="ri-lock-line" size={20} color="#64748b" style={styles.fieldIcon} />
                   <TextInput
                     style={styles.passwordInput}
                     placeholder="••••••••"
@@ -265,7 +252,7 @@ const SignupPage = () => {
                     placeholderTextColor="#94a3b8"
                   />
                   <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeBtn}>
-                    <Ionicons name={showPassword ? "eye-off" : "eye"} size={20} color="#64748b" />
+                    <RemixIcon name={showPassword ? "ri-eye-off-line" : "ri-eye-line"} size={20} color="#64748b" />
                   </TouchableOpacity>
                 </View>
               </View>
@@ -273,7 +260,7 @@ const SignupPage = () => {
               <View style={styles.fieldContainer}>
                 <Text style={styles.fieldLabel}>Confirm Password</Text>
                 <View style={styles.passwordWrapper}>
-                  <Ionicons name="checkmark-circle-outline" size={20} color="#64748b" style={styles.fieldIcon} />
+                  <RemixIcon name="ri-checkbox-circle-line" size={20} color="#64748b" style={styles.fieldIcon} />
                   <TextInput
                     style={styles.passwordInput}
                     placeholder="••••••••"
@@ -283,7 +270,7 @@ const SignupPage = () => {
                     placeholderTextColor="#94a3b8"
                   />
                   <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)} style={styles.eyeBtn}>
-                    <Ionicons name={showConfirmPassword ? "eye-off" : "eye"} size={20} color="#64748b" />
+                    <RemixIcon name={showConfirmPassword ? "ri-eye-off-line" : "ri-eye-line"} size={20} color="#64748b" />
                   </TouchableOpacity>
                 </View>
               </View>
@@ -291,7 +278,7 @@ const SignupPage = () => {
               <View style={styles.fieldContainer}>
                 <Text style={styles.fieldLabel}>Residential Address</Text>
                 <View style={styles.addressWrapper}>
-                  <Ionicons name="map-outline" size={20} color="#64748b" style={styles.fieldIcon} />
+                  <RemixIcon name="ri-map-pin-line" size={20} color="#64748b" style={styles.fieldIcon} />
                   <TextInput
                     style={styles.addressInput}
                     placeholder="e.g. 12th Street, East Legon"
@@ -303,7 +290,7 @@ const SignupPage = () => {
                     {isDetectingLocation ? (
                        <ActivityIndicator size="small" color="#10b981" />
                     ) : (
-                       <MaterialIcons name="my-location" size={20} color="#10b981" />
+                       <RemixIcon name="ri-focus-3-line" size={20} color="#10b981" />
                     )}
                   </TouchableOpacity>
                 </View>
@@ -316,7 +303,7 @@ const SignupPage = () => {
                         style={styles.suggestionItem}
                         onPress={() => selectSuggestion(item)}
                       >
-                        <MaterialIcons name="place" size={16} color="#64748b" />
+                        <RemixIcon name="ri-map-pin-fill" size={16} color="#64748b" />
                         <Text style={styles.suggestionText}>{item}</Text>
                       </TouchableOpacity>
                     ))}
@@ -340,6 +327,21 @@ const SignupPage = () => {
             <TouchableOpacity style={styles.loginLink} onPress={() => navigation.navigate('Auth')}>
               <Text style={styles.loginText}>Already a member? <Text style={styles.loginHighlight}>Login</Text></Text>
             </TouchableOpacity>
+
+            <View style={styles.dividerBox}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerLabel}>OR CONTINUE WITH</Text>
+              <View style={styles.dividerLine} />
+            </View>
+
+            <TouchableOpacity style={styles.socialBtn} onPress={() => signInWithGoogle()}>
+               <Image source={{ uri: 'https://cdn-icons-png.flaticon.com/512/2991/2991148.png' }} style={styles.socialIcon} />
+               <Text style={styles.socialBtnText}>Continue with Google</Text>
+            </TouchableOpacity>
+
+            <Text style={styles.legalText}>
+              By joining, you agree to our <Text style={styles.legalHighlight}>Terms</Text> and <Text style={styles.legalHighlight}>Privacy Policy</Text>.
+            </Text>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>

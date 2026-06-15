@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity, Image, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, Modal, TouchableOpacity, Image, Dimensions } from 'react-native';
 import { RemixIcon } from '../../utils/icons';
 import { typography } from '../../utils/typography';
 import { useSettings } from '../../context/SettingsContext';
 
 export const PopUpAnnouncement: React.FC = () => {
-  const { width } = useWindowDimensions();
+  const { width } = Dimensions.get('window');
   const { settings } = useSettings();
   const [visible, setVisible] = useState(false);
 

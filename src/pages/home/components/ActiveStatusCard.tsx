@@ -103,14 +103,19 @@ export const ActiveStatusCard: React.FC = React.memo(() => {
       >
         <View style={styles.statusHeader}>
           <View style={styles.badgeRow}>
-            <View style={[styles.liveBadge, { backgroundColor: isLive ? 'rgba(255,255,255,0.2)' : '#f8fafc' }]}>
+            <View style={[styles.liveBadge, { backgroundColor: isLive ? 'rgba(255,255,255,0.2)' : '#f8fafc' }]}> 
               <View style={[styles.dot, { backgroundColor: isLive ? '#ffffff' : '#10b981' }]} />
-              <Text style={[styles.badgeText, { color: isLive ? '#ffffff' : '#64748b' }]}>
-                {isLive ? 'LIVE TRACKING' : 'ORDER PENDING'}
+              <Text style={[styles.badgeText, { color: isLive ? '#ffffff' : '#64748b' }]}> 
+                {isLive ? 'TRACKING RIDER' : 'ORDER PENDING'}
               </Text>
             </View>
           </View>
-          <RemixIcon name="ri-arrow-right-up-line" size={18} color={isLive ? '#fff' : '#64748b'} />
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <TouchableOpacity onPress={() => navigateTo('/profile/notifications')} style={{ marginRight: 2 }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <RemixIcon name="ri-notification-3-fill" size={22} color={isLive ? '#fff' : '#10b981'} />
+            </TouchableOpacity>
+            <RemixIcon name="ri-arrow-right-up-line" size={18} color={isLive ? '#fff' : '#64748b'} />
+          </View>
         </View>
 
         <Text style={[styles.mainMsg, { color: isLive ? '#fff' : '#0f172a' }]}>

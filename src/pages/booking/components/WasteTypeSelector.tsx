@@ -133,7 +133,7 @@ const styles = StyleSheet.create({
   container: { gap: 20 },
   section: { gap: 12 },
   sectionLabel: { fontSize: 10, fontFamily: typography.bold, color: '#94a3b8', letterSpacing: 1 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 12 },
   typeCard: {
     width: '48%',
     padding: 16,
@@ -149,10 +149,9 @@ const styles = StyleSheet.create({
   typeImage: { width: '100%', height: '100%', opacity: 0.8 },
   typeTitle: { fontSize: 13, fontFamily: typography.bold, color: '#1e293b' },
   checkBadge: { position: 'absolute', top: 8, right: 8, width: 18, height: 18, borderRadius: 9, backgroundColor: '#10b981', alignItems: 'center', justifyContent: 'center' },
-  sizeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  sizeGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 12 },
   sizeCard: {
-    flex: 1,
-    minWidth: '45%',
+    width: '48%',
     padding: 16,
     borderRadius: 18,
     backgroundColor: '#fff',

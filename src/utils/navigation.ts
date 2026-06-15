@@ -2,19 +2,22 @@ import { createNavigationContainerRef } from '@react-navigation/native';
 
 export const navigationRef = createNavigationContainerRef<any>();
 
-export const navigate = (name: string, params?: any) => {
+export const navigate = (name: any, params?: any) => {
   if (navigationRef.isReady()) {
-    navigationRef.navigate(name as never, params as never);
+    (navigationRef as any).navigate(name, params);
   }
 };
 
 // Map web routes to React Navigation routes
 export const routeMap: { [key: string]: string } = {
   '/': 'Home',
+  '/home': 'Home',
+  '/home/': 'Home',
   '/booking': 'Booking',
   '/orders': 'Orders',
   '/services': 'Services',
   '/profile': 'Profile',
+  '/profile/about': 'About',
   '/support': 'Support',
   '/support-chat': 'SupportChat',
   '/live-support': 'SupportChat',
@@ -26,6 +29,10 @@ export const routeMap: { [key: string]: string } = {
   '/profile/about': 'About',
   '/chatbot': 'Chatbot',
   '/chat-rider': 'ChatRider',
+  '/rider-chat': 'ChatRider',
+  '/notifications': 'Notifications',
+  '/notifications-history': 'Notifications',
+  '/settings': 'Settings',
 };
 
 export const navigateTo = (path: string, params?: any) => {

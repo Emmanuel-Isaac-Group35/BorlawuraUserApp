@@ -8,23 +8,25 @@ const executionEnv = (Constants as any).executionEnvironment || '';
 const isExpoGo = executionEnv === 'storeClient';
 
 // ── Only set the handler if the notifications module is functional ──────────
+// Foreground behavior: show alerts even if app is open
 try {
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: false,
       shouldShowBanner: true,
       shouldShowList: true,
-      shouldPlaySound: true,
-      shouldSetBadge: true,
     }),
   });
 } catch (e) {
-  console.log('[Notifications] Handler setup skipped (Expo Go limitation):', e);
+  console.log('[Notifications] Handler setup skipped:', e);
 }
 
 export async function registerForPushNotificationsAsync(): Promise<string | null> {
   // Expo Go on Android SDK 53+ does not support remote push notifications
   if (isExpoGo && Platform.OS === 'android') {
-    console.warn('[Notifications] Remote push notifications are not supported in Expo Go on Android SDK 53+. Use a development build.');
+    console.log('[Notifications] Remote push tokens skipped in Expo Go (Android SDK 53+).');
     return null;
   }
 
@@ -37,7 +39,7 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
         lightColor: '#10b981',
       });
     } catch (e) {
-      console.log('[Notifications] Error setting notification channel:', e);
+      console.log('[Notifications] Error setting channel:', e);
     }
   }
 
@@ -53,24 +55,18 @@ export async function registerForPushNotificationsAsync(): Promise<string | null
       const { status } = await Notifications.requestPermissionsAsync();
       finalStatus = status;
     }
-    if (finalStatus !== 'granted') {
-      console.log('[Notifications] Permission not granted.');
-      return null;
-    }
+    if (finalStatus !== 'granted') return null;
 
     const projectId =
       Constants?.expoConfig?.extra?.eas?.projectId ||
       (Constants as any)?.easConfig?.projectId;
 
-    if (!projectId) {
-      console.warn('[Notifications] No EAS projectId found — push token skipped.');
-      return null;
-    }
+    if (!projectId) return null;
 
     const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
     return tokenData.data;
   } catch (e) {
-    console.log('[Notifications] Error getting push token (expected in Expo Go for Android):', e);
+    console.log('[Notifications] Error getting push token:', e);
     return null;
   }
 }
@@ -80,12 +76,8 @@ export async function sendLocalNotification(
   body: string,
   data: Record<string, any> = {}
 ): Promise<void> {
-  // Guard: local notifications also have limited support in Expo Go
-  if (isExpoGo) {
-    console.log(`[Notifications] Local notification suppressed in Expo Go: "${title}" — ${body}`);
-    return;
-  }
-
+  // Local notifications ARE supported in Expo Go, though some features vary.
+  // We allow them here so developers can test the "Rider Arrived" flows.
   try {
     await Notifications.scheduleNotificationAsync({
       content: {
@@ -99,5 +91,9 @@ export async function sendLocalNotification(
     });
   } catch (e) {
     console.log('[Notifications] Local notification failed:', e);
+    // Fallback for extreme cases (if library is completely unusable in Go)
+    if (isExpoGo) {
+       console.log(`[ALERT FALLBACK] ${title}: ${body}`);
+    }
   }
 }

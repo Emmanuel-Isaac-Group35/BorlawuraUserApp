@@ -20,6 +20,8 @@ const iconMap: { [key: string]: { lib: 'Ionicons' | 'MCI', name: any } } = {
   'ri-arrow-left-s-line': { lib: 'Ionicons', name: 'chevron-back-outline' },
   'ri-arrow-right-s-line': { lib: 'Ionicons', name: 'chevron-forward-outline' },
   'ri-arrow-right-up-line': { lib: 'Ionicons', name: 'arrow-redo-outline' },
+  'ri-edit-2-fill': { lib: 'Ionicons', name: 'create' },
+  'ri-camera-fill': { lib: 'Ionicons', name: 'camera' },
   
   // Actions & Feedback
   'ri-check-line': { lib: 'Ionicons', name: 'checkmark-outline' },
@@ -44,6 +46,7 @@ const iconMap: { [key: string]: { lib: 'Ionicons' | 'MCI', name: any } } = {
   'ri-truck-line': { lib: 'Ionicons', name: 'car-outline' },
   'ri-time-line': { lib: 'Ionicons', name: 'time-outline' },
   'ri-history-line': { lib: 'Ionicons', name: 'time-outline' },
+  'ri-history-fill': { lib: 'Ionicons', name: 'time' },
   'ri-calendar-line': { lib: 'Ionicons', name: 'calendar-outline' },
   'ri-calendar-check-line': { lib: 'Ionicons', name: 'calendar-outline' },
   'ri-map-pin-line': { lib: 'Ionicons', name: 'location-outline' },
@@ -110,6 +113,70 @@ const iconMap: { [key: string]: { lib: 'Ionicons' | 'MCI', name: any } } = {
   'ri-collapse-diagonal-line':{ lib: 'Ionicons', name: 'contract-outline' },
   'ri-expand-diagonal-line':  { lib: 'Ionicons', name: 'expand-outline' },
   'ri-shopping-bag-line':     { lib: 'Ionicons', name: 'bag-outline' },
+  'ri-settings-4-fill':       { lib: 'Ionicons', name: 'settings' },
+  'ri-logout-box-r-line':     { lib: 'Ionicons', name: 'log-out-outline' },
+
+  // ── Notifications ──────────────────────────────────────────────────────────
+  'ri-notification-3-fill':   { lib: 'Ionicons', name: 'notifications' },
+  'ri-notification-off-line': { lib: 'Ionicons', name: 'notifications-off-outline' },
+
+  // ── Status / feedback ──────────────────────────────────────────────────────
+  'ri-close-circle-fill':     { lib: 'Ionicons', name: 'close-circle' },
+  'ri-time-fill':             { lib: 'Ionicons', name: 'time' },
+  'ri-loader-4-line':         { lib: 'Ionicons', name: 'sync-outline' },
+  'ri-check-double-line':     { lib: 'Ionicons', name: 'checkmark-done-outline' },
+  'ri-shield-check-fill':     { lib: 'Ionicons', name: 'shield-checkmark' },
+  'ri-shield-check-line':     { lib: 'Ionicons', name: 'shield-checkmark-outline' },
+  'ri-subtract-line':         { lib: 'Ionicons', name: 'remove-outline' },
+
+  // ── Waste / recycling ──────────────────────────────────────────────────────
+  'ri-delete-bin-6-fill':     { lib: 'Ionicons', name: 'trash' },
+  'ri-delete-bin-6-line':     { lib: 'Ionicons', name: 'trash-outline' },
+  'ri-delete-bin-5-line':     { lib: 'Ionicons', name: 'trash-outline' },
+  'ri-recycle-fill':          { lib: 'Ionicons', name: 'sync' },
+
+  // ── Messaging / communication ──────────────────────────────────────────────
+  'ri-send-plane-fill':       { lib: 'Ionicons', name: 'send' },
+  'ri-send-plane-2-fill':     { lib: 'Ionicons', name: 'send' },
+  'ri-attachment-2':          { lib: 'Ionicons', name: 'attach-outline' },
+
+  // ── Map / location ─────────────────────────────────────────────────────────
+  'ri-map-pin-5-fill':        { lib: 'Ionicons', name: 'location' },
+  'ri-map-pin-user-fill':     { lib: 'Ionicons', name: 'person-circle' },
+  'ri-map-fill':              { lib: 'Ionicons', name: 'map' },
+  'ri-map-line':              { lib: 'Ionicons', name: 'map-outline' },
+
+  // ── Users ──────────────────────────────────────────────────────────────────
+  'ri-user-3-fill':           { lib: 'Ionicons', name: 'person' },
+  'ri-user-smile-fill':       { lib: 'Ionicons', name: 'happy' },
+  'ri-user-settings-fill':    { lib: 'Ionicons', name: 'person-circle' },
+
+  // ── Documents / orders ────────────────────────────────────────────────────
+  'ri-file-list-3-line':      { lib: 'Ionicons', name: 'document-text-outline' },
+  'ri-archive-line':          { lib: 'Ionicons', name: 'archive-outline' },
+  'ri-archive-fill':          { lib: 'Ionicons', name: 'archive' },
+
+  // ── Finance / rewards ─────────────────────────────────────────────────────
+  'ri-copper-coin-fill':      { lib: 'Ionicons', name: 'cash' },
+  'ri-award-fill':            { lib: 'Ionicons', name: 'trophy' },
+  'ri-wallet-3-line':         { lib: 'Ionicons', name: 'wallet-outline' },
+  'ri-medal-fill':            { lib: 'Ionicons', name: 'medal' },
+
+  // ── Transport ─────────────────────────────────────────────────────────────
+  'ri-moped-fill':            { lib: 'MCI',      name: 'moped' },
+  'ri-moped-line':            { lib: 'MCI',      name: 'moped' },
+  'ri-tricycle-fill':         { lib: 'MCI',      name: 'rickshaw' },
+  'ri-tricycle-line':         { lib: 'MCI',      name: 'rickshaw-electric' },
+  'ri-radar-fill':            { lib: 'Ionicons', name: 'radio' },
+
+  // ── System / settings ─────────────────────────────────────────────────────
+  'ri-tools-fill':            { lib: 'Ionicons', name: 'construct' },
+  'ri-database-2-fill':       { lib: 'Ionicons', name: 'server' },
+  'ri-translate':             { lib: 'Ionicons', name: 'language-outline' },
+  'ri-volume-up-fill':        { lib: 'Ionicons', name: 'volume-high' },
+  'ri-volume-up-line':        { lib: 'Ionicons', name: 'volume-high-outline' },
+  'ri-search-eye-line':       { lib: 'Ionicons', name: 'search-outline' },
+  'ri-calendar-event-line':   { lib: 'Ionicons', name: 'calendar-outline' },
 };
 
 export const RemixIcon: React.FC<IconProps> = ({ name, size = 24, color = '#000', style }) => {

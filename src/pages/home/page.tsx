@@ -1,27 +1,33 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { useWindowDimensions, View, StyleSheet, ScrollView, RefreshControl, Text, TouchableOpacity, Image } from 'react-native';
+import { Dimensions, View, StyleSheet, ScrollView, RefreshControl, Text, TouchableOpacity, Image } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Navigation } from '../../components/feature/Navigation';
 import { ChatFloatingButton } from '../../components/feature/ChatFloatingButton';
 import { NewsSlider } from './components/NewsSlider';
 import { PopUpAnnouncement } from '../../components/feature/PopUpAnnouncement';
-import { QuickActions } from './components/QuickActions';
 import { RecentOrders } from './components/RecentOrders';
 import { ActiveStatusCard } from './components/ActiveStatusCard';
 import { typography } from '../../utils/typography';
 import { useAuth } from '../../context/AuthContext';
+import { useSettings } from '../../context/SettingsContext';
 import { RemixIcon } from '../../utils/icons';
 import { navigateTo } from '../../utils/navigation';
 import { supabase } from '../../lib/supabase';
+import { resolveRealUserId } from '../../utils/user';
+
+import { LinearGradient } from 'expo-linear-gradient';
 
 export const HomePage: React.FC = () => {
   const insets = useSafeAreaInsets();
   const { user, refreshUser } = useAuth();
-  const { width: screenWidth } = useWindowDimensions();
+  const { width: screenWidth } = Dimensions.get('window');
+  const { settings } = useSettings();
   const [refreshing, setRefreshing] = useState(false);
+  const [recentLocations, setRecentLocations] = useState<{ address: string, lat: number, lng: number }[]>([]);
   const [stats, setStats] = useState({
     tricycles: 0,
     rewards: user?.reward_points || 0,
+    pickups: 0
   });
 
   const isSmallScreen = screenWidth < 380;
@@ -43,20 +49,73 @@ export const HomePage: React.FC = () => {
         .eq('id', realUserId)
         .single();
 
+      const { count: completedCount } = await supabase
+        .from('orders')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', realUserId)
+        .eq('status', 'completed');
+
       setStats(prev => ({
         ...prev,
         tricycles: tricycleCount || 0,
         rewards: userData?.reward_points || 0,
+        pickups: completedCount || 0
       }));
     } catch (e) {
       console.log('Stats fetch error:', e);
     }
   };
 
+  const fetchRecentLocations = async () => {
+    try {
+      const searchId = await resolveRealUserId(user);
+      if (!searchId) return;
+
+      const { data } = await supabase
+        .from('orders')
+        .select('address, pickup_latitude, pickup_longitude')
+        .eq('user_id', searchId)
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      const defaults = [
+        { address: 'Airport Residential Area, Accra, Ghana', lat: 5.6053, lng: -0.1818 },
+        { address: 'Legon Campus, University of Ghana, Accra', lat: 5.6508, lng: -0.1869 }
+      ];
+
+      if (data) {
+        const unique: { address: string, lat: number, lng: number }[] = [];
+        const seen = new Set();
+        data.forEach(item => {
+          if (item.address && item.pickup_latitude && item.pickup_longitude && !seen.has(item.address)) {
+            seen.add(item.address);
+            unique.push({
+              address: item.address,
+              lat: Number(item.pickup_latitude),
+              lng: Number(item.pickup_longitude)
+            });
+          }
+        });
+        if (unique.length > 0) {
+          setRecentLocations(unique.slice(0, 2));
+        } else {
+          setRecentLocations(defaults);
+        }
+      } else {
+        setRecentLocations(defaults);
+      }
+    } catch (e) {
+      console.log('Error fetching recent locations:', e);
+    }
+  };
+
   useEffect(() => {
     fetchLiveStats();
-    // Refresh periodically
-    const interval = setInterval(fetchLiveStats, 30000);
+    fetchRecentLocations();
+    const interval = setInterval(() => {
+      fetchLiveStats();
+      fetchRecentLocations();
+    }, 30000);
     return () => clearInterval(interval);
   }, [user?.id]);
 
@@ -64,24 +123,14 @@ export const HomePage: React.FC = () => {
     setRefreshing(true);
     await Promise.all([
         refreshUser(),
-        fetchLiveStats()
+        fetchLiveStats(),
+        fetchRecentLocations()
     ]);
     setRefreshing(false);
   }, [refreshUser]);
 
-  const firstName = user?.full_name?.split(' ')[0] || user?.name?.split(' ')[0] || 'Friend';
-
-  const getTimeGreeting = () => {
-    const hour = new Date().getHours();
-    if (hour < 12) return 'Good Morning';
-    if (hour < 17) return 'Good Afternoon';
-    return 'Good Evening';
-  };
-
-  const today = new Date().toLocaleDateString('en-US', { 
-    day: 'numeric', 
-    month: 'short' 
-  });
+  const paddingH = screenWidth * 0.06;
+  const touchTarget = 44;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -93,67 +142,108 @@ export const HomePage: React.FC = () => {
           styles.content,
           { 
             paddingTop: insets.top + (isSmallScreen ? 60 : 70),
-            paddingBottom: insets.bottom + 100,
-            paddingHorizontal: hPadding
+            paddingBottom: insets.bottom + 120,
           }
         ]}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#10b981" />
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#059669" />
         }
       >
-        {/* Professional Header Section */}
-        <View style={styles.headerCard}>
-           <View style={styles.headerTop}>
-              <View style={{ flex: 1 }}>
-                 <View style={styles.nameRow}>
-                    <Text style={[styles.userNameText, isSmallScreen && { fontSize: 24 }]} adjustsFontSizeToFit numberOfLines={1}>{firstName} 👋</Text>
-                 </View>
-                 <View style={styles.statusRowHeader}>
-                    <View style={styles.liveStatusDot} />
-                    <Text style={styles.greetingText}>Live in {user?.location || 'Your Area'}</Text>
-                 </View>
-              </View>
-              <Image 
-                source={require('../../../assets/Borla Wura Logo.png')} 
-                style={styles.headerLogo}
-                resizeMode="contain"
-              />
-           </View>
+        <View style={{ paddingHorizontal: paddingH }}>
+          {/* Premium Zenith Header */}
+          <LinearGradient
+            colors={['#10b981', '#065f46', '#022c22']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.headerCard}
+          >
+             <View style={styles.headerTop}>
+                <View style={{ flex: 1 }}>
+                   <Text style={[styles.greetingText, { letterSpacing: 1 }]} numberOfLines={1}>NEARBY RIDERS</Text>
+                   <View style={[styles.liveIndicatorRow, { marginTop: 4 }]}>
+                     <View style={[styles.liveStatusDot, { marginRight: 6 }]} />
+                     <Text style={[styles.userNameText, { fontSize: 18 }]} numberOfLines={1}>
+                       {stats.tricycles} Active
+                     </Text>
+                   </View>
+                </View>
 
-           {/* Quick Stats Row */}
-           <View style={styles.statsRow}>
-              <View style={styles.statItem}>
-                 <Text style={styles.statLabel}>Tricycles</Text>
-                 <Text style={[styles.statValue, isSmallScreen && { fontSize: 11 }]}>{stats.tricycles}+ Nearby</Text>
+              <View style={styles.headerActions}>
               </View>
-              <View style={styles.statDivider} />
-              <TouchableOpacity style={styles.statItem} onPress={() => navigateTo('/profile')}>
-                 <Text style={styles.statLabel}>Rewards</Text>
-                 <Text style={[styles.statValue, { color: '#10b981' }, isSmallScreen && { fontSize: 11 }]}>{stats.rewards} pts</Text>
+             </View>
+
+             <View style={styles.headerDivider} />
+
+             <View style={styles.headerStatsRow}>
+               <LinearGradient colors={['#34d399', '#059669']} style={styles.statPill} start={{x:0, y:0}} end={{x:1, y:1}}>
+                 <RemixIcon name="ri-moped-fill" size={14} color="#ffffff" />
+                 <Text style={styles.statPillText}>{stats.tricycles} On duty</Text>
+               </LinearGradient>
+
+               <LinearGradient colors={['#60a5fa', '#1d4ed8']} style={styles.statPill} start={{x:0, y:0}} end={{x:1, y:1}}>
+                 <RemixIcon name="ri-checkbox-circle-fill" size={14} color="#ffffff" />
+                 <Text style={styles.statPillText}>{stats.pickups} Pickups done</Text>
+               </LinearGradient>
+             </View>
+          </LinearGradient>
+
+          {/* Quick Pickup Search Bar & Recent Locations Shortcut */}
+          <View style={styles.dispatchSection}>
+            <TouchableOpacity 
+              style={styles.searchBar}
+              onPress={() => navigateTo('/booking')}
+              activeOpacity={0.8}
+            >
+              <View style={styles.searchLeft}>
+                <View style={styles.searchIconBg}>
+                  <RemixIcon name="ri-map-pin-5-fill" size={16} color="#10b981" />
+                </View>
+                <Text style={styles.searchText}>Where should we collect waste?</Text>
+              </View>
+              <RemixIcon name="ri-arrow-right-s-line" size={20} color="#64748b" />
+            </TouchableOpacity>
+            
+            {recentLocations.map((loc, idx) => (
+              <TouchableOpacity
+                key={idx}
+                style={styles.recentItem}
+                onPress={() => navigateTo('/booking', { 
+                  prefillLocation: loc.address, 
+                  prefillLat: loc.lat, 
+                  prefillLng: loc.lng 
+                })}
+                activeOpacity={0.7}
+              >
+                <View style={styles.recentLeft}>
+                  <View style={styles.recentIconBg}>
+                    <RemixIcon name="ri-history-line" size={16} color="#94a3b8" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.recentTitle} numberOfLines={1}>{loc.address.split(',')[0]}</Text>
+                    <Text style={styles.recentSubtitle} numberOfLines={1}>{loc.address}</Text>
+                  </View>
+                </View>
+                <RemixIcon name="ri-arrow-right-line" size={16} color="#cbd5e1" />
               </TouchableOpacity>
-           </View>
-        </View>
+            ))}
+          </View>
+  
+          <NewsSlider />
 
-        <View style={styles.sectionHeader}>
-           <Text style={styles.sectionTitle}>Featured Offers</Text>
+          <View style={styles.sectionHeader}>
+             <Text style={styles.sectionTitle}>Recent Orders</Text>
+             <TouchableOpacity 
+              onPress={() => navigateTo('/orders')}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+             >
+                <Text style={styles.seeAll}>See All</Text>
+             </TouchableOpacity>
+          </View>
         </View>
-        <NewsSlider />
-
-        <View style={styles.sectionHeader}>
-           <Text style={styles.sectionTitle}>Quick Pickup</Text>
-        </View>
-        <QuickActions />
-
-        <ActiveStatusCard />
-
-        <View style={styles.sectionHeader}>
-           <Text style={styles.sectionTitle}>Service History</Text>
-           <TouchableOpacity onPress={() => navigateTo('/orders')}>
-              <Text style={styles.seeAll}>View All</Text>
-           </TouchableOpacity>
-        </View>
-        <RecentOrders />
+        
+        <RecentOrders refreshing={refreshing} />
       </ScrollView>
+
 
       <ChatFloatingButton />
       <PopUpAnnouncement />
@@ -161,79 +251,123 @@ export const HomePage: React.FC = () => {
   );
 };
 
-export default HomePage;
-
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8fafc' },
+  container: { flex: 1, backgroundColor: '#fdfdfd' },
   content: { },
   headerCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 30,
-    padding: 20,
-    marginBottom: 30,
-    shadowColor: '#0f172a',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.03,
-    shadowRadius: 15,
-    elevation: 4,
-    borderWidth: 1,
-    borderColor: '#f1f5f9',
+    paddingTop: 20,
+    paddingBottom: 24,
+    paddingHorizontal: 24,
+    borderBottomLeftRadius: 36,
+    borderBottomRightRadius: 36,
+    marginBottom: 10,
   },
-  headerTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
+  headerDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    marginVertical: 16
   },
-  headerLogo: {
-    width: 60,
-    height: 60,
-  },
-  greetingText: {
-    fontSize: 16,
-    fontFamily: typography.medium,
-    color: '#64748b',
-  },
-  userNameText: {
-    fontSize: 28,
-    fontFamily: typography.bold,
-    color: '#0f172a',
-    letterSpacing: -0.8,
-  },
-  dateBadge: {
+  headerStatsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#f0fdf4',
+    gap: 8,
+    flexWrap: 'wrap'
+  },
+  statPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 12,
+    gap: 4
   },
-  dateBadgeText: {
-    fontSize: 12,
-    fontFamily: typography.bold,
-    color: '#10b981',
+  statPillText: {
+    color: '#ffffff',
+    fontSize: 11,
+    fontFamily: typography.bold
   },
-  searchBar: {
+  headerTop: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'space-between', 
+  },
+  avatarContainer: { 
+    position: 'relative' 
+  },
+  avatar: { 
+    width: 56, 
+    height: 56, 
+    borderRadius: 20, 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    borderWidth: 2, 
+    borderColor: 'rgba(255,255,255,0.1)' 
+  },
+  avatarText: { 
+    fontSize: 24, 
+    fontFamily: typography.bold, 
+    color: '#fff' 
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 18,
+  },
+  onlineBadge: { 
+    position: 'absolute', 
+    bottom: -2, 
+    right: -2, 
+    width: 14, 
+    height: 14, 
+    borderRadius: 7, 
+    backgroundColor: '#10b981', 
+    borderWidth: 2, 
+    borderColor: '#0f172a' 
+  },
+  headerActions: {
     flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f1f5f9',
-    padding: 14,
-    borderRadius: 16,
     gap: 12,
-    marginBottom: 20,
   },
-  searchPlaceholder: {
-    fontSize: 14,
-    fontFamily: typography.medium,
-    color: '#94a3b8',
+  headerActionBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+  },
+  greetingText: {
+    fontSize: 10,
+    fontFamily: typography.bold,
+    color: 'rgba(255,255,255,0.5)',
+    textTransform: 'uppercase',
+    letterSpacing: 2,
+    marginBottom: 4,
+  },
+  userNameText: {
+    fontSize: 26,
+    fontFamily: typography.bold,
+    color: '#ffffff',
+    letterSpacing: -0.5,
+  },
+  verifiedBadge: {
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   statsRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#f1f5f9',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    padding: 16,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    marginTop: 8,
   },
   statItem: {
     flex: 1,
@@ -241,41 +375,23 @@ const styles = StyleSheet.create({
   },
   statDivider: {
     width: 1,
-    height: 24,
-    backgroundColor: '#f1f5f9',
+    height: 32,
+    backgroundColor: 'rgba(255,255,255,0.1)',
   },
   statLabel: {
-    fontSize: 10,
-    fontFamily: typography.medium,
-    color: '#94a3b8',
+    fontSize: 9,
+    fontFamily: typography.bold,
+    color: 'rgba(255,255,255,0.4)',
     textTransform: 'uppercase',
-    letterSpacing: 0.4,
-    marginBottom: 2,
+    letterSpacing: 1,
+    marginBottom: 4,
   },
   statValue: {
-    fontSize: 13,
-    fontFamily: typography.bold,
-    color: '#1e293b',
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-    paddingHorizontal: 4,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontFamily: typography.bold,
-    color: '#0f172a',
-    letterSpacing: -0.6,
-  },
-  seeAll: {
     fontSize: 14,
     fontFamily: typography.bold,
-    color: '#10b981',
+    color: '#ffffff',
   },
-  statusRowHeader: {
+  liveIndicatorRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
@@ -285,215 +401,114 @@ const styles = StyleSheet.create({
     height: 6,
     borderRadius: 3,
     backgroundColor: '#10b981',
-    shadowColor: '#10b981',
-    shadowRadius: 4,
-    shadowOpacity: 0.5,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+    marginTop: 10,
+    borderLeftWidth: 3,
+    borderLeftColor: '#10b981',
+    paddingLeft: 12,
+  },
+  sectionTitle: {
+    fontSize: 13,
+    fontFamily: typography.bold,
+    color: '#94a3b8',
+    textTransform: 'uppercase',
+    letterSpacing: 1.5,
+  },
+  seeAll: {
+    fontSize: 12,
+    fontFamily: typography.bold,
+    color: '#059669',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   nameRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginBottom: 2,
   },
-  tierBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
+  dispatchSection: {
+    marginBottom: 32,
+    backgroundColor: '#ffffff',
+    borderRadius: 28,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: '#f1f5f9',
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.03,
+    shadowRadius: 16,
+    elevation: 3,
   },
-  tierBadgeText: {
-    fontSize: 10,
-    fontFamily: typography.bold,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  referralBanner: {
-    backgroundColor: '#10b981',
-    borderRadius: 30,
-    padding: 24,
+  searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 32,
-    shadowColor: '#10b981',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.15,
-    shadowRadius: 15,
-    elevation: 6,
+    backgroundColor: '#f8fafc',
+    borderRadius: 18,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    marginBottom: 16,
   },
-  referralInfo: {
+  searchLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
     flex: 1,
   },
-  referralTitle: {
-    fontSize: 18,
-    fontFamily: typography.bold,
-    color: '#ffffff',
+  searchIconBg: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  referralSub: {
-    fontSize: 12,
-    fontFamily: typography.medium,
-    color: 'rgba(255,255,255,0.8)',
-    marginTop: 4,
-  },
-  referralBtn: {
-    backgroundColor: '#ffffff',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 12,
-  },
-  referralBtnText: {
+  searchText: {
     fontSize: 14,
     fontFamily: typography.bold,
-    color: '#10b981',
-  },
-  tipCard: {
-    backgroundColor: '#fffbeb',
-    borderRadius: 24,
-    padding: 18,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    marginBottom: 32,
-    borderWidth: 1,
-    borderColor: '#fef3c7',
-  },
-  tipIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: '#ffffff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  tipText: {
+    color: '#334155',
     flex: 1,
-    fontSize: 13,
-    fontFamily: typography.medium,
-    color: '#92400e',
-    lineHeight: 18,
   },
-  impactCardMain: {
-    backgroundColor: '#ffffff',
-    borderRadius: 30,
-    padding: 20,
-    marginBottom: 30,
-    borderWidth: 1,
-    borderColor: '#f1f5f9',
-    shadowColor: '#0f172a',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.02,
-    shadowRadius: 10,
-  },
-  impactDetails: {
+  recentItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
-  },
-  impactIconBox: {
-    width: 56,
-    height: 56,
-    borderRadius: 20,
-    backgroundColor: '#f0fdf4',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  impactMainTitle: {
-    fontSize: 18,
-    fontFamily: typography.bold,
-    color: '#0f172a',
-  },
-  impactSubTitle: {
-    fontSize: 12,
-    fontFamily: typography.medium,
-    color: '#94a3b8',
-    marginBottom: 12,
-  },
-  progressTrack: {
-    height: 6,
-    backgroundColor: '#f1f5f9',
-    borderRadius: 3,
-    marginBottom: 8,
-    overflow: 'hidden',
-  },
-  progressBar: {
-    height: '100%',
-    backgroundColor: '#10b981',
-    borderRadius: 3,
-  },
-  progressText: {
-    fontSize: 11,
-    fontFamily: typography.bold,
-    color: '#64748b',
-  },
-  mapCardMain: {
-    backgroundColor: '#ffffff',
-    borderRadius: 30,
-    marginBottom: 32,
-    overflow: 'hidden',
-    borderWidth: 1.5,
-    borderColor: '#f1f5f9',
-    shadowColor: '#0f172a',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.05,
-    shadowRadius: 20,
-    elevation: 8,
-  },
-  homeMap: {
-    borderRadius: 30,
-  },
-  mapOverlay: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: 16,
-    backgroundColor: 'rgba(255,255,255,0.9)',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
     borderTopWidth: 1,
     borderTopColor: '#f1f5f9',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
   },
-  mapLabelBox: {
+  recentLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#f0fdf4',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8,
+    gap: 12,
+    flex: 1,
   },
-  mapLabelText: {
-    fontSize: 12,
+  recentIconBg: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: '#f1f5f9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  recentTitle: {
+    fontSize: 14,
     fontFamily: typography.bold,
-    color: '#10b981',
+    color: '#1e293b',
   },
-  mapHint: {
+  recentSubtitle: {
     fontSize: 11,
     fontFamily: typography.medium,
-    color: '#94a3b8',
-  },
-  liveIndicater: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#fee2e2',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 20,
-  },
-  livePulse: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#ef4444',
-  },
-  liveText: {
-    fontSize: 10,
-    fontFamily: typography.bold,
-    color: '#ef4444',
-    textTransform: 'uppercase',
+    color: '#64748b',
+    marginTop: 2,
   },
 });
+
+export default HomePage;

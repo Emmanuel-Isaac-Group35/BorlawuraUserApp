@@ -17,14 +17,22 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.borlawura.user"
+      "bundleIdentifier": "com.borlawura.user",
+      "config": {
+        "googleMapsApiKey": "YOUR_GOOGLE_MAPS_API_KEY_HERE"
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.borlawura.user"
+      "package": "com.borlawura.user",
+      "config": {
+        "googleMaps": {
+          "apiKey": "YOUR_GOOGLE_MAPS_API_KEY_HERE"
+        }
+      }
     },
     "web": {
       "favicon": "./assets/favicon.png"

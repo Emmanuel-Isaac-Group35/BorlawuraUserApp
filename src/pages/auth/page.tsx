@@ -14,11 +14,12 @@ import {
 } from 'react-native';
 import Constants from 'expo-constants';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons, FontAwesome } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import * as Notifications from 'expo-notifications';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
+import { RemixIcon } from '../../utils/icons';
+import { LinearGradient } from 'expo-linear-gradient';
 
 // Navigation handled via AppNavigator routes
 
@@ -56,21 +57,26 @@ const AuthPage = () => {
 
       // If logging in with phone, we need to find the associated email first
       if (loginType === 'phone') {
-        const cleanPhone = (identifier.startsWith('0') ? identifier.substring(1) : identifier).replace(/\s+/g, '');
-        const variant1 = `+233${cleanPhone}`;
-        const variant2 = `233${cleanPhone}`;
-        const variant3 = `0${cleanPhone}`;
-        const variant4 = cleanPhone;
+        const rawPhone = identifier.replace(/\s+/g, '');
+        const cleanPhone = (rawPhone.startsWith('0') ? rawPhone.substring(1) : (rawPhone.startsWith('+233') ? rawPhone.substring(4) : (rawPhone.startsWith('233') ? rawPhone.substring(3) : rawPhone)));
+        
+        const variants = [
+          `+233${cleanPhone}`,
+          `233${cleanPhone}`,
+          `0${cleanPhone}`,
+          cleanPhone
+        ];
 
+        // Search for user by any phone variant OR the raw identifier as email (in case they mistyped tab)
         const { data: userRecord, error: findError } = await supabase
           .from('users')
           .select('email')
-          .or(`phone_number.eq.${variant1},phone_number.eq.${variant2},phone_number.eq.${variant3},phone_number.eq.${variant4}`)
+          .or(`phone_number.in.(${variants.map(v => `"${v}"`).join(',')}),email.eq."${identifier}"`)
           .maybeSingle();
 
         if (findError || !userRecord?.email) {
           setIsLoading(false);
-          Alert.alert("Login Failed", "No account associated with this phone number was found. Please sign up.");
+          Alert.alert("Account Not Found", "We couldn't locate an account with this phone number. Please verify your credentials or sign up.");
           return;
         }
         finalEmail = userRecord.email;
@@ -117,8 +123,12 @@ const AuthPage = () => {
       >
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           {/* Brand Header */}
-          <View style={[styles.brandHeader, { paddingTop: Math.max(insets.top, 20) + 40 }]}>
-            <View style={styles.logoBlur} />
+          <LinearGradient
+            colors={['#064e3b', '#0d9488']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={[styles.brandHeader, { paddingTop: Math.max(insets.top, 20) + 40 }]}
+          >
             <View style={styles.logoCircle}>
               <Image
                 source={require('../../../assets/Borla Wura Logo.png')}
@@ -128,7 +138,7 @@ const AuthPage = () => {
             </View>
             <Text style={styles.brandName}>Borla Wura</Text>
             <Text style={styles.brandTagline}>Eco-friendly waste management for everyone</Text>
-          </View>
+          </LinearGradient>
 
           {/* Form Section */}
           <View style={styles.formContainer}>
@@ -168,7 +178,7 @@ const AuthPage = () => {
                   </View>
                 ) : (
                   <View style={[styles.inputWrapper, styles.row]}>
-                    <Ionicons name="mail-outline" size={20} color="#64748b" style={styles.fieldIcon} />
+                    <RemixIcon name="ri-mail-line" size={20} color="#64748b" style={styles.fieldIcon} />
                     <TextInput
                       style={styles.inputField}
                       placeholder="Email address"
@@ -182,7 +192,7 @@ const AuthPage = () => {
                 )}
 
                <View style={styles.passwordWrapper}>
-                 <Ionicons name="lock-closed-outline" size={20} color="#64748b" style={styles.fieldIcon} />
+                  <RemixIcon name="ri-lock-line" size={20} color="#64748b" style={styles.fieldIcon} />
                  <TextInput
                    style={styles.passwordInput}
                    placeholder="Password"
@@ -192,7 +202,7 @@ const AuthPage = () => {
                    placeholderTextColor="#94a3b8"
                  />
                  <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeBtn}>
-                   <Ionicons name={showPassword ? "eye-off" : "eye"} size={20} color="#64748b" />
+                    <RemixIcon name={showPassword ? "ri-eye-off-line" : "ri-eye-line"} size={20} color="#64748b" />
                  </TouchableOpacity>
                </View>
                 <TouchableOpacity 
@@ -252,84 +262,127 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#ffffff' },
   scrollContent: { flexGrow: 1 },
   brandHeader: {
-    backgroundColor: '#10b981',
     paddingBottom: 40,
     alignItems: 'center',
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  logoBlur: {
-    position: 'absolute',
-    width: 200,
-    height: 200,
-    borderRadius: 100,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    top: -50,
-    right: -50,
+    borderBottomLeftRadius: 36,
+    borderBottomRightRadius: 36,
   },
   logoCircle: {
-    width: 120,
-    height: 120,
-    borderRadius: 36,
+    width: 100,
+    height: 100,
+    borderRadius: 24,
     backgroundColor: '#ffffff',
-    padding: 14,
+    padding: 12,
     marginBottom: 20,
     shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    elevation: 10,
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    elevation: 8,
   },
   logoImage: { width: '100%', height: '100%' },
-  brandName: { fontSize: 24, fontFamily: typography.bold, color: '#ffffff' },
-  brandTagline: { fontSize: 13, fontFamily: typography.medium, color: 'rgba(255,255,255,0.8)', marginTop: 4 },
+  brandName: { 
+    fontSize: 28, 
+    fontFamily: typography.bold, 
+    color: '#ffffff',
+    letterSpacing: -1,
+  },
+  brandTagline: { 
+    fontSize: 14, 
+    fontFamily: typography.medium, 
+    color: 'rgba(255, 255, 255, 0.8)', 
+    marginTop: 6,
+    textAlign: 'center',
+    paddingHorizontal: 40,
+  },
   formContainer: {
     flex: 1,
-    paddingHorizontal: 30,
-    paddingTop: 40,
+    paddingHorizontal: 32,
+    paddingTop: 20,
     backgroundColor: '#fff',
-    borderTopLeftRadius: 40,
-    borderTopRightRadius: 40,
-    marginTop: -30,
   },
-  formTitle: { fontSize: 28, fontFamily: typography.bold, color: '#0f172a' },
-  formSubtitle: { fontSize: 15, fontFamily: typography.medium, color: '#64748b', marginTop: 6, marginBottom: 32 },
+  formTitle: { 
+    fontSize: 24, 
+    fontFamily: typography.bold, 
+    color: '#0f172a',
+    marginBottom: 8,
+  },
+  formSubtitle: { 
+    fontSize: 15, 
+    fontFamily: typography.medium, 
+    color: '#64748b', 
+    marginBottom: 32,
+  },
   inputGroup: { gap: 16, marginBottom: 24 },
-  inputRow: { flexDirection: 'row', gap: 12 },
-  countryPicker: {
+  tabContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
     backgroundColor: '#f8fafc',
-    paddingHorizontal: 12,
-    borderRadius: 18,
-    borderWidth: 1.5,
+    borderRadius: 14,
+    padding: 4,
+    marginBottom: 32,
+    borderWidth: 1,
     borderColor: '#f1f5f9',
   },
-  flag: { width: 22, height: 15, borderRadius: 2, marginRight: 8 },
-  countryCode: { fontSize: 14, fontFamily: typography.bold, color: '#0f172a' },
-  phoneInput: {
+  tab: {
     flex: 1,
-    height: 56,
-    backgroundColor: '#f8fafc',
-    borderRadius: 18,
-    paddingHorizontal: 20,
-    fontSize: 16,
-    fontFamily: typography.medium,
-    color: '#0f172a',
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderRadius: 10,
+  },
+  tabActive: {
+    backgroundColor: '#ffffff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  tabLabel: {
+    fontSize: 14,
+    fontFamily: typography.semiBold,
+    color: '#94a3b8',
+  },
+  tabLabelActive: {
+    color: '#059669',
   },
   inputWrapper: {
-    height: 60,
-    backgroundColor: '#f8fafc',
-    borderRadius: 20,
+    height: 56,
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
     paddingLeft: 16,
     borderWidth: 1.5,
     borderColor: '#f1f5f9',
   },
   row: { flexDirection: 'row', alignItems: 'center' },
-  fieldIcon: { marginRight: 8 },
+  fieldIcon: { marginRight: 12 },
+  countryPicker: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginRight: 12,
+    paddingRight: 12,
+    borderRightWidth: 1,
+    borderRightColor: '#f1f5f9',
+  },
+  flag: { width: 20, height: 14, borderRadius: 2 },
+  countryCode: { fontSize: 14, fontFamily: typography.bold, color: '#1e293b' },
+  phoneInput: {
+    flex: 1,
+    height: '100%',
+    fontSize: 16,
+    fontFamily: typography.medium,
+    color: '#0f172a',
+  },
+  inputField: {
+    flex: 1,
+    height: '100%',
+    fontSize: 16,
+    fontFamily: typography.medium,
+    color: '#0f172a',
+  },
   passwordWrapper: {
-    height: 60,
-    backgroundColor: '#f8fafc',
-    borderRadius: 20,
+    height: 56,
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
     flexDirection: 'row',
     alignItems: 'center',
     paddingLeft: 16,
@@ -338,91 +391,68 @@ const styles = StyleSheet.create({
   },
   passwordInput: {
     flex: 1,
+    height: '100%',
     paddingHorizontal: 12,
     fontSize: 16,
     fontFamily: typography.medium,
     color: '#0f172a',
   },
   eyeBtn: { paddingHorizontal: 16 },
+  forgotBtn: { alignSelf: 'flex-end', marginTop: 8 },
+  forgotText: { 
+    fontSize: 13, 
+    fontFamily: typography.bold, 
+    color: '#059669',
+  },
   loginBtn: {
-    height: 60,
-    backgroundColor: '#10b981',
-    borderRadius: 20,
+    height: 56,
+    backgroundColor: '#059669',
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#10b981',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 4,
-    marginBottom: 20,
+    marginTop: 10,
+    marginBottom: 24,
+    shadowColor: '#059669',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 2,
   },
-  loginBtnDisabled: { backgroundColor: '#94a3b8', shadowOpacity: 0 },
-  loginBtnText: { fontSize: 17, fontFamily: typography.bold, color: '#ffffff' },
+  loginBtnDisabled: { backgroundColor: '#cbd5e1', shadowOpacity: 0 },
+  loginBtnText: { fontSize: 16, fontFamily: typography.bold, color: '#ffffff' },
   signupLink: { alignItems: 'center' },
-  signupText: { fontSize: 15, fontFamily: typography.medium, color: '#64748b' },
-  signupHighlight: { color: '#10b981', fontFamily: typography.bold },
+  signupText: { fontSize: 14, fontFamily: typography.medium, color: '#64748b' },
+  signupHighlight: { color: '#059669', fontFamily: typography.bold },
   dividerBox: { flexDirection: 'row', alignItems: 'center', gap: 12, marginVertical: 32 },
   dividerLine: { flex: 1, height: 1, backgroundColor: '#f1f5f9' },
-  dividerLabel: { fontSize: 11, fontFamily: typography.bold, color: '#cbd5e1', letterSpacing: 1 },
+  dividerLabel: { fontSize: 10, fontFamily: typography.bold, color: '#cbd5e1', letterSpacing: 1 },
   socialBtn: {
-    height: 60,
-    borderRadius: 20,
-    backgroundColor: '#fff',
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: '#ffffff',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1.5,
     borderColor: '#f1f5f9',
     gap: 12,
-    marginBottom: 30,
   },
-  socialIcon: { width: 22, height: 22 },
+  socialIcon: { width: 20, height: 20 },
   socialBtnText: {
-    fontSize: 16,
+    fontSize: 15,
     fontFamily: typography.semiBold,
     color: '#1e293b',
   },
-  legalText: { fontSize: 12, fontFamily: typography.medium, color: '#94a3b8', textAlign: 'center', lineHeight: 18, paddingBottom: 40 },
+  legalText: { 
+    fontSize: 12, 
+    fontFamily: typography.medium, 
+    color: '#94a3b8', 
+    textAlign: 'center', 
+    lineHeight: 18, 
+    marginTop: 40,
+    paddingBottom: 40 
+  },
   legalHighlight: { color: '#64748b', textDecorationLine: 'underline' },
-  forgotBtn: { alignSelf: 'flex-end', marginTop: 8 },
-  forgotText: { fontSize: 13, fontFamily: typography.medium, color: '#10b981' },
-  tabContainer: {
-    flexDirection: 'row',
-    backgroundColor: '#f1f5f9',
-    borderRadius: 16,
-    padding: 6,
-    marginBottom: 32,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 12,
-    alignItems: 'center',
-    borderRadius: 12,
-  },
-  tabActive: {
-    backgroundColor: '#fff',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  tabLabel: {
-    fontSize: 15,
-    fontFamily: typography.semiBold,
-    color: '#64748b',
-  },
-  tabLabelActive: {
-    color: '#10b981',
-  },
-  inputField: {
-    flex: 1,
-    paddingHorizontal: 12,
-    fontSize: 16,
-    fontFamily: typography.medium,
-    color: '#0f172a',
-  },
 });
 
 export default AuthPage;

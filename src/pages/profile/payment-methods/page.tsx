@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput, Alert, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Navigation } from '../../../components/feature/Navigation';
-import { BottomNavigation } from '../../../components/feature/BottomNavigation';
 import { RemixIcon } from '../../../utils/icons';
 import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../../../context/AuthContext';
@@ -107,11 +106,11 @@ const PaymentMethodsPage: React.FC = () => {
       const { error } = await supabase.from('payment_methods').insert([methodData]);
       if (error) {
         if (error.code === '42P01') {
-           Alert.alert('Notice', 'Database table not found. Please run the provided SQL script.');
+           Alert.alert('Notice', 'Payment services are temporarily unavailable. Please try again later.');
            return;
         }
         if (error.code === '42501') {
-           Alert.alert('Security Notice', 'Permission denied. Please run the SQL command to disable RLS (Security) for current testing.');
+           Alert.alert('Security Notice', 'Unable to verify account security. Please contact support.');
            return;
         }
         throw error;
@@ -163,7 +162,6 @@ const PaymentMethodsPage: React.FC = () => {
   return (
     <SafeAreaView style={styles.container}>
       <Navigation />
-      <BottomNavigation />
       
       <ScrollView 
         style={styles.scrollView}

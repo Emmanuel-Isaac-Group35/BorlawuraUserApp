@@ -2,11 +2,11 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Linking, Alert, TextInput } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Navigation } from '../../components/feature/Navigation';
-import { BottomNavigation } from '../../components/feature/BottomNavigation';
 import { RemixIcon } from '../../utils/icons';
 import { navigateTo } from '../../utils/navigation';
 import { useSettings } from '../../context/SettingsContext';
 import { typography } from '../../utils/typography';
+import { LinearGradient } from 'expo-linear-gradient';
 
 const SupportPage: React.FC = () => {
   const insets = useSafeAreaInsets();
@@ -99,16 +99,16 @@ const SupportPage: React.FC = () => {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <Text style={styles.title}>Help & Support</Text>
-          <Text style={styles.subtitle}>Find answers or get in touch with our team</Text>
+          <Text style={styles.title}>System Support</Text>
+          <Text style={styles.subtitle}>Dispatch center for FAQs and immediate logistics support</Text>
         </View>
 
         <View style={styles.searchContainer}>
           <View style={styles.searchBar}>
-            <RemixIcon name="ri-search-2-line" size={20} color="#94a3b8" />
+            <RemixIcon name="ri-search-eye-line" size={18} color="#94a3b8" />
             <TextInput 
-              placeholder="Search for help..."
-              placeholderTextColor="#94a3b8"
+              placeholder="Search support articles..."
+              placeholderTextColor="#cbd5e1"
               style={styles.searchInput}
             />
           </View>
@@ -116,10 +116,10 @@ const SupportPage: React.FC = () => {
 
         <View style={styles.tabs}>
           <TouchableOpacity onPress={() => setActiveTab('faq')} style={[styles.tab, activeTab === 'faq' && styles.tabActive]}>
-            <Text style={[styles.tabText, activeTab === 'faq' && styles.tabTextActive]}>FAQs</Text>
+            <Text style={[styles.tabText, activeTab === 'faq' && styles.tabTextActive]}>Knowledge</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={() => setActiveTab('contact')} style={[styles.tab, activeTab === 'contact' && styles.tabActive]}>
-            <Text style={[styles.tabText, activeTab === 'contact' && styles.tabTextActive]}>Contact Us</Text>
+            <Text style={[styles.tabText, activeTab === 'contact' && styles.tabTextActive]}>Dispatch</Text>
           </TouchableOpacity>
         </View>
 
@@ -129,13 +129,13 @@ const SupportPage: React.FC = () => {
               <TouchableOpacity 
                 key={faq.id} 
                 onPress={() => handleFaqToggle(faq.id)} 
-                activeOpacity={0.7}
+                activeOpacity={0.8}
                 style={[styles.faqCard, expandedFaq === faq.id && styles.faqCardExpanded]}
               >
                 <View style={styles.faqHeader}>
                   <Text style={styles.faqQuestion}>{faq.question}</Text>
-                  <View style={[styles.faqIconBox, expandedFaq === faq.id && { backgroundColor: '#10b98110' }]}>
-                    <RemixIcon name={expandedFaq === faq.id ? 'ri-subtract-line' : 'ri-add-line'} size={18} color="#10b981" />
+                  <View style={[styles.faqIconBox, expandedFaq === faq.id && { backgroundColor: '#059669' }]}>
+                    <RemixIcon name={expandedFaq === faq.id ? 'ri-subtract-line' : 'ri-add-line'} size={18} color={expandedFaq === faq.id ? '#fff' : '#059669'} />
                   </View>
                 </View>
                 {expandedFaq === faq.id && (
@@ -151,29 +151,29 @@ const SupportPage: React.FC = () => {
             <View style={styles.contactList}>
               {contactMethods.map((method, index) => (
                 <TouchableOpacity key={index} onPress={method.action} style={styles.contactCard} activeOpacity={0.8}>
-                  <View style={[styles.contactIcon, { backgroundColor: method.color + '15' }]}>
-                    <RemixIcon name={method.icon} size={28} color={method.color} />
+                  <View style={[styles.contactIcon, { backgroundColor: method.color + '10' }]}>
+                    <RemixIcon name={method.icon} size={24} color={method.color} />
                   </View>
                   <View style={styles.contactInfo}>
                     <Text style={styles.contactTitle}>{method.title}</Text>
                     <Text style={styles.contactValue}>{method.subtitle}</Text>
                   </View>
-                  <RemixIcon name="ri-arrow-right-s-line" size={20} color="#cbd5e1" />
+                  <RemixIcon name="ri-arrow-right-line" size={16} color="#cbd5e1" />
                 </TouchableOpacity>
               ))}
             </View>
 
             <View style={styles.formSection}>
-              <Text style={styles.formHeader}>Quick Message</Text>
+              <Text style={styles.formHeader}>Direct Message</Text>
               <View style={styles.formCard}>
                 <TextInput 
-                  placeholder="How can we help you?"
-                  placeholderTextColor="#94a3b8"
+                  placeholder="Inquiry or issue details..."
+                  placeholderTextColor="#cbd5e1"
                   multiline
                   style={styles.formInput}
                 />
                 <TouchableOpacity style={styles.formSubmit}>
-                  <Text style={styles.formSubmitText}>Send Message</Text>
+                  <Text style={styles.formSubmitText}>Dispatch Inquiry</Text>
                   <RemixIcon name="ri-send-plane-fill" size={16} color="#fff" />
                 </TouchableOpacity>
               </View>
@@ -181,21 +181,24 @@ const SupportPage: React.FC = () => {
           </View>
         )}
 
-        <TouchableOpacity 
-          style={styles.liveChatBanner} 
-          activeOpacity={0.9}
-          onPress={() => navigateTo('/support-chat')}
+        <LinearGradient
+          colors={['#0f172a', '#1e293b']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.liveChatBanner}
         >
           <View style={styles.liveChatInfo}>
-            <Text style={styles.liveChatTitle}>Need Instant Help?</Text>
-            <Text style={styles.liveChatSub}>Chat live with our support team</Text>
+            <Text style={styles.liveChatTitle}>Support Line Live</Text>
+            <Text style={styles.liveChatSub}>Connect with a human dispatcher instantly</Text>
           </View>
-          <View style={styles.liveChatBtn}>
-            <Text style={styles.liveChatBtnText}>Chat Now</Text>
-          </View>
-        </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.liveChatBtn}
+            onPress={() => navigateTo('/support-chat')}
+          >
+            <Text style={styles.liveChatBtnText}>Chat Live</Text>
+          </TouchableOpacity>
+        </LinearGradient>
       </ScrollView>
-      <BottomNavigation />
     </SafeAreaView>
   );
 };
@@ -257,121 +260,138 @@ const styles = StyleSheet.create({
   },
   tabActive: { 
     backgroundColor: '#ffffff', 
+    borderWidth: 1,
+    borderColor: '#f1f5f9',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 3,
+    shadowRadius: 5,
+    elevation: 2 
   },
-  tabText: { fontSize: 14, fontFamily: typography.semiBold, color: '#64748b' },
-  tabTextActive: { color: '#10b981' },
+  tabText: { fontSize: 13, fontFamily: typography.bold, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5 },
+  tabTextActive: { color: '#059669' },
   faqList: { gap: 16 },
   faqCard: { 
     backgroundColor: '#ffffff', 
-    borderRadius: 30, 
+    borderRadius: 24, 
     borderWidth: 1, 
     borderColor: '#f1f5f9', 
-    padding: 20,
-    shadowColor: '#0f172a',
+    padding: 24,
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.02,
     shadowRadius: 10,
+    elevation: 1,
   },
-  faqCardExpanded: { borderColor: '#10b98140' },
+  faqCardExpanded: { borderColor: '#05966930' },
   faqHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   faqQuestion: { 
     flex: 1, 
     fontSize: 16, 
-    fontFamily: typography.semiBold, 
+    fontFamily: typography.bold, 
     color: '#1e293b', 
-    lineHeight: 22,
+    lineHeight: 24,
     paddingRight: 12,
   },
   faqIconBox: {
     width: 32,
     height: 32,
     borderRadius: 10,
-    backgroundColor: '#f1f5f9',
+    backgroundColor: '#f8fafc',
     alignItems: 'center',
     justifyContent: 'center',
   },
   faqAnswer: { 
-    marginTop: 16, 
-    paddingTop: 16, 
+    marginTop: 20, 
+    paddingTop: 20, 
     borderTopWidth: 1, 
     borderTopColor: '#f1f5f9' 
   },
-  faqAnswerText: { fontSize: 14, fontFamily: typography.medium, color: '#64748b', lineHeight: 22 },
+  faqAnswerText: { fontSize: 14, fontFamily: typography.medium, color: '#64748b', lineHeight: 24 },
   contactContainer: { gap: 32 },
   contactList: { gap: 16 },
   contactCard: { 
     flexDirection: 'row', 
     alignItems: 'center', 
     backgroundColor: '#ffffff', 
-    padding: 18, 
-    borderRadius: 30, 
+    padding: 20, 
+    borderRadius: 24, 
     borderWidth: 1, 
     borderColor: '#f1f5f9',
-    shadowColor: '#0f172a',
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.02,
     shadowRadius: 10,
+    elevation: 1,
   },
-  contactIcon: { width: 56, height: 56, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginRight: 16 },
+  contactIcon: { width: 48, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginRight: 16 },
   contactInfo: { flex: 1 },
-  contactTitle: { fontSize: 10, fontFamily: typography.bold, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5 },
-  contactValue: { fontSize: 16, fontFamily: typography.bold, color: '#1e293b', marginTop: 2 },
-  formSection: { gap: 12 },
-  formHeader: { fontSize: 13, fontFamily: typography.bold, color: '#64748b', textTransform: 'uppercase', paddingLeft: 8 },
+  contactTitle: { fontSize: 10, fontFamily: typography.bold, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 1 },
+  contactValue: { fontSize: 15, fontFamily: typography.bold, color: '#1e293b', marginTop: 2 },
+  formSection: { gap: 16 },
+  formHeader: { fontSize: 13, fontFamily: typography.bold, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 1.5, paddingLeft: 8 },
   formCard: { 
     backgroundColor: '#ffffff',
-    borderRadius: 30,
-    padding: 16,
+    borderRadius: 24,
+    padding: 20,
     borderWidth: 1,
     borderColor: '#f1f5f9',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.02,
+    shadowRadius: 10,
+    elevation: 1,
   },
   formInput: {
-    minHeight: 100,
-    fontSize: 15,
+    minHeight: 120,
+    fontSize: 16,
     fontFamily: typography.medium,
     color: '#0f172a',
     textAlignVertical: 'top',
-    padding: 8,
+    padding: 12,
+    backgroundColor: '#f8fafc',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#f1f5f9',
   },
   formSubmit: {
-    backgroundColor: '#10b981',
+    backgroundColor: '#059669',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    height: 54,
-    borderRadius: 20,
-    marginTop: 12,
+    gap: 10,
+    height: 56,
+    borderRadius: 16,
+    marginTop: 20,
+    shadowColor: '#059669',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
   },
   formSubmitText: {
-    fontSize: 15,
+    fontSize: 16,
     fontFamily: typography.bold,
     color: '#ffffff',
   },
   liveChatBanner: { 
-    backgroundColor: '#0f172a', 
-    borderRadius: 30, 
-    padding: 24, 
-    marginTop: 32, 
+    borderRadius: 28, 
+    padding: 28, 
+    marginTop: 40, 
     flexDirection: 'row', 
     alignItems: 'center', 
     justifyContent: 'space-between',
     shadowColor: '#0f172a',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.15,
     shadowRadius: 20,
     elevation: 10,
   },
   liveChatInfo: { flex: 1 },
-  liveChatTitle: { fontSize: 20, fontFamily: typography.bold, color: '#ffffff', letterSpacing: -0.4 },
-  liveChatSub: { fontSize: 13, fontFamily: typography.medium, color: '#94a3b8', marginTop: 4 },
-  liveChatBtn: { backgroundColor: '#10b981', paddingHorizontal: 20, paddingVertical: 12, borderRadius: 14 },
-  liveChatBtnText: { fontSize: 14, fontFamily: typography.bold, color: '#ffffff' },
+  liveChatTitle: { fontSize: 20, fontFamily: typography.bold, color: '#ffffff', letterSpacing: -0.5 },
+  liveChatSub: { fontSize: 13, fontFamily: typography.medium, color: 'rgba(255,255,255,0.6)', marginTop: 4 },
+  liveChatBtn: { backgroundColor: '#ffffff', paddingHorizontal: 20, paddingVertical: 12, borderRadius: 14 },
+  liveChatBtnText: { fontSize: 14, fontFamily: typography.bold, color: '#0f172a' },
 });
 
 export default SupportPage;

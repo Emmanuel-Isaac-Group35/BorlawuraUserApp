@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Alert, Linking, ActivityIndicator } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { supabase } from '../../lib/supabase';
@@ -7,13 +7,13 @@ import { Navigation } from '../../components/feature/Navigation';
 import { RemixIcon } from '../../utils/icons';
 import { navigateTo } from '../../utils/navigation';
 import * as Sharing from 'expo-sharing';
-import { WebView } from 'react-native-webview';
+import * as Location from 'expo-location';
+import { NavigatrMap } from '../../components/feature/NavigatrMap';
 import { typography } from '../../utils/typography';
 import { sendLocalNotification } from '../../utils/notifications';
-import { NavigatrMap } from '../../components/feature/NavigatrMap';
 import { getDistanceMatrix } from '../../utils/maps';
 import { useAlert } from '../../context/AlertContext';
-
+import { LinearGradient } from 'expo-linear-gradient';
 
 const TrackOrderPage: React.FC = () => {
   const insets = useSafeAreaInsets();
@@ -22,60 +22,61 @@ const TrackOrderPage: React.FC = () => {
   const { id: orderId } = (route.params as { id?: string }) || {};
   const { showAlert } = useAlert();
   const [order, setOrder] = useState<any>(null);
-  const [riderLocation, setRiderLocation] = useState({ lat: 5.6037, lng: -0.1870 });
+  const [riderLocation, setRiderLocation] = useState({ lat: 5.6037, lng: -0.1870, heading: 0 });
+  const [userLocation, setUserLocation] = useState<Location.LocationObject | null>(null);
   const [isLiveTracking, setIsLiveTracking] = useState(true);
   const [loading, setLoading] = useState(true);
+  const watchSubscription = useRef<Location.LocationSubscription | null>(null);
 
   useEffect(() => {
-    if (!orderId) {
-      setLoading(false);
-      return;
-    }
+    (async () => {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') return;
+      try {
+        const initialLoc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.BestForNavigation });
+        setUserLocation(initialLoc);
+        watchSubscription.current = await Location.watchPositionAsync(
+          { accuracy: Location.Accuracy.BestForNavigation, distanceInterval: 5, timeInterval: 2000 },
+          (newLocation) => setUserLocation(newLocation)
+        );
+      } catch (e) { console.log("GPS Lock Failed:", e); }
+    })();
+    return () => { if (watchSubscription.current) watchSubscription.current.remove(); };
+  }, []);
 
+  useEffect(() => {
+    if (!orderId) { setLoading(false); return; }
     const fetchData = async () => {
       try {
-        const { data: orderData, error: orderError } = await supabase
-          .from('orders')
-          .select('*')
-          .eq('id', orderId)
-          .single();
-
+        const { data: orderData, error: orderError } = await supabase.from('orders').select('*').eq('id', orderId).single();
         if (orderError) throw orderError;
-
         let riderObj = null;
         let estimatedTime = 'Calculating...';
+        let distanceText = '-- km';
 
         if (orderData.rider_id) {
-          const { data: riderData, error: riderError } = await supabase
-            .from('riders')
-            .select('*')
-            .eq('id', orderData.rider_id)
-            .single();
-
-          if (!riderError && riderData) {
+          const { data: riderData } = await supabase.from('riders').select('*').eq('id', orderData.rider_id).single();
+          if (riderData) {
             riderObj = {
-              name: riderData.full_name || (riderData.first_name ? `${riderData.first_name} ${riderData.last_name || ''}`.trim() : 'Your Rider'),
-              phone: riderData.phone_number || riderData.phone || '+233 24 000 0000',
-              rating: riderData.rating ? parseFloat(riderData.rating) : 4.8,
+              id: riderData.id,
+              name: riderData.full_name || 'Your Rider',
+              phone: riderData.phone_number || '+233 24 000 0000',
               vehicle: riderData.vehicle_info || 'Tricycle',
               vehicleNumber: riderData.vehicle_number || 'TRC-102-GH',
               photo: riderData.avatar_url || 'https://cdn-icons-png.flaticon.com/512/149/149071.png',
               lat: riderData.latitude || 5.6037,
               lng: riderData.longitude || -0.1870
             };
-            setRiderLocation({ lat: riderObj.lat, lng: riderObj.lng });
+            setRiderLocation({ lat: riderObj.lat, lng: riderObj.lng, heading: riderData.heading || 0 });
 
-            // Calculate Dynamic ETA
             try {
-              const matrix = await getDistanceMatrix(
-                [`${riderObj.lat},${riderObj.lng}`],
-                [`${orderData.pickup_latitude},${orderData.pickup_longitude}`]
-              );
-              if (matrix?.status === 'OK' && matrix.rows?.[0]?.elements?.[0]?.duration?.text) {
+              const matrix = await getDistanceMatrix([`${riderObj.lat},${riderObj.lng}`], [`${orderData.pickup_latitude},${orderData.pickup_longitude}`]);
+              if (matrix?.status === 'OK' && matrix.rows?.[0]?.elements?.[0]) {
                 estimatedTime = matrix.rows[0].elements[0].duration.text;
+                distanceText = matrix.rows[0].elements[0].distance.text;
                 if (orderData.status === 'completed') estimatedTime = 'Arrived';
               }
-            } catch (e) { console.log("ETA calculation failed:", e); }
+            } catch (e) { }
           }
         }
 
@@ -84,99 +85,43 @@ const TrackOrderPage: React.FC = () => {
           realId: orderData.id,
           status: orderData.status,
           service: orderData.service_type || 'Waste Pickup',
-          date: new Date(orderData.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }),
-          time: orderData.scheduled_at ? new Date(orderData.scheduled_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : new Date(orderData.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
           address: orderData.address,
           latitude: orderData.pickup_latitude,
           longitude: orderData.pickup_longitude,
           rider: riderObj,
-          wasteType: orderData.waste_type || 'General Household',
-          bagSize: (orderData.waste_size || 'Standard').charAt(0).toUpperCase() + (orderData.waste_size || 'Standard').slice(1),
           estimatedArrival: estimatedTime,
-          currentLocation: orderData.status === 'arrived' ? 'Rider at your location' : (['in_progress', 'active', 'heading'].includes(orderData.status) ? 'Approaching your location' : (['accepted', 'assigned', 'confirmed'].includes(orderData.status) ? 'Rider heading out' : 'Waiting for dispatch'))
+          distance: distanceText
         });
-      } catch (error) {
-        console.error("Error fetching order data:", error);
-      } finally {
-        setLoading(false);
-      }
+      } catch (e) { } finally { setLoading(false); }
     };
     fetchData();
   }, [orderId]);
 
   useEffect(() => {
     if (!orderId) return;
-    const orderChannel = supabase
-      .channel(`order-tracking-${orderId}`)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders', filter: `id=eq.${orderId}` }, async (payload: any) => {
-          // Re-fetch everything to ensure rider data and status are synced
-          const { data: orderData } = await supabase
-            .from('orders')
-            .select('*')
-            .eq('id', orderId)
-            .single();
-
-          if (orderData) {
-            let riderObj = null;
-            if (orderData.rider_id) {
-              const { data: riderData } = await supabase
-                .from('riders')
-                .select('*')
-                .eq('id', orderData.rider_id)
-                .single();
-              
-              if (riderData) {
-                riderObj = {
-                  name: riderData.full_name || (riderData.first_name ? `${riderData.first_name} ${riderData.last_name || ''}`.trim() : 'Your Rider'),
-                  phone: riderData.phone_number || riderData.phone || '+233 24 000 0000',
-                  rating: riderData.rating ? parseFloat(riderData.rating) : 4.8,
-                  vehicle: riderData.vehicle_info || 'Tricycle',
-                  vehicleNumber: riderData.vehicle_number || 'TRC-102-GH',
-                  photo: riderData.avatar_url || 'https://cdn-icons-png.flaticon.com/512/149/149071.png',
-                  lat: riderData.latitude || 5.6037,
-                  lng: riderData.longitude || -0.1870
-                };
-                setRiderLocation({ lat: riderObj.lat, lng: riderObj.lng });
-              }
-            }
-
-            if (riderObj) {
-               // Update ETA as the rider moves
-               try {
-                 const matrix = await getDistanceMatrix(
-                   [`${riderObj.lat},${riderObj.lng}`],
-                   [`${orderData.pickup_latitude},${orderData.pickup_longitude}`]
-                 );
-                 if (matrix?.status === 'OK' && matrix.rows?.[0]?.elements?.[0]?.duration?.text) {
-                   setOrder((prev: any) => ({ ...prev, estimatedArrival: matrix.rows[0].elements[0].duration.text }));
-                 }
-               } catch (e) { console.log("Live ETA update failed:", e); }
-            }
-
-            setOrder((prev: any) => ({
-              ...prev,
-              status: orderData.status,
-              rider: riderObj || prev?.rider,
-              currentLocation: orderData.status === 'arrived' ? 'Rider at your location' : (['in_progress', 'active', 'heading'].includes(orderData.status) ? 'Approaching your location' : (['accepted', 'assigned', 'confirmed'].includes(orderData.status) ? 'Rider heading out' : 'Waiting for dispatch'))
-            }));
-
-            if (['accepted', 'assigned', 'confirmed', 'active'].includes(orderData.status) && riderObj) {
-               sendLocalNotification(
-                 'Pickup Accepted!',
-                 `${riderObj.name} is on the way to your location.`,
-                 { orderId }
-               );
-            } else if (orderData.status === 'in_progress') {
-               sendLocalNotification(
-                 'Rider Arriving',
-                 'Your rider is nearly at your location for pickup.',
-                 { orderId }
-               );
-            }
-          }
+    const orderChannel = supabase.channel(`order-tracking-${orderId}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders', filter: `id=eq.${orderId}` }, async (payload) => {
+        const orderData = payload.new;
+        setOrder((prev: any) => ({ ...prev, status: orderData.status }));
       }).subscribe();
     return () => { supabase.removeChannel(orderChannel); };
   }, [orderId]);
+
+  const refreshTelemetry = async (rLat: number, rLng: number) => {
+    if (!order?.latitude || !order?.longitude) return;
+    try {
+      const matrix = await getDistanceMatrix([`${rLat},${rLng}`], [`${order.latitude},${order.longitude}`]);
+      if (matrix?.status === 'OK' && matrix.rows?.[0]?.elements?.[0]) {
+        const time = matrix.rows[0].elements[0].duration.text;
+        const dist = matrix.rows[0].elements[0].distance.text;
+        setOrder((prev: any) => ({ 
+          ...prev, 
+          estimatedArrival: order.status === 'completed' ? 'Arrived' : time,
+          distance: dist 
+        }));
+      }
+    } catch (e) { console.log("Telemetry sync error:", e); }
+  };
 
   useEffect(() => {
     if (!orderId || !isLiveTracking) return;
@@ -187,79 +132,35 @@ const TrackOrderPage: React.FC = () => {
         riderChannel = supabase.channel(`rider-loc-${currentOrder.rider_id}`)
           .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'riders', filter: `id=eq.${currentOrder.rider_id}` }, (payload: any) => {
               if (payload.new.latitude && payload.new.longitude) {
-                setRiderLocation({ lat: parseFloat(payload.new.latitude), lng: parseFloat(payload.new.longitude) });
+                const nLat = parseFloat(payload.new.latitude);
+                const nLng = parseFloat(payload.new.longitude);
+                setRiderLocation({ 
+                  lat: nLat, 
+                  lng: nLng,
+                  heading: payload.new.heading || 0
+                });
+                // Trigger telemetry refresh on movement
+                refreshTelemetry(nLat, nLng);
               }
           }).subscribe();
       }
     };
     setupRiderSubscription();
     return () => { if (riderChannel) supabase.removeChannel(riderChannel); };
-  }, [orderId, isLiveTracking]);
+  }, [orderId, isLiveTracking, order?.latitude, order?.longitude, order?.status]);
 
   const trackingSteps = [
-    { title: 'Order Confirmed', description: 'Request received', completed: true },
-    { title: 'Rider Assigned', description: order?.rider ? `${order.rider.name} is on the way` : 'Assigning rider', completed: !!order?.rider },
-    { title: 'Rider Arrived', description: order?.status === 'arrived' ? 'Rider is outside!' : 'At your location', active: order?.status === 'arrived', completed: order?.status === 'completed' },
-    { title: 'Completed', description: 'Waste collected', completed: order?.status === 'completed' }
+    { title: 'Request Received', completed: true },
+    { title: 'Rider Assigned', completed: !!order?.rider },
+    { title: 'In Transit', completed: ['heading', 'arrived', 'completed'].includes(order?.status?.toLowerCase()) },
+    { title: 'Arrived', completed: ['arrived', 'completed'].includes(order?.status?.toLowerCase()) },
+    { title: 'Pickup complete', completed: order?.status === 'completed' }
   ];
-
-  const handleCallRider = async () => {
-    if (!order?.rider?.phone) return;
-    Linking.openURL(`tel:${order.rider.phone}`);
-  };
-
-  const handleCancelOrder = () => {
-    if (order?.status === 'completed' || order?.status === 'cancelled') return;
-
-    let message = "Are you sure you want to cancel this pickup?";
-    if (['accepted', 'assigned', 'confirmed', 'active', 'in_progress'].includes(order?.status)) {
-      message = "A rider has already been assigned and may be moving. Are you sure you want to cancel?";
-    }
-
-    showAlert({
-      title: "Cancel Order",
-      message,
-      type: 'warning',
-      showCancel: true,
-      confirmLabel: "Yes, Cancel",
-      onConfirm: performCancellation
-    });
-  };
-
-  const performCancellation = async () => {
-    try {
-      const { error } = await supabase
-        .from('orders')
-        .update({ 
-          status: 'cancelled',
-          sub_status: 'cancelled',
-          cancelled_at: new Date().toISOString()
-        })
-        .eq('id', order.realId);
-
-      if (error) {
-        showAlert({ title: "Cancellation Failed", message: error.message, type: 'error' });
-        return;
-      }
-      
-      showAlert({ 
-        title: "Success", 
-        message: "Your order has been cancelled.", 
-        type: 'success', 
-        onConfirm: () => navigation.navigate('Home') 
-      });
-    } catch (e: any) {
-      showAlert({ title: "Error", message: "A system error occurred. Please try again.", type: 'error' });
-    }
-  };
 
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.loaderContainer}>
-          <ActivityIndicator size="large" color="#10b981" />
-          <Text style={styles.loaderText}>Syncing tracker...</Text>
-        </View>
+        <View style={styles.loaderContainer}><ActivityIndicator size="large" color="#10b981" /><Text style={styles.loaderText}>Loading your order…</Text></View>
       </SafeAreaView>
     );
   }
@@ -267,169 +168,117 @@ const TrackOrderPage: React.FC = () => {
   return (
     <SafeAreaView style={styles.container}>
       <Navigation />
-      <ScrollView 
-        style={styles.scrollView} 
-        contentContainerStyle={[
-          styles.content,
-          {
-            paddingTop: insets.top + 70,
-            paddingBottom: insets.bottom + 100
-          }
-        ]} 
-        showsVerticalScrollIndicator={false}
-      >
+      <ScrollView style={styles.scrollView} contentContainerStyle={{ paddingTop: insets.top + 84, paddingBottom: insets.bottom + 100 }} showsVerticalScrollIndicator={false}>
+        
+        <View style={styles.floatHeader}>
+          <View style={styles.orderIdBadge}>
+            <Text style={styles.orderIdText}>Order #{order.id}</Text>
+          </View>
+          <View style={styles.liveBadge}>
+            <View style={styles.pulseDot} />
+            <Text style={styles.liveText}>Live</Text>
+          </View>
+        </View>
 
         <View style={styles.mapCard}>
-          <View style={styles.mapWrapper}>
-            <NavigatrMap 
-              height={240}
-              style={styles.map}
-              centerLat={riderLocation.lat} 
-              centerLng={riderLocation.lng}
-              markers={[
-                { lat: riderLocation.lat, lng: riderLocation.lng, type: 'rider', label: 'Rider' },
-                { lat: order.latitude, lng: order.longitude, type: 'user', label: 'You' }
-              ]}
-              showRoute={true}
-              routeOrigin={{ lat: riderLocation.lat, lng: riderLocation.lng }}
-              routeDestination={{ lat: order.latitude, lng: order.longitude }}
-            />
-          </View>
-          <View style={styles.mapInfo}>
-            <View>
-              <Text style={styles.currentLocation}>{order.currentLocation}</Text>
-              <Text style={styles.etaText}>Eta: <Text style={styles.etaValue}>{order.estimatedArrival}</Text></Text>
-            </View>
-            <TouchableOpacity onPress={() => setIsLiveTracking(!isLiveTracking)} style={[styles.liveToggle, isLiveTracking && styles.liveToggleActive]}>
-              <RemixIcon name={isLiveTracking ? "ri-wifi-line" : "ri-wifi-off-line"} size={18} color={isLiveTracking ? "#10b981" : "#94a3b8"} />
-            </TouchableOpacity>
-          </View>
+          <NavigatrMap 
+             centerLat={riderLocation.lat} 
+             centerLng={riderLocation.lng} 
+             zoom={16}
+             height={400}
+             variant="light"
+             markers={[
+               { id: order?.rider?.id, lat: riderLocation.lat, lng: riderLocation.lng, type: 'rider', label: order?.rider?.name || 'Rider', heading: riderLocation.heading },
+               { id: 'pickup-point', lat: order.latitude, lng: order.longitude, type: 'landmark', label: 'Pickup Point' },
+               ...(userLocation ? [{ id: 'user-loc', lat: userLocation.coords.latitude, lng: userLocation.coords.longitude, type: 'user' as const }] : [])
+             ]}
+             showRadar={true}
+             radarTitle="Live tracking"
+             radarSubtitle={`Order #${order.id}`}
+             fitToMarkers={true}
+             telemetry={{ distance: order.distance, duration: order.estimatedArrival }}
+             showRoute={true}
+             routeOrigin={{ lat: riderLocation.lat, lng: riderLocation.lng }}
+             routeDestination={{ lat: order.latitude, lng: order.longitude }}
+          />
         </View>
 
         {order.rider && (
           <View style={styles.riderCard}>
             <Image source={{ uri: order.rider.photo }} style={styles.riderAvatar} />
             <View style={styles.riderInfo}>
-               <View style={styles.riderNameRow}>
-                <Text style={styles.riderName}>{order.rider.name}</Text>
-                <View style={styles.ratingBox}>
-                    <RemixIcon name="ri-star-fill" size={10} color="#fbbf24" />
-                    <Text style={styles.ratingText}>{order.rider.rating}</Text>
-                </View>
-               </View>
-               <Text style={styles.vehicleText}>{order.rider.vehicle} • {order.rider.vehicleNumber}</Text>
+               <Text style={styles.riderName}>{order.rider.name}</Text>
+               <Text style={styles.vehicleText}>{order.rider.vehicle} · <Text style={{ color: '#0f172a', fontFamily: typography.bold }}>{order.rider.vehicleNumber}</Text></Text>
             </View>
-            <View style={styles.riderActionRow}>
-                <TouchableOpacity 
-                    onPress={() => navigation.navigate('ChatRider', { riderId: order.rider.id, orderId: order.realId })} 
-                    style={styles.messageSmallBtn}
-                >
-                    <RemixIcon name="ri-message-3-fill" size={18} color="#10b981" />
-                </TouchableOpacity>
-                <TouchableOpacity onPress={handleCallRider} style={styles.callSmallBtn}>
-                    <RemixIcon name="ri-phone-fill" size={18} color="#fff" />
-                </TouchableOpacity>
+            <View style={styles.riderActions}>
+               <TouchableOpacity onPress={() => Linking.openURL(`tel:${order.rider.phone}`)} style={styles.actionBtn}><RemixIcon name="ri-phone-fill" size={20} color="#fff" /></TouchableOpacity>
+               <TouchableOpacity onPress={() => navigation.navigate('ChatRider', { riderId: order.rider.id, orderId: order.realId })} style={[styles.actionBtn, { backgroundColor: '#f1f5f9' }]}><RemixIcon name="ri-message-3-fill" size={20} color="#64748b" /></TouchableOpacity>
             </View>
           </View>
         )}
 
-        <View style={styles.trackerList}>
-           {trackingSteps.map((step, idx) => (
-             <View key={idx} style={styles.stepItem}>
-                <View style={styles.stepIndicator}>
-                    <View style={[styles.stepCircle, (step.completed || step.active) && styles.stepCircleDone]}>
-                        {(step.completed || step.active) ? <RemixIcon name={step.completed ? "ri-check-line" : "ri-time-line"} size={12} color="#fff" /> : <View style={styles.stepDot} />}
-                    </View>
-                    {idx < trackingSteps.length - 1 && <View style={[styles.stepLine, step.completed && styles.stepLineDone]} />}
+        <View style={styles.trackerSection}>
+           <Text style={styles.sectionLabel}>Order Progress</Text>
+           <View style={styles.trackerList}>
+              {trackingSteps.map((step, idx) => (
+                <View key={idx} style={styles.stepRow}>
+                   <View style={styles.indicatorCol}>
+                      <View style={[styles.stepCircle, step.completed && styles.stepCircleDone]}>
+                         {step.completed ? <RemixIcon name="ri-check-line" size={12} color="#fff" /> : <View style={styles.stepDot} />}
+                      </View>
+                      {idx < trackingSteps.length - 1 && <View style={[styles.stepLine, step.completed && styles.stepLineDone]} />}
+                   </View>
+                   <View style={styles.stepTextCol}>
+                      <Text style={[styles.stepTitle, step.completed && styles.stepTitleDone]}>{step.title}</Text>
+                   </View>
                 </View>
-                <View style={styles.stepText}>
-                    <Text style={[styles.stepTitle, (step.completed || step.active) && styles.stepTitleActive]}>{step.title}</Text>
-                    <Text style={styles.stepDesc}>{step.description}</Text>
-                </View>
-             </View>
-           ))}
-          </View>
+              ))}
+           </View>
+        </View>
 
-        {order?.status !== 'completed' && order?.status !== 'cancelled' && (
-          <View style={styles.actionButtons}>
-            <TouchableOpacity 
-              onPress={() => navigation.navigate('Booking', { editId: order.realId })} 
-              style={styles.modifyBtn}
-            >
-              <RemixIcon name="ri-edit-2-line" size={18} color="#0f172a" />
-              <Text style={styles.modifyBtnText}>Modify Details</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity onPress={handleCancelOrder} style={styles.cancelBtn}>
-              <RemixIcon name="ri-close-circle-line" size={18} color="#ef4444" />
-              <Text style={styles.cancelBtnText}>Cancel Order</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        <TouchableOpacity onPress={() => navigation.navigate('Home')} style={styles.backHomeBtn}>
-           <Text style={styles.backHomeText}>Return to Home</Text>
+        <TouchableOpacity onPress={() => navigateTo('/home')} style={styles.footerBtn}>
+          <RemixIcon name="ri-home-4-line" size={16} color="#0d9488" />
+           <Text style={styles.footerBtnText}>Back to home</Text>
         </TouchableOpacity>
-
       </ScrollView>
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#ffffff' },
-  loaderContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  loaderText: { marginTop: 12, fontFamily: typography.medium, color: '#64748b' },
+  container: { flex: 1, backgroundColor: '#fdfdfd' },
   scrollView: { flex: 1 },
-  content: { paddingHorizontal: 20 },
-  header: { marginBottom: 24 },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  title: { fontSize: 26, fontFamily: typography.bold, color: '#0f172a' },
-  subtitle: { fontSize: 13, fontFamily: typography.semiBold, color: '#94a3b8', marginTop: 4 },
-  statusBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f1f5f9', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, gap: 6 },
-  statusBadgeActive: { backgroundColor: '#f0fdf4' },
-  statusDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#94a3b8' },
-  statusDotActive: { backgroundColor: '#10b981' },
-  statusBadgeText: { fontSize: 10, fontFamily: typography.bold, color: '#64748b' },
-  mapCard: { backgroundColor: '#ffffff', borderRadius: 24, overflow: 'hidden', borderWidth: 1, borderColor: '#f1f5f9', marginBottom: 24, elevation: 4 },
-  mapWrapper: { },
-  map: { borderRadius: 24 },
-  mapInfo: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16 },
-  currentLocation: { fontSize: 15, fontFamily: typography.bold, color: '#1e293b', marginBottom: 2 },
-  etaText: { fontSize: 13, fontFamily: typography.medium, color: '#64748b' },
-  etaValue: { color: '#10b981', fontFamily: typography.bold },
-  liveToggle: { width: 36, height: 36, borderRadius: 10, backgroundColor: '#f8fafc', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#f1f5f9' },
-  liveToggleActive: { backgroundColor: '#f0fdf4', borderColor: '#dcfce7' },
-  riderCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#0f172a', padding: 12, borderRadius: 20, marginBottom: 24 },
-  riderAvatar: { width: 44, height: 44, borderRadius: 12 },
-  riderInfo: { flex: 1, marginLeft: 12 },
-  riderNameRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 },
-  riderName: { fontSize: 15, fontFamily: typography.bold, color: '#ffffff' },
-  ratingBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.1)', paddingHorizontal: 5, paddingVertical: 2, borderRadius: 6, gap: 3 },
-  ratingText: { fontSize: 10, fontFamily: typography.bold, color: '#fbbf24' },
-  vehicleText: { fontSize: 11, fontFamily: typography.medium, color: '#94a3b8' },
-  riderActionRow: { flexDirection: 'row', gap: 10 },
-  messageSmallBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: '#f0fdf4', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#dcfce7' },
-  callSmallBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: '#10b981', alignItems: 'center', justifyContent: 'center' },
-  trackerList: { paddingLeft: 8, marginBottom: 24 },
-  stepItem: { flexDirection: 'row' },
-  stepIndicator: { alignItems: 'center', width: 24 },
-  stepCircle: { width: 24, height: 24, borderRadius: 12, backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center', zIndex: 1 },
-  stepCircleDone: { backgroundColor: '#10b981' },
+  loaderContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 16, backgroundColor: '#fdfdfd' },
+  loaderText: { fontSize: 14, fontFamily: typography.bold, color: '#64748b' },
+  floatHeader: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 20, marginBottom: 16 },
+  orderIdBadge: { backgroundColor: '#f1f5f9', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10, borderWidth: 1, borderColor: '#e2e8f0' },
+  orderIdText: { fontSize: 11, fontFamily: typography.bold, color: '#475569' },
+  liveBadge: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: 'rgba(16, 185, 129, 0.12)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10, borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.2)' },
+  pulseDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#10b981' },
+  liveText: { fontSize: 10, fontFamily: typography.bold, color: '#10b981' },
+  mapCard: { marginHorizontal: 20, borderRadius: 32, overflow: 'hidden', borderWidth: 1, borderColor: '#e2e8f0', backgroundColor: '#ffffff', shadowColor: '#0f172a', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.05, shadowRadius: 16, elevation: 3 },
+  riderCard: { margin: 20, padding: 20, borderRadius: 24, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#f1f5f9', backgroundColor: '#ffffff', shadowColor: '#0f172a', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.04, shadowRadius: 12, elevation: 2 },
+  riderAvatar: { width: 52, height: 52, borderRadius: 16, backgroundColor: '#f8fafc' },
+  riderInfo: { flex: 1, marginLeft: 16 },
+  riderName: { fontSize: 17, fontFamily: typography.bold, color: '#0f172a' },
+  vehicleText: { fontSize: 12, fontFamily: typography.medium, color: '#64748b', marginTop: 2 },
+  riderActions: { flexDirection: 'row', gap: 10 },
+  actionBtn: { width: 44, height: 44, borderRadius: 14, backgroundColor: '#10b981', alignItems: 'center', justifyContent: 'center' },
+  trackerSection: { paddingHorizontal: 24, marginTop: 12 },
+  sectionLabel: { fontSize: 12, fontFamily: typography.bold, color: '#94a3b8', letterSpacing: 1.5, marginBottom: 24 },
+  trackerList: { paddingLeft: 8 },
+  stepRow: { flexDirection: 'row', minHeight: 60, paddingBottom: 12 },
+  indicatorCol: { alignItems: 'center', width: 24 },
+  stepCircle: { width: 24, height: 24, borderRadius: 12, backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#e2e8f0' },
+  stepCircleDone: { backgroundColor: '#10b981', borderColor: '#10b981' },
   stepDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: '#cbd5e1' },
-  stepLine: { width: 2, flex: 1, backgroundColor: '#f1f5f9', marginVertical: 2 },
+  stepLine: { width: 2, flex: 1, backgroundColor: '#f1f5f9', marginVertical: 4 },
   stepLineDone: { backgroundColor: '#10b981' },
-  stepText: { flex: 1, marginLeft: 16, paddingBottom: 20 },
-  stepTitle: { fontSize: 14, fontFamily: typography.bold, color: '#94a3b8' },
-  stepTitleActive: { color: '#0f172a' },
-  stepDesc: { fontSize: 12, fontFamily: typography.regular, color: '#64748b', marginTop: 2 },
-  backHomeBtn: { alignItems: 'center', paddingVertical: 12, marginTop: 10 },
-  backHomeText: { fontSize: 14, fontFamily: typography.semiBold, color: '#64748b' },
-  actionButtons: { gap: 12, marginTop: 8 },
-  modifyBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc', paddingVertical: 16, borderRadius: 20, gap: 8, borderWidth: 1.5, borderColor: '#f1f5f9' },
-  modifyBtnText: { fontSize: 15, fontFamily: typography.bold, color: '#0f172a' },
-  cancelBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#fef2f2', paddingVertical: 16, borderRadius: 20, gap: 8 },
-  cancelBtnText: { fontSize: 15, fontFamily: typography.bold, color: '#ef4444' }
+  stepTextCol: { marginLeft: 20 },
+  stepTitle: { fontSize: 15, fontFamily: typography.bold, color: '#94a3b8' },
+  stepTitleDone: { color: '#0f172a' },
+  footerBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 32 },
+  footerBtnText: { fontSize: 13, fontFamily: typography.bold, color: '#0d9488' },
 });
 
 export default TrackOrderPage;

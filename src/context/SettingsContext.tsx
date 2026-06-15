@@ -58,8 +58,9 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           popupMessage: cs?.announcement?.message || ls?.popupMessage || '',
           popupImage: cs?.announcement?.image || ls?.popupImage || '',
           // Aggressive asset extraction: Check banners, sliders, and legacy news items
+          bannersEnabled: cs?.bannersEnabled !== false,
           newsItems: [
-            ...(cs?.banners || []),
+            ...(cs?.bannersEnabled !== false ? (cs?.banners || []).filter((b: any) => b.enabled !== false) : []),
             ...(cs?.sliders || []),
             ...(ls?.newsItems || [])
           ].filter(Boolean).map((b: any, index: number) => ({ 

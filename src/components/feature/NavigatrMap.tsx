@@ -1,28 +1,39 @@
-import React, { useEffect, useRef, useMemo, useState } from 'react';
-import { StyleSheet, View, ViewStyle, Platform, Text } from 'react-native';
-import { WebView } from 'react-native-webview';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
+import { StyleSheet, View, ViewStyle, Platform, Text, TouchableOpacity, ActivityIndicator, Animated, Easing } from 'react-native';
+import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
+import { RemixIcon } from '../../utils/icons';
+import { typography } from '../../utils/typography';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-interface Marker {
+interface MapMarker {
+  id?: string;
   lat: number;
   lng: number;
   type: 'user' | 'rider' | 'landmark';
   label?: string;
+  heading?: number;
 }
 
 interface NavigatrMapProps {
   centerLat: number;
   centerLng: number;
   zoom?: number;
-  markers?: Marker[];
+  markers?: MapMarker[];
   showRoute?: boolean;
   routeOrigin?: { lat: number; lng: number };
   routeDestination?: { lat: number; lng: number };
   interactive?: boolean;
-  /** Explicit pixel height. If omitted, uses aspectRatio to compute from width. */
+  fitToMarkers?: boolean;
   height?: number;
-  /** Width-to-height ratio used when height is not specified. Default 16/9. */
   aspectRatio?: number;
   style?: ViewStyle;
+  showRadar?: boolean;
+  radarTitle?: string;
+  radarSubtitle?: string;
+  telemetry?: { distance?: string; duration?: string };
+  onRegionChangeComplete?: (region: { latitude: number; longitude: number }) => void;
+  variant?: 'light' | 'dark';
+  showCenterPin?: boolean;
 }
 
 export const NavigatrMap: React.FC<NavigatrMapProps> = ({
@@ -34,304 +45,322 @@ export const NavigatrMap: React.FC<NavigatrMapProps> = ({
   routeOrigin,
   routeDestination,
   interactive = true,
+  fitToMarkers = false,
   height,
   aspectRatio = 16 / 9,
   style,
+  showRadar = true,
+  radarTitle = 'Fleet Radar Active',
+  radarSubtitle,
+  telemetry,
+  onRegionChangeComplete,
+  variant = 'light',
+  showCenterPin = false,
 }) => {
-  const webviewRef = useRef<WebView>(null);
-  const iframeRef = useRef<HTMLIFrameElement>(null);
-  const [hasError, setHasError] = useState(false);
+  const mapRef = useRef<MapView>(null);
+  const insets = useSafeAreaInsets();
   const [containerWidth, setContainerWidth] = useState(0);
+  const pulseAnim = useRef(new Animated.Value(0)).current;
+  const rotateAnim = useRef(new Animated.Value(0)).current;
+  const scanAnim = useRef(new Animated.Value(0)).current;
 
-  // Freeze initial config into a ref so the HTML is only generated once.
-  // Marker updates are pushed via postMessage without reloading the map.
-  const cfg = useRef({ centerLat, centerLng, zoom, interactive, showRoute, routeOrigin, routeDestination });
+  useEffect(() => {
+    Animated.parallel([
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, { toValue: 1, duration: 2000, easing: Easing.out(Easing.ease), useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 0, duration: 0, useNativeDriver: true }),
+        ])
+      ),
+      Animated.loop(
+        Animated.timing(rotateAnim, { toValue: 1, duration: 5000, easing: Easing.linear, useNativeDriver: true })
+      ),
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(scanAnim, { toValue: 1, duration: 3000, easing: Easing.linear, useNativeDriver: true }),
+          Animated.timing(scanAnim, { toValue: 0, duration: 0, useNativeDriver: true }),
+        ])
+      )
+    ]).start();
+  }, []);
 
-  const mapHtml = useMemo(() => `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0" />
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body { width: 100%; height: 100%; overflow: hidden; background: #f1f5f9; }
-    #map { width: 100%; height: 100%; }
-
-    /* ── Loading splash ── */
-    #loader {
-      position: fixed; inset: 0; display: flex; flex-direction: column;
-      align-items: center; justify-content: center; background: #f8fafc; z-index: 999;
-      gap: 12px; transition: opacity 0.4s ease;
-    }
-    #loader.hide { opacity: 0; pointer-events: none; }
-    .loader-icon {
-      width: 52px; height: 52px; border-radius: 16px;
-      background: linear-gradient(135deg, #10b981, #059669);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 26px; box-shadow: 0 8px 24px rgba(16,185,129,0.3);
-      animation: float 2s ease-in-out infinite;
-    }
-    @keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
-    .loader-text { font-size: 13px; font-weight: 600; color: #64748b; font-family: system-ui, sans-serif; }
-    .loader-bar { width: 120px; height: 3px; background: #e2e8f0; border-radius: 2px; overflow: hidden; }
-    .loader-bar-fill { height: 100%; background: linear-gradient(90deg, #10b981, #34d399); width: 0%; animation: fill-bar 2s ease-in-out forwards; }
-    @keyframes fill-bar { 0% { width: 0%; } 70% { width: 85%; } 100% { width: 100%; } }
-
-    /* ── Marker styles ── */
-    .marker-wrap { position: relative; display: flex; align-items: center; justify-content: center; }
-    .pulse {
-      position: absolute; border-radius: 50%;
-      animation: pulse-ring 2s cubic-bezier(0.215,0.61,0.355,1) infinite;
-      pointer-events: none;
-    }
-    .pulse-user  { width: 56px; height: 56px; background: rgba(16,185,129,0.2); }
-    .pulse-rider { width: 64px; height: 64px; background: rgba(59,130,246,0.2); animation-duration: 2.5s; }
-    @keyframes pulse-ring {
-      0%   { transform: scale(0.55); opacity: 0.85; }
-      100% { transform: scale(2);    opacity: 0; }
-    }
-
-    .marker-pin {
-      width: 34px; height: 34px; border-radius: 50%;
-      border: 3px solid #fff;
-      box-shadow: 0 6px 16px rgba(0,0,0,0.18);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 16px; position: relative; z-index: 1;
-      transition: transform 0.25s cubic-bezier(0.175,0.885,0.32,1.275);
-      cursor: pointer;
-    }
-    .marker-pin:hover { transform: scale(1.15); }
-    .marker-user     { background: linear-gradient(145deg,#10b981,#059669); }
-    .marker-rider    { background: #fff; width: 40px; height: 40px; font-size: 20px; border: 2.5px solid #3b82f6; box-shadow: 0 8px 20px rgba(59,130,246,0.28); }
-    .marker-landmark { background: linear-gradient(145deg,#f59e0b,#d97706); width: 28px; height: 28px; font-size: 13px; }
-
-    /* ── Tooltip label ── */
-    .label {
-      position: absolute; bottom: 46px; left: 50%; transform: translateX(-50%);
-      background: rgba(15,23,42,0.92); color: #fff;
-      padding: 5px 11px; border-radius: 9px;
-      font-size: 11px; font-weight: 700; white-space: nowrap;
-      font-family: system-ui, sans-serif;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.15); backdrop-filter: blur(6px);
-      pointer-events: none;
-    }
-    .label::after {
-      content: ''; position: absolute; bottom: -5px; left: 50%; transform: translateX(-50%);
-      border: 5px solid transparent; border-top-color: rgba(15,23,42,0.92);
-      border-bottom: none;
-    }
-  </style>
-</head>
-<body>
-  <div id="loader">
-    <div class="loader-icon">🗺️</div>
-    <div class="loader-bar"><div class="loader-bar-fill"></div></div>
-    <div class="loader-text">Loading Map…</div>
-  </div>
-  <div id="map"></div>
-  <script type="module">
-    import { Navigatr } from 'https://esm.sh/@navigatr/web@1.3.0';
-
-    const loader = document.getElementById('loader');
-    let map = null;
-    let currentMarkers = [];
-
-    function buildMarkerHtml(m) {
-      const icon = m.type === 'rider' ? '🛺' : (m.type === 'landmark' ? '🏢' : '');
-      return \`
-        <div class="marker-wrap">
-          <div class="pulse pulse-\${m.type}"></div>
-          <div class="marker-pin marker-\${m.type}">\${icon}</div>
-          \${m.label ? \`<div class="label">\${m.label}</div>\` : ''}
-        </div>
-      \`;
-    }
-
-    function clearMarkers() {
-      currentMarkers.forEach(m => { try { if (m && typeof m.remove === 'function') m.remove(); } catch(e){} });
-      currentMarkers = [];
-    }
-
-    function addMarkers(markersData) {
-      clearMarkers();
-      (markersData || []).forEach(m => {
-        if (!m || typeof m.lat !== 'number' || typeof m.lng !== 'number') return;
-        try {
-          const marker = map.addMarker({ lat: m.lat, lng: m.lng, iconHtml: buildMarkerHtml(m) });
-          currentMarkers.push(marker);
-        } catch(e) {}
-      });
-    }
-
-    window.updateMapState = (data) => {
-      if (!map) return;
-      if (data && Array.isArray(data.markers)) addMarkers(data.markers);
+  const region = useMemo(() => {
+    // Standard mercator delta: viewport covers ~2 * (360 / 2^zoom) degrees lat at given zoom.
+    // zoom 14 → ~0.022°  (~2.4 km),  zoom 15 → ~0.011°,  zoom 16 → ~0.005°,  zoom 17 → ~0.003° (~300 m street-level)
+    const latDelta = 360 / Math.pow(2, zoom) * 2;
+    const lngDelta = latDelta * 0.5; // typical portrait aspect ratio
+    return {
+      latitude: centerLat,
+      longitude: centerLng,
+      latitudeDelta: latDelta,
+      longitudeDelta: lngDelta,
     };
+  }, [centerLat, centerLng, zoom]);
 
-    // Bridge for React Native WebView & Web iframe
-    window.addEventListener('message', (event) => {
-      let payload = event.data;
-      try { if (typeof payload === 'string') payload = JSON.parse(payload); } catch(e) {}
-      if (payload && payload.type === 'UPDATE_MAP') window.updateMapState(payload.data);
-    });
+  const [isUserInteracting, setIsUserInteracting] = useState(false);
+  const userInteractionTimeout = useRef<any>(null);
 
-    async function init() {
-      try {
-        const nav = new Navigatr();
-        map = nav.map({
-          container: 'map',
-          center: { lat: ${cfg.current.centerLat}, lng: ${cfg.current.centerLng} },
-          zoom: ${cfg.current.zoom},
-          pitch: ${cfg.current.interactive ? 45 : 30},
-          bearing: -10,
-          interactive: ${cfg.current.interactive},
-        });
+  const handleRegionChange = () => {
+    setIsUserInteracting(true);
+    if (userInteractionTimeout.current) clearTimeout(userInteractionTimeout.current);
+    userInteractionTimeout.current = setTimeout(() => setIsUserInteracting(false), 5000);
+  };
 
-        window.navigatrMap = map;
-
-        // Hide loader after map tiles load
-        setTimeout(() => {
-          if (loader) loader.classList.add('hide');
-          if (window.ReactNativeWebView) {
-            window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'MAP_READY' }));
-          }
-        }, 1400);
-
-        // Draw route if needed
-        if (${cfg.current.showRoute} && ${!!cfg.current.routeOrigin} && ${!!cfg.current.routeDestination}) {
-          try {
-            const route = await nav.route({
-              origin:      { lat: ${cfg.current.routeOrigin?.lat ?? 0}, lng: ${cfg.current.routeOrigin?.lng ?? 0} },
-              destination: { lat: ${cfg.current.routeDestination?.lat ?? 0}, lng: ${cfg.current.routeDestination?.lng ?? 0} },
-              mode: 'drive',
-            });
-            if (route && route.polyline) {
-              map.drawRoute(route.polyline, { color: '#10b981', weight: 5, opacity: 0.85 });
-              map.fitRoute(route.polyline);
-            }
-          } catch(e) {}
-        }
-
-      } catch(e) {
-        if (loader) {
-          loader.innerHTML = \`<div style="text-align:center;padding:20px;font-family:system-ui">
-            <div style="font-size:32px;margin-bottom:8px">⚠️</div>
-            <div style="color:#ef4444;font-weight:700;font-size:13px">Map failed to load</div>
-            <div style="color:#94a3b8;font-size:11px;margin-top:4px">Check your connection</div>
-          </div>\`;
-        }
-      }
-    }
-
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', init);
+  const reCenter = () => {
+    if (!mapRef.current || (markers.length === 0 && !centerLat)) return;
+    if (markers.length > 0) {
+      const coords = markers.filter(m => m.lat && m.lng).map(m => ({ latitude: m.lat, longitude: m.lng }));
+      mapRef.current.fitToCoordinates(coords, { edgePadding: { top: 100, right: 100, bottom: 100, left: 100 }, animated: true });
     } else {
-      init();
+      mapRef.current.animateToRegion(region, 1000);
     }
-  </script>
-</body>
-</html>`, []); // eslint-disable-line react-hooks/exhaustive-deps
+    setIsUserInteracting(false);
+  };
 
-  // ── Real-time marker sync ─────────────────────────────────────────────────
   useEffect(() => {
-    if (!markers || markers.length === 0) return;
-    const payload = JSON.stringify({ type: 'UPDATE_MAP', data: { markers } });
-
-    if (Platform.OS === 'web') {
-      if (iframeRef.current?.contentWindow) {
-        iframeRef.current.contentWindow.postMessage({ type: 'UPDATE_MAP', data: { markers } }, '*');
+    if (fitToMarkers && markers.length > 0 && mapRef.current && !isUserInteracting) {
+      const coords = markers.filter(m => m.lat && m.lng).map(m => ({ latitude: m.lat, longitude: m.lng }));
+      if (coords.length > 0) {
+        mapRef.current.fitToCoordinates(coords, { edgePadding: { top: 140, right: 80, bottom: 140, left: 80 }, animated: true });
       }
-    } else if (webviewRef.current) {
-      // injectJavaScript must return true
-      const script = `(function(){ if(window.updateMapState){ window.updateMapState(${JSON.stringify({ markers })}); } })(); true;`;
-      webviewRef.current.injectJavaScript(script);
     }
-  }, [markers]);
+  }, [markers, fitToMarkers, isUserInteracting]);
 
-  // ── Delayed first injection for web (iframe loads async) ─────────────────
+  // Programmatically center and animate map when center coordinates change
   useEffect(() => {
-    if (Platform.OS !== 'web') return;
-    const t = setTimeout(() => {
-      if (iframeRef.current?.contentWindow) {
-        iframeRef.current.contentWindow.postMessage({ type: 'UPDATE_MAP', data: { markers } }, '*');
-      }
-    }, 1600);
-    return () => clearTimeout(t);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    if (mapRef.current && centerLat && centerLng && !isUserInteracting && !fitToMarkers) {
+      mapRef.current.animateToRegion(region, 1000);
+    }
+  }, [centerLat, centerLng, region, isUserInteracting, fitToMarkers]);
 
-  // ── Resolve final pixel height responsively ───────────────────────────────
-  // Priority: explicit style.height > explicit height prop > aspect-ratio from measured width
-  const styleHeight = (style as any)?.height;
-  const resolvedHeight: number | undefined =
-    styleHeight ?? height ?? (containerWidth > 0 ? Math.round(containerWidth / aspectRatio) : undefined);
+  const flatStyle = StyleSheet.flatten(style);
+  const hasHeightOrFlex = flatStyle && (flatStyle.height !== undefined || flatStyle.flex !== undefined);
+  const resolvedHeight = height ?? (containerWidth > 0 ? containerWidth / aspectRatio : 200);
+  const rotation = rotateAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
+  const scanTranslate = scanAnim.interpolate({ inputRange: [0, 1], outputRange: [-100, 400] });
+
+  const isDark = variant === 'dark';
 
   return (
-    <View
-      style={[styles.container, resolvedHeight ? { height: resolvedHeight } : {}, style]}
-      onLayout={(e) => {
-        const w = e.nativeEvent.layout.width;
-        if (w > 0 && w !== containerWidth) setContainerWidth(w);
-      }}
+    <View 
+      style={[
+        styles.container, 
+        isDark && styles.containerDark, 
+        !hasHeightOrFlex && { height: resolvedHeight }, 
+        style
+      ]} 
+      onLayout={(e) => setContainerWidth(e.nativeEvent.layout.width)}
     >
-      {!resolvedHeight ? null : (
-        <>
+      <MapView
+        ref={mapRef}
+        style={[styles.map, StyleSheet.absoluteFillObject]}
+        provider={PROVIDER_GOOGLE}
+        initialRegion={region}
+        showsUserLocation={false}
+        showsPointsOfInterest={false}
+        showsCompass={false}
+        showsBuildings={true}
+        scrollEnabled={interactive}
+        zoomEnabled={interactive}
+        rotateEnabled={interactive}
+        onRegionChange={handleRegionChange}
+        onRegionChangeComplete={onRegionChangeComplete}
+        customMapStyle={isDark ? darkMapConfig : []}
+      >
 
-      {hasError ? (
-        <View style={styles.errorBox}>
-          <Text style={styles.errorEmoji}>⚠️</Text>
-          <Text style={styles.errorTitle}>Map unavailable</Text>
-          <Text style={styles.errorSub}>Check your internet connection</Text>
+        {markers.map((marker, index) => (
+          <Marker key={marker.id || `m-${index}`} coordinate={{ latitude: marker.lat, longitude: marker.lng }} anchor={{ x: 0.5, y: 0.5 }} flat={marker.type === 'rider'} rotation={marker.heading}>
+            <View style={styles.markerWrapper}>
+               <Animated.View style={[styles.glowCircle, styles[`glow_${marker.type}`], { 
+                 transform: [{ scale: pulseAnim.interpolate({ inputRange: [0, 1], outputRange: [0.8, 1.8] }) }],
+                 opacity: pulseAnim.interpolate({ inputRange: [0, 1], outputRange: [0.4, 0] })
+               }]} />
+               <View style={[styles.markerPin, styles[`marker_${marker.type}`]]}>
+                  <RemixIcon 
+                    name={
+                      marker.type === 'rider' 
+                        ? 'ri-truck-fill' 
+                        : (marker.type === 'user' ? 'ri-home-4-fill' : 'ri-delete-bin-6-fill')
+                    } 
+                    size={16} 
+                    color="#fff" 
+                  />
+               </View>
+               {marker.label && (
+                 <View style={[styles.labelBox, isDark && styles.labelBoxDark]}><Text style={[styles.labelText, isDark && styles.labelTextDark]}>{marker.label}</Text></View>
+               )}
+            </View>
+          </Marker>
+        ))}
+
+        {showRoute && routeOrigin && routeDestination && (
+          <>
+            {/* Glow outer backing */}
+            <Polyline 
+              coordinates={[
+                { latitude: routeOrigin.lat, longitude: routeOrigin.lng }, 
+                { latitude: routeDestination.lat, longitude: routeDestination.lng }
+              ]} 
+              strokeColor="rgba(16, 185, 129, 0.25)" 
+              strokeWidth={7} 
+            />
+            {/* Sharp inner line */}
+            <Polyline 
+              coordinates={[
+                { latitude: routeOrigin.lat, longitude: routeOrigin.lng }, 
+                { latitude: routeDestination.lat, longitude: routeDestination.lng }
+              ]} 
+              strokeColor="#10b981" 
+              strokeWidth={3.5} 
+            />
+          </>
+        )}
+      </MapView>
+
+      {/* Center Pin Logic moved inside NavigatrMap */}
+      {showCenterPin && (
+        <View style={styles.centerPinOverlay} pointerEvents="none">
+           <View style={styles.pinShadow} />
+           <View style={styles.pinIconWrapper}>
+              <RemixIcon name="ri-map-pin-user-fill" size={32} color="#10b981" />
+           </View>
         </View>
-      ) : Platform.OS === 'web' ? (
-        <iframe
-          ref={iframeRef}
-          srcDoc={mapHtml}
-          style={{
-            width: '100%',
-            height: '100%',
-            border: 'none',
-            display: 'block',
-            pointerEvents: interactive ? 'auto' : 'none',
-          }}
-          title="Live Rider Map"
-        />
-      ) : (
-        <WebView
-          ref={webviewRef}
-          originWhitelist={['*']}
-          source={{ html: mapHtml }}
-          style={styles.webview}
-          scrollEnabled={interactive}
-          javaScriptEnabled
-          domStorageEnabled
-          allowsInlineMediaPlayback
-          mediaPlaybackRequiresUserAction={false}
-          onError={() => { setHasError(true); }}
-        />
       )}
-        </>
+
+      <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
+         <View style={[styles.vignette, isDark && styles.vignetteDark]} />
+         <Animated.View style={[styles.scanLine, isDark && styles.scanLineDark, { transform: [{ translateY: scanTranslate }] }]} />
+      </View>
+
+      {showRadar && (
+        <View style={[styles.hudOverlay, { top: Math.max(insets.top, 20) }]}>
+          <View style={[styles.radarStatus, isDark && styles.radarStatusDark]}>
+            <View style={[styles.radarIconBox, isDark && styles.radarIconBoxDark]}>
+               <Animated.View style={{ transform: [{ rotate: rotation }] }}>
+                  <RemixIcon name="ri-radar-fill" size={20} color="#10b981" />
+               </Animated.View>
+            </View>
+            <View>
+              <Text style={[styles.radarText, isDark && styles.radarTextDark]}>{radarTitle}</Text>
+              <Text style={styles.radarSubtitle}>{radarSubtitle || 'SECURE DATA LINK ACTIVE'}</Text>
+            </View>
+          </View>
+          
+          <View style={styles.telemetryHUD}>
+            {telemetry && (
+              <View style={[styles.glassCard, isDark && styles.glassCardDark]}>
+                 <View style={styles.teleItem}>
+                    <Text style={styles.teleLabel}>ETA</Text>
+                    <Text style={[styles.teleValue, isDark && styles.teleValueDark]}>{telemetry.duration || '--'}</Text>
+                 </View>
+                 <View style={[styles.teleDivider, isDark && styles.teleDividerDark]} />
+                 <View style={styles.teleItem}>
+                    <Text style={styles.teleLabel}>DIST</Text>
+                    <Text style={[styles.teleValue, isDark && styles.teleValueDark]}>{telemetry.distance || '--'}</Text>
+                 </View>
+              </View>
+            )}
+
+            {isUserInteracting && (
+              <TouchableOpacity onPress={reCenter} style={[styles.reCenterBtn, isDark && styles.reCenterBtnDark]} activeOpacity={0.8}>
+                <RemixIcon name="ri-focus-3-fill" size={22} color="#10b981" />
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
       )}
     </View>
   );
 };
 
+const darkMapConfig = [
+  { "elementType": "geometry", "stylers": [{ "color": "#212121" }] },
+  { "elementType": "labels.icon", "stylers": [{ "visibility": "off" }] },
+  { "elementType": "labels.text.fill", "stylers": [{ "color": "#757575" }] },
+  { "elementType": "labels.text.stroke", "stylers": [{ "color": "#212121" }] },
+  { "featureType": "administrative", "elementType": "geometry", "stylers": [{ "color": "#757575" }] },
+  { "featureType": "poi", "elementType": "geometry", "stylers": [{ "color": "#181818" }] },
+  { "featureType": "road", "elementType": "geometry.fill", "stylers": [{ "color": "#2c2c2c" }] },
+  { "featureType": "water", "elementType": "geometry", "stylers": [{ "color": "#000000" }] }
+];
+
 const styles = StyleSheet.create({
-  container: {
-    overflow: 'hidden',
-    backgroundColor: '#f1f5f9',
+  container: { overflow: 'hidden', backgroundColor: '#F1F5F9' },
+  containerDark: { backgroundColor: '#020617' },
+  map: { width: '100%' },
+  markerWrapper: { alignItems: 'center', justifyContent: 'center', width: 80, height: 80 },
+  glowCircle: { position: 'absolute', width: 40, height: 40, borderRadius: 20 },
+  glow_user: { backgroundColor: 'rgba(13, 148, 136, 0.4)' },
+  glow_rider: { backgroundColor: 'rgba(16, 185, 129, 0.4)' },
+  glow_landmark: { backgroundColor: 'rgba(245, 158, 11, 0.4)' },
+  markerPin: {
+    width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center',
+    borderWidth: 2.5, borderColor: '#fff',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 6
   },
-  webview: {
-    flex: 1,
-    backgroundColor: 'transparent',
+  marker_user: { backgroundColor: '#0d9488' },
+  marker_rider: { backgroundColor: '#10b981' },
+  marker_landmark: { backgroundColor: '#f59e0b' },
+  labelBox: {
+    position: 'absolute', bottom: 5, backgroundColor: '#fff', paddingHorizontal: 8, paddingVertical: 3,
+    borderRadius: 6, borderWidth: 1, borderColor: '#e2e8f0', elevation: 3
   },
-  errorBox: {
-    flex: 1,
+  labelBoxDark: { backgroundColor: '#1e293b', borderColor: '#334155' },
+  labelText: { color: '#0f172a', fontSize: 8, fontFamily: typography.bold, textTransform: 'uppercase' },
+  labelTextDark: { color: '#f1f5f9' },
+  vignette: { ...StyleSheet.absoluteFillObject, backgroundColor: 'transparent', borderWidth: 40, borderColor: 'rgba(15, 23, 42, 0.03)' },
+  vignetteDark: { borderColor: 'rgba(0, 0, 0, 0.4)' },
+  scanLine: { width: '100%', height: 2, backgroundColor: 'rgba(16, 185, 129, 0.1)', position: 'absolute' },
+  scanLineDark: { backgroundColor: 'rgba(16, 185, 129, 0.05)' },
+  hudOverlay: { position: 'absolute', top: 20, left: 16, right: 16, gap: 12 },
+  radarStatus: {
+    flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    padding: 10, borderRadius: 16, gap: 12, borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.5)',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.1, shadowRadius: 20, elevation: 5
+  },
+  radarStatusDark: { backgroundColor: 'rgba(15, 23, 42, 0.9)', borderColor: 'rgba(255, 255, 255, 0.1)' },
+  radarIconBox: { width: 36, height: 36, borderRadius: 10, backgroundColor: '#f0fdf4', alignItems: 'center', justifyContent: 'center' },
+  radarIconBoxDark: { backgroundColor: 'rgba(16, 185, 129, 0.1)' },
+  radarText: { color: '#0f172a', fontSize: 10, fontFamily: typography.bold, letterSpacing: 0.5 },
+  radarTextDark: { color: '#f1f5f9' },
+  radarSubtitle: { color: '#10b981', fontSize: 7, fontFamily: typography.bold, marginTop: 1 },
+  telemetryHUD: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
+  glassCard: {
+    flexDirection: 'row', backgroundColor: 'rgba(255, 255, 255, 0.9)', paddingHorizontal: 16, paddingVertical: 12,
+    borderRadius: 18, gap: 16, borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.5)',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.1, shadowRadius: 20, elevation: 5
+  },
+  glassCardDark: { backgroundColor: 'rgba(15, 23, 42, 0.9)', borderColor: 'rgba(255, 255, 255, 0.1)' },
+  reCenterBtn: {
+    width: 48, height: 48, borderRadius: 16, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: '#f1f5f9', shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.1, shadowRadius: 20, elevation: 5
+  },
+  reCenterBtnDark: { backgroundColor: '#1e293b', borderColor: '#334155' },
+  teleItem: { alignItems: 'center' },
+  teleLabel: { fontSize: 8, fontFamily: typography.bold, color: '#94a3b8' },
+  teleValue: { fontSize: 13, fontFamily: typography.bold, color: '#0f172a', marginTop: 2 },
+  teleValueDark: { color: '#f1f5f9' },
+  teleDivider: { width: 1, height: 24, backgroundColor: '#f1f5f9' },
+  teleDividerDark: { backgroundColor: '#334155' },
+  centerPinOverlay: {
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    marginLeft: -16,
+    marginTop: -32,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#fef2f2',
-    padding: 24,
+    zIndex: 10,
   },
-  errorEmoji: { fontSize: 32, marginBottom: 8 },
-  errorTitle: { fontSize: 15, fontWeight: '700', color: '#ef4444', marginBottom: 4 },
-  errorSub: { fontSize: 12, color: '#94a3b8' },
+  pinIconWrapper: {
+    transform: [{ translateY: -4 }],
+  },
+  pinShadow: {
+    width: 6,
+    height: 3,
+    backgroundColor: 'rgba(0,0,0,0.2)',
+    borderRadius: 3,
+    position: 'absolute',
+    bottom: -2,
+  },
 });

@@ -39,6 +39,7 @@ import AboutPage from './pages/profile/about/page';
 import NotFound from './pages/NotFound';
 import ChatbotPage from './pages/chatbot/page';
 import RiderChatPage from './pages/chat-rider/page';
+import SettingsPage from './pages/profile/settings/page';
 import { NotificationOverlay } from './components/feature/NotificationOverlay';
 import { BottomNavigation } from './components/feature/BottomNavigation';
 
@@ -101,6 +102,7 @@ function AppNavigator() {
             <Stack.Screen name="About" component={AboutPage} />
             <Stack.Screen name="Chatbot" component={ChatbotPage} />
             <Stack.Screen name="ChatRider" component={RiderChatPage} />
+            <Stack.Screen name="Settings" component={SettingsPage} />
           </>
         )}
         <Stack.Screen name="NotFound" component={NotFound} />
@@ -113,6 +115,7 @@ function AppNavigator() {
 
 import { SettingsProvider } from './context/SettingsContext';
 import { AlertProvider } from './context/AlertContext';
+import { NotificationProvider } from './context/NotificationContext';
 import { MaintenanceOverlay } from './components/feature/MaintenanceOverlay';
 
 function App() {
@@ -141,15 +144,17 @@ function App() {
   return (
     <ErrorBoundary>
       <AuthProvider>
-        <SettingsProvider>
-          <AlertProvider>
-            <SafeAreaProvider>
-              <AppNavigator />
-              <NotificationOverlay />
-              <MaintenanceOverlay />
-            </SafeAreaProvider>
-          </AlertProvider>
-        </SettingsProvider>
+        <NotificationProvider>
+          <SettingsProvider>
+            <AlertProvider>
+              <SafeAreaProvider>
+                <AppNavigator />
+                <NotificationOverlay />
+                <MaintenanceOverlay />
+              </SafeAreaProvider>
+            </AlertProvider>
+          </SettingsProvider>
+        </NotificationProvider>
       </AuthProvider>
     </ErrorBoundary>
   );

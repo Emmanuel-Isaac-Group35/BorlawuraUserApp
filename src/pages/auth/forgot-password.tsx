@@ -20,24 +20,48 @@ import { supabase } from '../../lib/supabase';
 const ForgotPasswordPage = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState('');
+  const [loginType, setLoginType] = useState<'phone' | 'email'>('email');
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [resolvedEmail, setResolvedEmail] = useState('');
 
   const handleReset = async () => {
-    if (!email) {
-      Alert.alert("Required", "Please enter your email address");
+    if (!identifier) {
+      Alert.alert("Required", `Please enter your ${loginType === 'phone' ? 'phone number' : 'email address'}`);
       return;
     }
 
     setIsLoading(true);
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      let targetEmail = identifier.trim();
+
+      if (loginType === 'phone') {
+        const cleanPhone = (targetEmail.startsWith('0') ? targetEmail.substring(1) : targetEmail).replace(/\s+/g, '');
+        const variant1 = `+233${cleanPhone}`;
+        const variant2 = `233${cleanPhone}`;
+        const variant3 = `0${cleanPhone}`;
+        const variant4 = cleanPhone;
+
+        const { data: userRecord, error: findError } = await supabase
+          .from('users')
+          .select('email')
+          .or(`phone_number.eq.${variant1},phone_number.eq.${variant2},phone_number.eq.${variant3},phone_number.eq.${variant4}`)
+          .maybeSingle();
+
+        if (findError || !userRecord?.email) {
+          throw new Error("No account found with this phone number.");
+        }
+        targetEmail = userRecord.email;
+      }
+
+      const { error } = await supabase.auth.resetPasswordForEmail(targetEmail, {
         redirectTo: 'borlawura-user://reset-password',
       });
 
       if (error) throw error;
       
+      setResolvedEmail(targetEmail);
       setIsSubmitted(true);
     } catch (error: any) {
       Alert.alert("Reset Failed", error.message);
@@ -70,26 +94,57 @@ const ForgotPasswordPage = () => {
             <>
               <Text style={styles.title}>Forgot Password?</Text>
               <Text style={styles.subtitle}>
-                No worries! Enter your email address and we'll send you a link to reset your password.
+                No worries! Enter your details and we'll send you a link to reset your password.
               </Text>
 
+              <View style={styles.tabContainer}>
+                <TouchableOpacity 
+                  onPress={() => setLoginType('phone')}
+                  style={[styles.tab, loginType === 'phone' && styles.tabActive]}
+                >
+                  <Text style={[styles.tabLabel, loginType === 'phone' && styles.tabLabelActive]}>Phone</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  onPress={() => setLoginType('email')}
+                  style={[styles.tab, loginType === 'email' && styles.tabActive]}
+                >
+                  <Text style={[styles.tabLabel, loginType === 'email' && styles.tabLabelActive]}>Email</Text>
+                </TouchableOpacity>
+              </View>
+
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>Email Address</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="name@example.com"
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  value={email}
-                  onChangeText={setEmail}
-                  placeholderTextColor="#94a3b8"
-                />
+                <Text style={styles.label}>{loginType === 'phone' ? 'Phone Number' : 'Email Address'}</Text>
+                {loginType === 'phone' ? (
+                  <View style={styles.phoneInputWrapper}>
+                    <View style={styles.countryPicker}>
+                      <Text style={styles.countryCode}>+233</Text>
+                    </View>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="50 000 0000"
+                      keyboardType="phone-pad"
+                      value={identifier}
+                      onChangeText={setIdentifier}
+                      placeholderTextColor="#94a3b8"
+                    />
+                  </View>
+                ) : (
+                  <TextInput
+                    style={styles.input}
+                    placeholder="name@example.com"
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    value={identifier}
+                    onChangeText={setIdentifier}
+                    placeholderTextColor="#94a3b8"
+                  />
+                )}
               </View>
 
               <TouchableOpacity 
-                style={[styles.resetBtn, (!email || isLoading) && styles.resetBtnDisabled]}
+                style={[styles.resetBtn, (!identifier || isLoading) && styles.resetBtnDisabled]}
                 onPress={handleReset}
-                disabled={!email || isLoading}
+                disabled={!identifier || isLoading}
               >
                 {isLoading ? (
                   <ActivityIndicator color="#FFFFFF" />
@@ -102,7 +157,7 @@ const ForgotPasswordPage = () => {
             <View style={styles.successContainer}>
               <Text style={styles.title}>Check your email</Text>
               <Text style={styles.subtitle}>
-                We've sent a password reset link to <Text style={styles.emailHighlight}>{email}</Text>. Please follow the instructions in the email to continue.
+                We've found an account associated with your request and sent a password reset link to <Text style={styles.emailHighlight}>{resolvedEmail}</Text>.
               </Text>
 
               <TouchableOpacity 
@@ -159,6 +214,50 @@ const styles = StyleSheet.create({
   },
   inputGroup: { width: '100%', marginBottom: 32 },
   label: { fontSize: 13, fontFamily: typography.bold, color: '#64748b', marginBottom: 12, textTransform: 'uppercase', letterSpacing: 1 },
+  tabContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#f1f5f9',
+    borderRadius: 16,
+    padding: 6,
+    marginBottom: 32,
+    width: '100%',
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderRadius: 12,
+  },
+  tabActive: {
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  tabLabel: {
+    fontSize: 15,
+    fontFamily: typography.semiBold,
+    color: '#64748b',
+  },
+  tabLabelActive: {
+    color: '#10b981',
+  },
+  phoneInputWrapper: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  countryPicker: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    paddingHorizontal: 15,
+    borderRadius: 18,
+    borderWidth: 1.5,
+    borderColor: '#f1f5f9',
+  },
+  countryCode: { fontSize: 14, fontFamily: typography.bold, color: '#0f172a' },
   input: {
     height: 56,
     backgroundColor: '#f8fafc',

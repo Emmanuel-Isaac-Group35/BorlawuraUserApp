@@ -41,7 +41,8 @@ export const BottomNavigation: React.FC = () => {
       'Home': '/',
       'Booking': '/booking',
       'Orders': '/orders',
-      'Profile': '/profile',
+      'Profile': '/settings',
+      'Settings': '/settings',
       'SupportChat': '/support-chat',
       'RiderChat': '/rider-chat',
       'Support': '/support',
@@ -55,15 +56,12 @@ export const BottomNavigation: React.FC = () => {
     { path: '/', icon: 'home', iconOutline: 'home-outline', label: 'Home' },
     { path: '/booking', icon: 'add-circle', iconOutline: 'add-circle-outline', label: 'Book' },
     { path: '/orders', icon: 'receipt', iconOutline: 'receipt-outline', label: 'History' },
-    { path: '/profile', icon: 'person', iconOutline: 'person-outline', label: 'Profile' }
+    { path: '/settings', icon: 'settings', iconOutline: 'settings-outline', label: 'Settings' }
   ];
 
   const route = navigationRef.isReady() ? navigationRef.getCurrentRoute() : null;
-  const hideOn = [
-    'Auth', 'Signup', 'OTP', 'ForgotPassword', 'ResetPassword',
-    'TrackOrder', 'SupportChat', 'RiderChat', 'Chatbot', 'support-chat'
-  ];
-  const isVisible = isNavReady && route && !hideOn.includes(route.name);
+  const showOn = ['Home', 'Booking', 'Orders', 'Profile', 'Settings'];
+  const isVisible = isNavReady && route && showOn.includes(route.name);
 
   if (!isVisible) return null;
 

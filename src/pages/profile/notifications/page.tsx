@@ -46,27 +46,33 @@ const DEFAULT: NotifSettings = {
   vibrationEnabled: true,
 };
 
+import { useNotifications, AppNotification } from '../../../context/NotificationContext';
+
 const NotificationsPage: React.FC = () => {
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
+  const { notifications, markAllAsRead } = useNotifications();
 
+  const [activeTab, setActiveTab] = useState<'inbox' | 'settings'>('inbox');
   const [settings, setSettings] = useState<NotifSettings>(DEFAULT);
   const [isSaving, setIsSaving] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
   const [assignedRider, setAssignedRider] = useState<AssignedRider | null>(null);
   const [loadingRider, setLoadingRider] = useState(true);
 
-  // ── Load saved preferences ────────────────────────────────────────────────
+  // ── Auto-mark read when opening Inbox ─────────────────────────────────────
+  useEffect(() => {
+    if (activeTab === 'inbox') {
+      markAllAsRead();
+    }
+  }, [activeTab]);
+
   useEffect(() => {
     const loadPrefs = async () => {
       const uid = await resolveRealUserId(user);
       if (!uid) return;
-      const { data } = await supabase
-        .from('user_notification_prefs')
-        .select('*')
-        .eq('user_id', uid)
-        .single();
+      const { data } = await supabase.from('user_notification_prefs').select('*').eq('user_id', uid).single();
       if (data) {
         setSettings({
           orderUpdates:      data.order_updates      ?? DEFAULT.orderUpdates,
@@ -84,29 +90,15 @@ const NotificationsPage: React.FC = () => {
     loadPrefs();
   }, [user]);
 
-  // ── Load currently assigned rider ─────────────────────────────────────────
   useEffect(() => {
     const loadRider = async () => {
       setLoadingRider(true);
       try {
         const uid = await resolveRealUserId(user);
         if (!uid) return;
-        // Find the most recent active order with a rider
-        const { data: order } = await supabase
-          .from('orders')
-          .select('rider_id')
-          .eq('user_id', uid)
-          .in('status', ['accepted', 'in_progress', 'assigned', 'heading', 'arrived', 'active', 'confirmed'])
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .single();
-
+        const { data: order } = await supabase.from('orders').select('rider_id').eq('user_id', uid).in('status', ['accepted', 'in_progress', 'assigned', 'heading', 'arrived', 'active', 'confirmed']).order('created_at', { ascending: false }).limit(1).maybeSingle();
         if (order?.rider_id) {
-          const { data: rider } = await supabase
-            .from('riders')
-            .select('id, full_name, phone_number, avatar_url, rating, vehicle_number, is_online')
-            .eq('id', order.rider_id)
-            .single();
+          const { data: rider } = await supabase.from('riders').select('id, full_name, phone_number, avatar_url, rating, vehicle_number, is_online').eq('id', order.rider_id).single();
           if (rider) setAssignedRider(rider);
         }
       } catch (_) {}
@@ -119,21 +111,7 @@ const NotificationsPage: React.FC = () => {
     const newValue = !settings[key];
     setSettings(prev => ({ ...prev, [key]: newValue }));
     setIsDirty(true);
-
-    // Provide immediate physical feedback
-    if (key === 'vibrationEnabled') {
-      if (newValue) {
-        // Give a confirmation buzz when enabling
-        Vibration.vibrate([0, 80, 60, 80]);
-      }
-    }
-    if (key === 'soundEnabled') {
-      if (newValue) {
-        Alert.alert('Sound On', 'Notification sounds have been enabled.');
-      } else {
-        Alert.alert('Sound Off', 'Notification sounds have been muted.');
-      }
-    }
+    if (key === 'vibrationEnabled' && newValue) Vibration.vibrate([0, 80, 60, 80]);
   }, [settings]);
 
   const handleSave = async () => {
@@ -156,47 +134,36 @@ const NotificationsPage: React.FC = () => {
       }, { onConflict: 'user_id' });
       setIsDirty(false);
       if (settings.vibrationEnabled) Vibration.vibrate([0, 60, 40, 60]);
-      Alert.alert('Saved ✓', 'Your notification preferences have been updated.');
+      Alert.alert('Configuration Saved', 'Your terminal alert preferences have been updated.');
     } catch (e: any) {
-      Alert.alert('Error', e.message || 'Failed to save preferences.');
-    } finally {
-      setIsSaving(false);
-    }
+      Alert.alert('Sync Failed', e.message || 'Failed to update preferences.');
+    } finally { setIsSaving(false); }
   };
 
-  // ── Sections ──────────────────────────────────────────────────────────────
   const groups = [
     {
-      title: 'Order & Pickup Alerts',
-      icon: 'ri-truck-line',
-      color: '#10b981',
-      bg: '#f0fdf4',
+      title: 'Order & Rider Updates',
+      icon: 'ri-radar-line', color: '#10b981', bg: '#ecfdf5',
       items: [
-        { key: 'orderUpdates',    label: 'Order Status Updates',    desc: 'When your order status changes',              icon: 'ri-refresh-line' },
-        { key: 'riderArrival',    label: 'Rider Arrival Alert',     desc: 'Alert when rider is at your location',        icon: 'ri-map-pin-line' },
-        { key: 'riderNearby',     label: 'Rider Nearby',            desc: 'When your rider is within 500m',              icon: 'ri-walk-line' },
-        { key: 'pickupConfirmed', label: 'Pickup Confirmed',        desc: 'Confirmation when rider accepts your request', icon: 'ri-checkbox-circle-line' },
+        { key: 'orderUpdates',    label: 'Order Status',      desc: 'Updates on your pickups', icon: 'ri-refresh-line' },
+        { key: 'riderArrival',    label: 'Rider Arrival',        desc: 'Alert when rider arrives',  icon: 'ri-map-pin-line' },
+        { key: 'riderNearby',     label: 'Rider Nearby',     desc: 'Alert when rider is close',     icon: 'ri-walk-line' },
       ],
     },
     {
-      title: 'Notification Channels',
-      icon: 'ri-notification-3-line',
-      color: '#3b82f6',
-      bg: '#eff6ff',
+      title: 'Communication Channels',
+      icon: 'ri-broadcast-line', color: '#3b82f6', bg: '#eff6ff',
       items: [
-        { key: 'pushNotifications',  label: 'Push Notifications', desc: 'Receive alerts on this device',       icon: 'ri-notification-3-line' },
-        { key: 'emailNotifications', label: 'Email',              desc: 'Updates sent to your email address',  icon: 'ri-mail-line' },
-        { key: 'smsNotifications',   label: 'SMS',                desc: 'Text messages to your phone number',  icon: 'ri-message-3-line' },
+        { key: 'pushNotifications',  label: 'Direct Push',  desc: 'Instant alerts on this terminal', icon: 'ri-notification-3-line' },
+        { key: 'emailNotifications', label: 'External Email', desc: 'Daily logs and report summaries', icon: 'ri-mail-line' },
       ],
     },
     {
-      title: 'Sound & Vibration',
-      icon: 'ri-volume-up-line',
-      color: '#8b5cf6',
-      bg: '#f5f3ff',
+      title: 'Phone Alerts',
+      icon: 'ri-sound-module-line', color: '#8b5cf6', bg: '#f5f3ff',
       items: [
-        { key: 'soundEnabled',     label: 'Notification Sound',     desc: 'Play audio for all incoming alerts',    icon: 'ri-volume-up-line' },
-        { key: 'vibrationEnabled', label: 'Haptic Vibration',       desc: 'Buzz device for important alerts',      icon: 'ri-smartphone-line' },
+        { key: 'soundEnabled',     label: 'Sound',    desc: 'Play sound for alerts',      icon: 'ri-volume-up-line' },
+        { key: 'vibrationEnabled', label: 'Vibration',  desc: 'Vibrate for alerts',     icon: 'ri-smartphone-line' },
       ],
     },
   ] as const;
@@ -205,225 +172,213 @@ const NotificationsPage: React.FC = () => {
     <SafeAreaView style={styles.container}>
       <Navigation />
 
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={[
-          styles.content,
-          { paddingTop: insets.top + 70, paddingBottom: insets.bottom + 80 }
-        ]}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* ── Page Header ── */}
-        <View style={styles.pageHeader}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-            <RemixIcon name="ri-arrow-left-line" size={22} color="#0f172a" />
-          </TouchableOpacity>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.pageTitle}>Notifications</Text>
-            <Text style={styles.pageSubtitle}>Manage how you want to be reached</Text>
-          </View>
-          {isDirty && (
-            <TouchableOpacity style={styles.saveBtn} onPress={handleSave} disabled={isSaving}>
-              {isSaving
-                ? <ActivityIndicator size="small" color="#fff" />
-                : <Text style={styles.saveBtnText}>Save</Text>}
-            </TouchableOpacity>
+      <View style={[styles.pageHeader, { marginTop: insets.top + 70 }]}>
+        <View style={styles.headerTitleRow}>
+          <Text style={styles.pageTitle}>Notifications</Text>
+          {activeTab === 'inbox' && notifications.some(n => !n.read) && (
+             <TouchableOpacity style={styles.markReadBtn} onPress={markAllAsRead}>
+               <Text style={styles.markReadText}>Mark all as read</Text>
+             </TouchableOpacity>
           )}
         </View>
-
-        {/* ── Assigned Rider Card ── */}
-        <View style={styles.sectionLabel}>
-          <Text style={styles.sectionLabelText}>Your Current Rider</Text>
+        
+        <View style={styles.tabContainer}>
+          <TouchableOpacity 
+            style={[styles.tab, activeTab === 'inbox' && styles.tabActive]} 
+            onPress={() => setActiveTab('inbox')}
+          >
+            <Text style={[styles.tabLabel, activeTab === 'inbox' && styles.tabLabelActive]}>Inbox</Text>
+            {notifications.some(n => !n.read) && <View style={styles.tabDot} />}
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.tab, activeTab === 'settings' && styles.tabActive]} 
+            onPress={() => setActiveTab('settings')}
+          >
+            <Text style={[styles.tabLabel, activeTab === 'settings' && styles.tabLabelActive]}>Settings</Text>
+          </TouchableOpacity>
         </View>
+      </View>
 
-        {loadingRider ? (
-          <View style={styles.riderLoading}>
-            <ActivityIndicator size="small" color="#10b981" />
-            <Text style={styles.riderLoadingText}>Checking for active rider…</Text>
-          </View>
-        ) : assignedRider ? (
-          <View style={styles.riderCard}>
-            <View style={styles.riderAvatarWrap}>
-              {assignedRider.avatar_url
-                ? <Image source={{ uri: assignedRider.avatar_url }} style={styles.riderAvatar} />
-                : <View style={[styles.riderAvatar, styles.riderAvatarFallback]}>
-                    <RemixIcon name="ri-user-3-line" size={26} color="#94a3b8" />
-                  </View>}
-              <View style={[styles.onlineDot, { backgroundColor: assignedRider.is_online ? '#10b981' : '#94a3b8' }]} />
-            </View>
-
-            <View style={{ flex: 1 }}>
-              <Text style={styles.riderName}>{assignedRider.full_name}</Text>
-              <Text style={styles.riderMeta}>
-                {assignedRider.vehicle_number || 'No plate'} · ⭐ {parseFloat(assignedRider.rating || '5.0').toFixed(1)}
-              </Text>
-              <View style={styles.riderStatusPill}>
-                <View style={styles.riderStatusDot} />
-                <Text style={styles.riderStatusText}>
-                  {assignedRider.is_online ? 'En route to you' : 'Offline'}
-                </Text>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
+        showsVerticalScrollIndicator={false}
+      >
+        {activeTab === 'inbox' ? (
+          <View style={styles.inboxContent}>
+            {notifications.length > 0 ? (
+              notifications.map((notif) => (
+                <TouchableOpacity key={notif.id} style={[styles.notifCard, !notif.read && styles.notifUnread]}>
+                  <View style={[styles.notifIconBox, { backgroundColor: notif.color + '15' }]}>
+                    <RemixIcon name={notif.icon} size={20} color={notif.color} />
+                  </View>
+                  <View style={styles.notifInfo}>
+                    <View style={styles.notifHeader}>
+                      <Text style={styles.notifTitle}>{notif.title}</Text>
+                      <Text style={styles.notifTime}>{notif.time}</Text>
+                    </View>
+                    <Text style={styles.notifDesc} numberOfLines={2}>{notif.desc}</Text>
+                  </View>
+                  {!notif.read && <View style={styles.unreadPulse} />}
+                </TouchableOpacity>
+              ))
+            ) : (
+              <View style={styles.emptyState}>
+                <View style={styles.emptyIconCircle}>
+                  <RemixIcon name="ri-notification-off-line" size={32} color="#cbd5e1" />
+                </View>
+                <Text style={styles.emptyTitle}>Mission Log Empty</Text>
+                <Text style={styles.emptySub}>Recent updates on your pickups will appear here.</Text>
               </View>
-            </View>
+            )}
 
-            <View style={styles.riderActions}>
-              <TouchableOpacity
-                style={styles.riderActionBtn}
-                onPress={() => navigation.navigate('ChatRider', { riderId: assignedRider.id })}
-              >
-                <RemixIcon name="ri-chat-3-line" size={18} color="#10b981" />
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.riderActionBtn, styles.riderCallBtn]}
-                onPress={() => {
-                  const { Linking } = require('react-native');
-                  Linking.openURL(`tel:${assignedRider.phone_number}`);
-                }}
-              >
-                <RemixIcon name="ri-phone-line" size={18} color="#fff" />
-              </TouchableOpacity>
-            </View>
-          </View>
-        ) : (
-          <View style={styles.noRiderCard}>
-            <RemixIcon name="ri-map-pin-line" size={28} color="#94a3b8" />
-            <Text style={styles.noRiderText}>No active rider assigned yet</Text>
-            <Text style={styles.noRiderSub}>A rider will appear here once your pickup is accepted</Text>
-          </View>
-        )}
-
-        {/* ── Notification Groups ── */}
-        {groups.map((group) => (
-          <View key={group.title} style={styles.groupWrap}>
-            <View style={styles.sectionLabel}>
-              <View style={[styles.sectionIconBox, { backgroundColor: group.bg }]}>
-                <RemixIcon name={group.icon} size={14} color={group.color} />
-              </View>
-              <Text style={styles.sectionLabelText}>{group.title}</Text>
-            </View>
-
-            <View style={styles.groupCard}>
-              {group.items.map((item, idx) => {
-                const isOn = settings[item.key as keyof NotifSettings];
-                return (
-                  <View
-                    key={item.key}
-                    style={[styles.row, idx < group.items.length - 1 && styles.rowBorder]}
-                  >
-                    <View style={[styles.rowIcon, { backgroundColor: isOn ? group.bg : '#f8fafc' }]}>
-                      <RemixIcon name={item.icon} size={18} color={isOn ? group.color : '#94a3b8'} />
+            {assignedRider && (
+               <View style={styles.assignedSection}>
+                  <Text style={styles.sectionLabelText}>ACTIVE MISSION UNIT</Text>
+                  <View style={styles.riderCard}>
+                    <View style={styles.riderAvatarWrap}>
+                      {assignedRider.avatar_url
+                        ? <Image source={{ uri: assignedRider.avatar_url }} style={styles.riderAvatar} />
+                        : <View style={[styles.riderAvatar, styles.riderAvatarFallback]}>
+                            <RemixIcon name="ri-user-3-line" size={26} color="#94a3b8" />
+                          </View>}
+                      <View style={[styles.onlineDot, { backgroundColor: assignedRider.is_online ? '#10b981' : '#94a3b8' }]} />
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={[styles.rowLabel, isOn && { color: '#0f172a' }]}>{item.label}</Text>
-                      <Text style={styles.rowDesc}>{item.desc}</Text>
+                      <Text style={styles.riderName}>{assignedRider.full_name}</Text>
+                      <Text style={styles.riderMeta}>{assignedRider.vehicle_number || 'TRC-001'} · ⭐ {parseFloat(assignedRider.rating || '5.0').toFixed(1)}</Text>
                     </View>
-                    <Switch
-                      value={!!isOn}
-                      onValueChange={() => handleToggle(item.key as keyof NotifSettings)}
-                      trackColor={{ false: '#e2e8f0', true: group.color }}
-                      thumbColor="#ffffff"
-                      ios_backgroundColor="#e2e8f0"
-                    />
+                    <TouchableOpacity
+                      style={styles.riderActionBtn}
+                      onPress={() => navigation.navigate('ChatRider', { riderId: assignedRider.id })}
+                    >
+                      <RemixIcon name="ri-chat-3-line" size={20} color="#10b981" />
+                    </TouchableOpacity>
                   </View>
-                );
-              })}
+               </View>
+            )}
+          </View>
+        ) : (
+          <View style={styles.settingsContent}>
+            {groups.map((group) => (
+              <View key={group.title} style={styles.groupWrap}>
+                <View style={styles.sectionLabel}>
+                  <View style={[styles.sectionIconBox, { backgroundColor: group.bg }]}>
+                    <RemixIcon name={group.icon} size={14} color={group.color} />
+                  </View>
+                  <Text style={styles.sectionLabelText}>{group.title}</Text>
+                </View>
+
+                <View style={styles.groupCard}>
+                  {group.items.map((item, idx) => {
+                    const isOn = settings[item.key as keyof NotifSettings];
+                    return (
+                      <View
+                        key={item.key}
+                        style={[styles.row, idx < group.items.length - 1 && styles.rowBorder]}
+                      >
+                        <View style={[styles.rowIcon, { backgroundColor: isOn ? group.bg : '#f8fafc' }]}>
+                          <RemixIcon name={item.icon} size={18} color={isOn ? group.color : '#94a3b8'} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.rowLabel, isOn && { color: '#0f172a' }]}>{item.label}</Text>
+                          <Text style={styles.rowDesc}>{item.desc}</Text>
+                        </View>
+                        <Switch
+                          value={!!isOn}
+                          onValueChange={() => handleToggle(item.key as keyof NotifSettings)}
+                          trackColor={{ false: '#e2e8f0', true: group.color }}
+                          thumbColor="#ffffff"
+                          ios_backgroundColor="#e2e8f0"
+                        />
+                      </View>
+                    );
+                  })}
+                </View>
+              </View>
+            ))}
+
+            {isDirty && (
+              <TouchableOpacity style={styles.saveBtn} onPress={handleSave} disabled={isSaving}>
+                {isSaving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.saveBtnText}>Save Notification Settings</Text>}
+              </TouchableOpacity>
+            )}
+            
+            <View style={styles.infoBanner}>
+              <RemixIcon name="ri-information-line" size={16} color="#3b82f6" />
+              <Text style={styles.infoText}>
+                Some mission-critical alerts (like Rider Arrival) are bypass-enabled for service safety.
+              </Text>
             </View>
           </View>
-        ))}
-
-        {/* ── Info Banner ── */}
-        <View style={styles.infoBanner}>
-          <RemixIcon name="ri-information-line" size={16} color="#3b82f6" />
-          <Text style={styles.infoText}>
-            Some alerts (like Rider Arrival) are required for service delivery and cannot be permanently muted.
-          </Text>
-        </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
 };
 
-export default NotificationsPage;
-
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8fafc' },
+  container: { flex: 1, backgroundColor: '#ffffff' },
   scroll: { flex: 1 },
-  content: { paddingHorizontal: 20 },
+  
+  // Header & Tabs
+  pageHeader: { paddingHorizontal: 24, marginBottom: 20 },
+  headerTitleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  pageTitle: { fontSize: 26, fontFamily: typography.bold, color: '#0f172a' },
+  markReadBtn: { backgroundColor: '#f0fdf4', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
+  markReadText: { fontSize: 12, fontFamily: typography.bold, color: '#10b981' },
+  tabContainer: { flexDirection: 'row', backgroundColor: '#f1f5f9', borderRadius: 14, padding: 4 },
+  tab: { flex: 1, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 10, flexDirection: 'row', gap: 6 },
+  tabActive: { backgroundColor: '#fff', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
+  tabLabel: { fontSize: 14, fontFamily: typography.bold, color: '#94a3b8' },
+  tabLabelActive: { color: '#0f172a' },
+  tabDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#ef4444' },
 
-  // Header
-  pageHeader: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 28 },
-  backBtn: {
-    width: 42, height: 42, borderRadius: 14, backgroundColor: '#fff',
-    alignItems: 'center', justifyContent: 'center',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 6, elevation: 3,
-  },
-  pageTitle: { fontSize: 24, fontFamily: typography.bold, color: '#0f172a', letterSpacing: -0.6 },
-  pageSubtitle: { fontSize: 13, fontFamily: typography.medium, color: '#64748b', marginTop: 2 },
-  saveBtn: {
-    backgroundColor: '#10b981', paddingHorizontal: 18, paddingVertical: 10,
-    borderRadius: 14, alignItems: 'center', justifyContent: 'center',
-    shadowColor: '#10b981', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8, elevation: 4,
-  },
-  saveBtnText: { fontSize: 14, fontFamily: typography.bold, color: '#fff' },
+  // Inbox
+  inboxContent: { paddingHorizontal: 20 },
+  notifCard: { flexDirection: 'row', gap: 16, backgroundColor: '#fff', padding: 18, borderRadius: 20, marginBottom: 12, borderWidth: 1, borderColor: '#f1f5f9', position: 'relative' },
+  notifUnread: { backgroundColor: '#fdfdfd', borderColor: '#e2e8f0' },
+  notifIconBox: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  notifInfo: { flex: 1 },
+  notifHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  notifTitle: { fontSize: 15, fontFamily: typography.bold, color: '#0f172a' },
+  notifTime: { fontSize: 11, fontFamily: typography.medium, color: '#94a3b8' },
+  notifDesc: { fontSize: 13, fontFamily: typography.medium, color: '#64748b', lineHeight: 18 },
+  unreadPulse: { position: 'absolute', top: 12, right: 12, width: 8, height: 8, borderRadius: 4, backgroundColor: '#ef4444' },
 
-  // Rider card
-  riderCard: {
-    flexDirection: 'row', alignItems: 'center', gap: 14,
-    backgroundColor: '#0f172a', borderRadius: 24, padding: 16, marginBottom: 28,
-    shadowColor: '#0f172a', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.2, shadowRadius: 16, elevation: 6,
-  },
-  riderAvatarWrap: { position: 'relative' },
-  riderAvatar: { width: 54, height: 54, borderRadius: 16, backgroundColor: '#1e293b' },
-  riderAvatarFallback: { alignItems: 'center', justifyContent: 'center' },
-  onlineDot: {
-    position: 'absolute', bottom: 2, right: 2,
-    width: 12, height: 12, borderRadius: 6, borderWidth: 2, borderColor: '#0f172a',
-  },
-  riderName: { fontSize: 15, fontFamily: typography.bold, color: '#fff', marginBottom: 3 },
-  riderMeta: { fontSize: 12, fontFamily: typography.medium, color: '#94a3b8', marginBottom: 6 },
-  riderStatusPill: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(16,185,129,0.15)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20, alignSelf: 'flex-start' },
-  riderStatusDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#10b981' },
-  riderStatusText: { fontSize: 11, fontFamily: typography.bold, color: '#34d399' },
-  riderActions: { flexDirection: 'row', gap: 10 },
-  riderActionBtn: {
-    width: 40, height: 40, borderRadius: 12, backgroundColor: 'rgba(16,185,129,0.15)',
-    alignItems: 'center', justifyContent: 'center',
-  },
-  riderCallBtn: { backgroundColor: '#10b981' },
+  // Empty State
+  emptyState: { paddingVertical: 80, alignItems: 'center' },
+  emptyIconCircle: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#f8fafc', alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
+  emptyTitle: { fontSize: 18, fontFamily: typography.bold, color: '#475569', marginBottom: 4 },
+  emptySub: { fontSize: 14, fontFamily: typography.medium, color: '#94a3b8', textAlign: 'center', paddingHorizontal: 40 },
 
-  noRiderCard: {
-    backgroundColor: '#fff', borderRadius: 20, padding: 24,
-    alignItems: 'center', gap: 8, marginBottom: 28,
-    borderWidth: 1, borderColor: '#f1f5f9',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 6, elevation: 2,
-  },
-  noRiderText: { fontSize: 15, fontFamily: typography.bold, color: '#475569', marginTop: 4 },
-  noRiderSub: { fontSize: 13, fontFamily: typography.medium, color: '#94a3b8', textAlign: 'center', lineHeight: 20 },
-
-  riderLoading: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 20, backgroundColor: '#fff', borderRadius: 20, marginBottom: 28 },
-  riderLoadingText: { fontSize: 13, fontFamily: typography.medium, color: '#94a3b8' },
-
-  // Section label
-  sectionLabel: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
-  sectionIconBox: { width: 22, height: 22, borderRadius: 6, alignItems: 'center', justifyContent: 'center' },
-  sectionLabelText: { fontSize: 12, fontFamily: typography.bold, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.6 },
-
-  // Group card
+  // Settings
+  settingsContent: { paddingHorizontal: 20 },
   groupWrap: { marginBottom: 24 },
-  groupCard: {
-    backgroundColor: '#fff', borderRadius: 20, overflow: 'hidden',
-    borderWidth: 1, borderColor: '#f1f5f9',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 2,
-  },
+  sectionLabel: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12, paddingHorizontal: 4 },
+  sectionIconBox: { width: 22, height: 22, borderRadius: 6, alignItems: 'center', justifyContent: 'center' },
+  sectionLabelText: { fontSize: 11, fontFamily: typography.bold, color: '#64748b', textTransform: 'uppercase', letterSpacing: 1 },
+  groupCard: { backgroundColor: '#fff', borderRadius: 20, overflow: 'hidden', borderWidth: 1, borderColor: '#f1f5f9', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.02, shadowRadius: 10 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16 },
   rowBorder: { borderBottomWidth: 1, borderBottomColor: '#f8fafc' },
   rowIcon: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   rowLabel: { fontSize: 15, fontFamily: typography.semiBold, color: '#475569', marginBottom: 2 },
   rowDesc: { fontSize: 12, fontFamily: typography.medium, color: '#94a3b8', lineHeight: 16 },
+  saveBtn: { backgroundColor: '#0f172a', height: 56, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginTop: 10, marginBottom: 24 },
+  saveBtnText: { fontSize: 15, fontFamily: typography.bold, color: '#fff' },
+  infoBanner: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, backgroundColor: '#eff6ff', borderRadius: 16, padding: 16 },
+  infoText: { flex: 1, fontSize: 13, fontFamily: typography.medium, color: '#1e40af', lineHeight: 18 },
 
-  // Info banner
-  infoBanner: {
-    flexDirection: 'row', alignItems: 'flex-start', gap: 10,
-    backgroundColor: '#eff6ff', borderRadius: 16, padding: 16, marginTop: 4,
-  },
-  infoText: { flex: 1, fontSize: 13, fontFamily: typography.medium, color: '#1e40af', lineHeight: 20 },
+  // Rider Card (Re-styled)
+  assignedSection: { marginTop: 32 },
+  riderCard: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: '#0f172a', borderRadius: 20, padding: 16, marginTop: 12 },
+  riderAvatarWrap: { position: 'relative' },
+  riderAvatar: { width: 50, height: 50, borderRadius: 14, backgroundColor: '#1e293b' },
+  riderAvatarFallback: { alignItems: 'center', justifyContent: 'center' },
+  onlineDot: { position: 'absolute', bottom: 0, right: 0, width: 10, height: 10, borderRadius: 5, borderWidth: 2, borderColor: '#0f172a' },
+  riderName: { fontSize: 15, fontFamily: typography.bold, color: '#fff' },
+  riderMeta: { fontSize: 12, fontFamily: typography.medium, color: '#94a3b8', marginTop: 2 },
+  riderActionBtn: { width: 44, height: 44, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.05)', alignItems: 'center', justifyContent: 'center' },
 });
+
+export default NotificationsPage;

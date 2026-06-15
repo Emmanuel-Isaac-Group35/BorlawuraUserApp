@@ -9,6 +9,7 @@ import * as WebBrowser from 'expo-web-browser';
 
 import { supabase } from '../lib/supabase';
 import { registerForPushNotificationsAsync } from '../utils/notifications';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -169,16 +170,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // SDK 53+ Check: executionEnvironment for Expo Go
       const executionEnv = (Constants as any).executionEnvironment || '';
       const isExpoGo = executionEnv === 'storeClient';
-      
+
       // Android push notifications are removed from Expo Go in SDK 53
       const shouldRegister = !isExpoGo || Platform.OS === 'ios';
-      
+
       if (shouldRegister) {
-        registerForPushNotificationsAsync().then(token => {
-          if (token) {
-            supabase.from('users').update({ push_token: token }).eq('id', userId).then();
+        (async () => {
+          try {
+            const pref = await AsyncStorage.getItem('pushEnabled');
+            if (pref === null || pref === 'true') {
+              registerForPushNotificationsAsync().then(token => {
+                if (token) {
+                  supabase.from('users').update({ push_token: token }).eq('id', userId).then();
+                }
+              }).catch(err => console.log('Push Token background error:', err));
+            }
+          } catch (e) {
+            // fallback: allow registration
+            registerForPushNotificationsAsync().then(token => {
+              if (token) {
+                supabase.from('users').update({ push_token: token }).eq('id', userId).then();
+              }
+            }).catch(err => console.log('Push Token background error:', err));
           }
-        }).catch(err => console.log('Push Token background error:', err));
+        })();
       }
     }
   }, [user?.id, user?.supabase_id, isLoggedIn]);
@@ -209,7 +224,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // CASE 2: New Signup (Need to create Auth User AND DB User)
       else if (userData.isSignup) {
         // 1. Create the Auth Account in the Security Vault
-        const { data: authData, error: authError } = await supabase.auth.signUp({
+        let { data: authData, error: authError } = await supabase.auth.signUp({
           email: userData.email,
           password: userData.password,
           options: {
@@ -221,11 +236,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
 
         if (authError) {
-          // If user already exists in Auth, try to just login or error
+          // If user already exists in Auth, they might be stuck in "partial registration"
           if (authError.message.includes('already registered')) {
-            throw new Error("This email is already registered. Please login instead.");
+             console.log("User exists in Auth. Attempting profile recovery...");
+             const { data: retryData, error: retryError } = await supabase.auth.signInWithPassword({
+                email: userData.email,
+                password: userData.password
+             });
+             if (retryError) throw new Error("This email is already registered. If you forgot your password, please reset it.");
+             authData = retryData;
+          } else {
+             throw authError;
           }
-          throw authError;
         }
         
         authUserId = authData.user?.id || null;
@@ -300,7 +322,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       const storageUser = { 
         ...(dbUser || userData), 
-        supabase_id: dbUser?.id || authUserId || userData.id
+        supabase_id: dbUser?.id || authUserId || userData.id,
+        phone_number: dbUser?.phone_number || userData.phone_number || userData.phoneNumber,
+        phoneNumber: dbUser?.phone_number || userData.phone_number || userData.phoneNumber
       };
 
       await RNAsyncStorage.setItem('user', JSON.stringify(storageUser));

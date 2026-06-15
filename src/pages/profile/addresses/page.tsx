@@ -11,7 +11,7 @@ import { RemixIcon } from '../../../utils/icons';
 import { typography } from '../../../utils/typography';
 import * as Location from 'expo-location';
 import { resolveRealUserId } from '../../../utils/user';
-import { fetchPlacesAutocomplete, fetchPlaceDetails } from '../../../utils/maps';
+import { fetchPlacesAutocomplete, fetchPlaceDetails, reverseGeocode } from '../../../utils/maps';
 
 const SavedAddressesPage: React.FC = () => {
   const insets = useSafeAreaInsets();
@@ -66,15 +66,8 @@ const SavedAddressesPage: React.FC = () => {
       setCoords({ lat: location.coords.latitude, lng: location.coords.longitude });
       
       // Reverse geocode to get address text
-      const reverse = await Location.reverseGeocodeAsync({
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude
-      });
-      
-      if (reverse[0]) {
-        const addr = `${reverse[0].streetNumber || ''} ${reverse[0].street || ''}, ${reverse[0].city || ''}`.trim();
-        setAddressText(addr);
-      }
+      const addr = await reverseGeocode(location.coords.latitude, location.coords.longitude);
+      setAddressText(addr);
     } catch (e) {
       Alert.alert('Error', 'Could not detect your location');
     } finally {
