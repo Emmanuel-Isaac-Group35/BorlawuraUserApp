@@ -26,7 +26,6 @@ export const routeMap: { [key: string]: string } = {
   '/profile/payment-methods': 'PaymentMethods',
   '/profile/notifications': 'Notifications',
   '/profile/terms': 'Terms',
-  '/profile/about': 'About',
   '/chatbot': 'Chatbot',
   '/chat-rider': 'ChatRider',
   '/rider-chat': 'ChatRider',

@@ -160,7 +160,6 @@ const iconMap: { [key: string]: { lib: 'Ionicons' | 'MCI', name: any } } = {
   'ri-copper-coin-fill':      { lib: 'Ionicons', name: 'cash' },
   'ri-award-fill':            { lib: 'Ionicons', name: 'trophy' },
   'ri-wallet-3-line':         { lib: 'Ionicons', name: 'wallet-outline' },
-  'ri-medal-fill':            { lib: 'Ionicons', name: 'medal' },
 
   // ── Transport ─────────────────────────────────────────────────────────────
   'ri-moped-fill':            { lib: 'MCI',      name: 'moped' },
@@ -174,7 +173,6 @@ const iconMap: { [key: string]: { lib: 'Ionicons' | 'MCI', name: any } } = {
   'ri-database-2-fill':       { lib: 'Ionicons', name: 'server' },
   'ri-translate':             { lib: 'Ionicons', name: 'language-outline' },
   'ri-volume-up-fill':        { lib: 'Ionicons', name: 'volume-high' },
-  'ri-volume-up-line':        { lib: 'Ionicons', name: 'volume-high-outline' },
   'ri-search-eye-line':       { lib: 'Ionicons', name: 'search-outline' },
   'ri-calendar-event-line':   { lib: 'Ionicons', name: 'calendar-outline' },
 };

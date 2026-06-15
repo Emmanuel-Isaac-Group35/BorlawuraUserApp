@@ -100,7 +100,7 @@ export const NavigatrMap: React.FC<NavigatrMapProps> = ({
   const [isUserInteracting, setIsUserInteracting] = useState(false);
   const userInteractionTimeout = useRef<any>(null);
 
-  const handleRegionChange = () => {
+  const handleUserInteraction = () => {
     setIsUserInteracting(true);
     if (userInteractionTimeout.current) clearTimeout(userInteractionTimeout.current);
     userInteractionTimeout.current = setTimeout(() => setIsUserInteracting(false), 5000);
@@ -117,6 +117,8 @@ export const NavigatrMap: React.FC<NavigatrMapProps> = ({
     setIsUserInteracting(false);
   };
 
+  const markersHash = useMemo(() => JSON.stringify(markers.map(m => `${m.id}-${m.lat}-${m.lng}`)), [markers]);
+
   useEffect(() => {
     if (fitToMarkers && markers.length > 0 && mapRef.current && !isUserInteracting) {
       const coords = markers.filter(m => m.lat && m.lng).map(m => ({ latitude: m.lat, longitude: m.lng }));
@@ -124,7 +126,7 @@ export const NavigatrMap: React.FC<NavigatrMapProps> = ({
         mapRef.current.fitToCoordinates(coords, { edgePadding: { top: 140, right: 80, bottom: 140, left: 80 }, animated: true });
       }
     }
-  }, [markers, fitToMarkers, isUserInteracting]);
+  }, [markersHash, fitToMarkers, isUserInteracting]);
 
   // Programmatically center and animate map when center coordinates change
   useEffect(() => {
@@ -163,7 +165,8 @@ export const NavigatrMap: React.FC<NavigatrMapProps> = ({
         scrollEnabled={interactive}
         zoomEnabled={interactive}
         rotateEnabled={interactive}
-        onRegionChange={handleRegionChange}
+        onPanDrag={handleUserInteraction}
+        onTouchStart={handleUserInteraction}
         onRegionChangeComplete={onRegionChangeComplete}
         customMapStyle={isDark ? darkMapConfig : []}
       >

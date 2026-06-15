@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, useWindowDimensions } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Navigation } from '../../components/feature/Navigation';
 import { RemixIcon } from '../../utils/icons';
@@ -10,7 +10,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 
 const ServicesPage: React.FC = () => {
   const insets = useSafeAreaInsets();
-  const { width: screenWidth } = Dimensions.get('window');
+  const { width: screenWidth } = useWindowDimensions();
   const { settings } = useSettings();
   const [selectedCategory, setSelectedCategory] = useState('all');
 

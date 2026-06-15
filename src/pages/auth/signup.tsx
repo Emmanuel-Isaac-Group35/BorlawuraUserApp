@@ -55,7 +55,7 @@ const SignupPage = () => {
         return;
       }
 
-      const location = await Location.getCurrentPositionAsync({});
+      const location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Highest });
       const addr = await reverseGeocode(location.coords.latitude, location.coords.longitude);
       setAddress(addr);
     } catch (error) {

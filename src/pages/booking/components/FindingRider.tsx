@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, Animated, TouchableOpacity,
-  Image, Dimensions, ActivityIndicator, Easing, ScrollView,
+  Image, Dimensions, ActivityIndicator, Easing, ScrollView, useWindowDimensions
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NavigatrMap } from '../../../components/feature/NavigatrMap';
 import { RemixIcon } from '../../../utils/icons';
 import { typography } from '../../../utils/typography';
@@ -119,6 +120,14 @@ const useElapsedTime = (running: boolean) => {
 export const FindingRider: React.FC<FindingRiderProps> = ({
   userLat, userLng, orderId, selectedRiderId, onRiderFound, onCancel,
 }) => {
+  const { width: W, height: H } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  
+  const isSmall  = H < 700;
+  const isMed    = H < 812;
+  const PAD      = W * 0.06;
+  const SONAR    = Math.min(200, Math.max(120, W * 0.38));
+
   const [status, setStatus] = useState<'searching' | 'connecting' | 'waiting' | 'found'>(
     selectedRiderId ? 'connecting' : 'searching'
   );
@@ -148,7 +157,7 @@ export const FindingRider: React.FC<FindingRiderProps> = ({
       const { status: perm } = await Location.requestForegroundPermissionsAsync();
       if (perm !== 'granted') { setGpsReady(true); return; }
       try {
-        const coarse = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        const coarse = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Highest });
         setGpsLat(coarse.coords.latitude);
         setGpsLng(coarse.coords.longitude);
         setGpsReady(true);
@@ -253,7 +262,7 @@ export const FindingRider: React.FC<FindingRiderProps> = ({
   return (
     <View style={styles.container}>
       {/* ── Map ── */}
-      <View style={styles.mapWrap}>
+      <View style={[styles.mapWrap, { minHeight: H * 0.30 }]}>
         <NavigatrMap
           style={styles.map}
           centerLat={lat}
@@ -275,60 +284,60 @@ export const FindingRider: React.FC<FindingRiderProps> = ({
         />
 
         {/* Top map badge */}
-        <View style={styles.mapBadgeWrap}>
+        <View style={[styles.mapBadgeWrap, { top: (isSmall ? 60 : 100) + insets.top, paddingHorizontal: PAD }]}>
           {!gpsReady ? (
             <View style={styles.mapBadge}>
               <ActivityIndicator size="small" color="#10b981" />
-              <Text style={styles.mapBadgeText}>Getting your location…</Text>
+              <Text style={[styles.mapBadgeText, { fontSize: isSmall ? 12 : 13 }]}>Getting your location…</Text>
             </View>
           ) : status === 'found' ? (
             <View style={[styles.mapBadge, styles.mapBadgeSuccess]}>
               <RemixIcon name="ri-checkbox-circle-fill" size={14} color="#10b981" />
-              <Text style={[styles.mapBadgeText, { color: '#10b981' }]}>Rider assigned!</Text>
+              <Text style={[styles.mapBadgeText, { color: '#10b981', fontSize: isSmall ? 12 : 13 }]}>Rider assigned!</Text>
             </View>
           ) : (
             <View style={styles.mapBadge}>
               <View style={styles.liveDot} />
-              <Text style={styles.mapBadgeText}>{STATUS_LABEL[status]}</Text>
+              <Text style={[styles.mapBadgeText, { fontSize: isSmall ? 12 : 13 }]}>{STATUS_LABEL[status]}</Text>
             </View>
           )}
         </View>
       </View>
 
       {/* ── Animated bottom sheet ── */}
-      <Animated.View style={[styles.sheet, { transform: [{ translateY: sheetY }] }]}>
+      <Animated.View style={[styles.sheet, { transform: [{ translateY: sheetY }], maxHeight: H * 0.62 }]}>
         <ScrollView
           showsVerticalScrollIndicator={false}
           bounces={false}
-          contentContainerStyle={styles.sheetScroll}
+          contentContainerStyle={[styles.sheetScroll, { paddingBottom: (isSmall ? 24 : 36) + insets.bottom, paddingHorizontal: PAD }]}
           keyboardShouldPersistTaps="handled"
         >
         {status === 'found' ? (
           /* ── FOUND STATE ───────────────────────────────────────────── */
           <Animated.View style={[styles.foundBox, { transform: [{ scale: successAnim }] }]}>
             {/* Green checkmark */}
-            <View style={styles.successRing}>
+            <View style={[styles.successRing, { width: isSmall ? 72 : 84, height: isSmall ? 72 : 84, borderRadius: isSmall ? 36 : 42, marginBottom: isSmall ? 12 : 16 }]}>
               <LinearGradient
                 colors={['#10b981', '#059669']}
-                style={styles.successCircle}
+                style={[styles.successCircle, { width: isSmall ? 52 : 62, height: isSmall ? 52 : 62, borderRadius: isSmall ? 26 : 31 }]}
               >
                 <RemixIcon name="ri-check-line" size={32} color="#fff" />
               </LinearGradient>
             </View>
 
-            <Text style={styles.foundTitle}>Your rider is on the way!</Text>
-            <Text style={styles.foundSub}>
+            <Text style={[styles.foundTitle, { fontSize: isSmall ? 17 : 20 }]}>Your rider is on the way!</Text>
+            <Text style={[styles.foundSub, { fontSize: isSmall ? 12 : 13, marginBottom: isSmall ? 14 : 18 }]}>
               {localRider?.name} will arrive at your pickup location shortly.
             </Text>
 
             {/* Rider info card */}
-            <Animated.View style={[styles.riderCard, { transform: [{ translateY: cardAnim }] }]}>
+            <Animated.View style={[styles.riderCard, { transform: [{ translateY: cardAnim }], paddingVertical: isSmall ? 10 : 14, marginBottom: isSmall ? 14 : 18 }]}>
               <Image
                 source={{ uri: localRider?.photo || 'https://cdn-icons-png.flaticon.com/512/149/149071.png' }}
-                style={styles.riderPhoto}
+                style={[styles.riderPhoto, { width: isSmall ? 44 : 52, height: isSmall ? 44 : 52, borderRadius: isSmall ? 14 : 16 }]}
               />
               <View style={styles.riderMeta}>
-                <Text style={styles.riderName} numberOfLines={1}>{localRider?.name || 'BorlaWura Rider'}</Text>
+                <Text style={[styles.riderName, { fontSize: isSmall ? 14 : 16 }]} numberOfLines={1}>{localRider?.name || 'BorlaWura Rider'}</Text>
                 <View style={styles.ratingRow}>
                   <RemixIcon name="ri-star-fill" size={12} color="#f59e0b" />
                   <Text style={styles.ratingText}>{localRider?.rating?.toFixed(1) || '5.0'}</Text>
@@ -343,9 +352,9 @@ export const FindingRider: React.FC<FindingRiderProps> = ({
             </Animated.View>
 
             <TouchableOpacity onPress={() => onRiderFound(localRider)} style={styles.trackBtn} activeOpacity={0.85}>
-              <LinearGradient colors={['#10b981', '#059669']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.trackBtnInner}>
+              <LinearGradient colors={['#10b981', '#059669']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={[styles.trackBtnInner, { paddingVertical: isSmall ? 13 : 16 }]}>
                 <RemixIcon name="ri-moped-fill" size={18} color="#fff" />
-                <Text style={styles.trackBtnText}>Track your pickup</Text>
+                <Text style={[styles.trackBtnText, { fontSize: isSmall ? 14 : 15 }]}>Track your pickup</Text>
               </LinearGradient>
             </TouchableOpacity>
           </Animated.View>
@@ -354,13 +363,13 @@ export const FindingRider: React.FC<FindingRiderProps> = ({
           /* ── SEARCHING STATE ───────────────────────────────────────── */
           <View style={styles.searchBox}>
             {/* Sonar pulse rings — sizes are responsive */}
-            <View style={styles.sonarWrap}>
+            <View style={[styles.sonarWrap, { width: SONAR, height: SONAR, marginBottom: isSmall ? 10 : 14, marginTop: isSmall ? 4 : 8 }]}>
               <PulseRing size={SONAR}         color="#10b981" delay={0} />
               <PulseRing size={SONAR * 0.75}  color="#3b82f6" delay={500} />
               <PulseRing size={SONAR * 0.5}   color="#10b981" delay={1000} />
 
               {/* Centre icon */}
-              <View style={styles.sonarCenter}>
+              <View style={[styles.sonarCenter, { width: SONAR * 0.36, height: SONAR * 0.36, borderRadius: SONAR * 0.18 }]}>
                 <LinearGradient colors={['#10b981', '#059669']} style={styles.sonarGrad}>
                   <RemixIcon name="ri-moped-fill" size={SONAR * 0.33} color="#fff" />
                 </LinearGradient>
@@ -368,17 +377,17 @@ export const FindingRider: React.FC<FindingRiderProps> = ({
             </View>
 
             {/* Timer */}
-            <View style={styles.timerRow}>
+            <View style={[styles.timerRow, { marginBottom: isSmall ? 8 : 12 }]}>
               <RemixIcon name="ri-time-line" size={13} color="#94a3b8" />
-              <Text style={styles.timerText}>Searching for {elapsed}</Text>
+              <Text style={[styles.timerText, { fontSize: isSmall ? 11 : 12 }]}>Searching for {elapsed}</Text>
             </View>
 
-            <Text style={styles.searchTitle}>{STATUS_LABEL[status]}</Text>
-            <Text style={styles.searchSub}>{STATUS_SUB[status]}</Text>
+            <Text style={[styles.searchTitle, { fontSize: isSmall ? 16 : 18 }]}>{STATUS_LABEL[status]}</Text>
+            <Text style={[styles.searchSub, { fontSize: isSmall ? 12 : 13, marginBottom: isSmall ? 12 : 18 }]}>{STATUS_SUB[status]}</Text>
 
             {/* Rider count */}
             {onlineRiders.length > 0 && (
-              <View style={styles.riderCountRow}>
+              <View style={[styles.riderCountRow, { marginBottom: isSmall ? 12 : 18 }]}>
                 {[...Array(Math.min(onlineRiders.length, 4))].map((_, i) => (
                   <View key={i} style={[styles.riderDot, { marginLeft: i > 0 ? -8 : 0, zIndex: 4 - i }]}>
                     <RemixIcon name="ri-user-3-fill" size={12} color="#fff" />
@@ -391,12 +400,12 @@ export const FindingRider: React.FC<FindingRiderProps> = ({
             )}
 
             {/* Cancel */}
-            <TouchableOpacity onPress={handleCancel} style={styles.cancelBtn} activeOpacity={0.7} disabled={isCancelling}>
+            <TouchableOpacity onPress={handleCancel} style={[styles.cancelBtn, { paddingVertical: isSmall ? 10 : 12 }]} activeOpacity={0.7} disabled={isCancelling}>
               {isCancelling
                 ? <ActivityIndicator size="small" color="#ef4444" />
                 : <>
                     <RemixIcon name="ri-close-line" size={15} color="#ef4444" />
-                    <Text style={styles.cancelText}>Cancel request</Text>
+                    <Text style={[styles.cancelText, { fontSize: isSmall ? 12 : 13 }]}>Cancel request</Text>
                   </>
               }
             </TouchableOpacity>
@@ -409,18 +418,6 @@ export const FindingRider: React.FC<FindingRiderProps> = ({
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Responsive constants
-// ─────────────────────────────────────────────────────────────────────────────
-
-const { width: W, height: H } = Dimensions.get('window');
-const isSmall  = H < 700;   // iPhone SE, small Androids
-const isMed    = H < 812;   // iPhone 8 / most mid-range
-const PAD      = W * 0.06;  // horizontal padding ~22px on 375
-
-// Sonar diameter: 38% of screen width, clamped 120–200
-const SONAR = Math.min(200, Math.max(120, W * 0.38));
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Styles
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -428,16 +425,14 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f8fafc' },
 
   // Map — takes remaining space above sheet
-  mapWrap: { flex: 1, minHeight: H * 0.30, overflow: 'hidden' },
+  mapWrap: { flex: 1, overflow: 'hidden' },
   map:     { flex: 1 },
 
   // Map badge overlay — positioned relative to screen height
   mapBadgeWrap: {
     position: 'absolute',
-    top: isSmall ? 60 : 100,
     left: 0, right: 0,
     alignItems: 'center',
-    paddingHorizontal: PAD,
   },
   mapBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
@@ -449,36 +444,27 @@ const styles = StyleSheet.create({
   },
   mapBadgeSuccess: { borderColor: 'rgba(16,185,129,0.3)', backgroundColor: '#f0fdf4' },
   liveDot:     { width: 7, height: 7, borderRadius: 4, backgroundColor: '#10b981' },
-  mapBadgeText: { fontSize: isSmall ? 12 : 13, fontFamily: typography.bold, color: '#374151', flexShrink: 1 },
+  mapBadgeText: { fontFamily: typography.bold, color: '#374151', flexShrink: 1 },
 
-  // Bottom sheet — max height 60% so map is never hidden
+  // Bottom sheet
   sheet: {
     backgroundColor: '#ffffff',
     borderTopLeftRadius: 32, borderTopRightRadius: 32,
-    maxHeight: H * 0.62,
     shadowColor: '#0f172a', shadowOpacity: 0.08, shadowRadius: 28, elevation: 14,
     borderTopWidth: 1, borderTopColor: '#f1f5f9',
   },
   sheetScroll: {
     paddingTop: 10,
-    paddingHorizontal: PAD,
-    paddingBottom: isSmall ? 24 : 36,
   },
 
   // ── Searching ─────────────────────────────────────────────────────────────
   searchBox: { alignItems: 'center' },
 
-  // Sonar wrapper — size driven by SONAR constant
+  // Sonar wrapper
   sonarWrap: {
-    width: SONAR, height: SONAR,
     alignItems: 'center', justifyContent: 'center',
-    marginBottom: isSmall ? 10 : 14,
-    marginTop: isSmall ? 4 : 8,
   },
   sonarCenter: {
-    width:  SONAR * 0.36,
-    height: SONAR * 0.36,
-    borderRadius: SONAR * 0.18,
     overflow: 'hidden',
     shadowColor: '#10b981', shadowOpacity: 0.35, shadowRadius: 12, elevation: 6,
   },
@@ -487,20 +473,16 @@ const styles = StyleSheet.create({
   // Timer
   timerRow: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
-    marginBottom: isSmall ? 8 : 12,
   },
-  timerText: { fontSize: isSmall ? 11 : 12, fontFamily: typography.medium, color: '#94a3b8' },
+  timerText: { fontFamily: typography.medium, color: '#94a3b8' },
 
   searchTitle: {
-    fontSize: isSmall ? 16 : 18,
     fontFamily: typography.bold, color: '#0f172a',
     textAlign: 'center', marginBottom: 6,
   },
   searchSub: {
-    fontSize: isSmall ? 12 : 13,
     fontFamily: typography.medium, color: '#64748b',
     textAlign: 'center', lineHeight: 20,
-    marginBottom: isSmall ? 12 : 18,
   },
 
   // Rider dot cluster
@@ -509,7 +491,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#f0fdf4',
     paddingHorizontal: 12, paddingVertical: 8,
     borderRadius: 14, borderWidth: 1, borderColor: '#d1fae5',
-    marginBottom: isSmall ? 12 : 18,
     alignSelf: 'center',
   },
   riderDot: {
@@ -522,63 +503,48 @@ const styles = StyleSheet.create({
 
   cancelBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingVertical: isSmall ? 10 : 12,
     paddingHorizontal: 24,
     borderRadius: 14,
     backgroundColor: 'rgba(239,68,68,0.05)',
     borderWidth: 1.5, borderColor: 'rgba(239,68,68,0.15)',
     minWidth: 160, justifyContent: 'center', alignSelf: 'center',
   },
-  cancelText: { fontSize: isSmall ? 12 : 13, fontFamily: typography.bold, color: '#ef4444' },
+  cancelText: { fontFamily: typography.bold, color: '#ef4444' },
 
   // ── Found ─────────────────────────────────────────────────────────────────
   foundBox: { alignItems: 'center', paddingTop: 4 },
 
   successRing: {
-    width: isSmall ? 72 : 84,
-    height: isSmall ? 72 : 84,
-    borderRadius: isSmall ? 36 : 42,
     backgroundColor: 'rgba(16,185,129,0.08)',
     alignItems: 'center', justifyContent: 'center',
-    marginBottom: isSmall ? 12 : 16,
     borderWidth: 2, borderColor: 'rgba(16,185,129,0.15)',
   },
   successCircle: {
-    width:  isSmall ? 52 : 62,
-    height: isSmall ? 52 : 62,
-    borderRadius: isSmall ? 26 : 31,
     alignItems: 'center', justifyContent: 'center',
   },
 
   foundTitle: {
-    fontSize: isSmall ? 17 : 20,
     fontFamily: typography.bold, color: '#0f172a',
     marginBottom: 6, textAlign: 'center',
   },
   foundSub: {
-    fontSize: isSmall ? 12 : 13,
     fontFamily: typography.medium, color: '#64748b',
     textAlign: 'center', lineHeight: 20,
-    marginBottom: isSmall ? 14 : 18,
     paddingHorizontal: 4,
   },
 
   riderCard: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     width: '100%', backgroundColor: '#f8fafc',
-    paddingHorizontal: 14, paddingVertical: isSmall ? 10 : 14,
+    paddingHorizontal: 14,
     borderRadius: 18, borderWidth: 1, borderColor: '#f1f5f9',
-    marginBottom: isSmall ? 14 : 18,
     shadowColor: '#0f172a', shadowOpacity: 0.03, shadowRadius: 8, elevation: 1,
   },
   riderPhoto: {
-    width: isSmall ? 44 : 52,
-    height: isSmall ? 44 : 52,
-    borderRadius: isSmall ? 14 : 16,
     backgroundColor: '#e2e8f0',
   },
   riderMeta: { flex: 1, minWidth: 0 },
-  riderName:  { fontSize: isSmall ? 14 : 16, fontFamily: typography.bold, color: '#0f172a' },
+  riderName:  { fontFamily: typography.bold, color: '#0f172a' },
   ratingRow:  { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 },
   ratingText: { fontSize: 12, fontFamily: typography.bold, color: '#f59e0b' },
   ratingDivider: { fontSize: 12, color: '#cbd5e1' },
@@ -593,8 +559,7 @@ const styles = StyleSheet.create({
   trackBtnInner: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: 10,
-    paddingVertical: isSmall ? 13 : 16,
     borderRadius: 16,
   },
-  trackBtnText: { fontSize: isSmall ? 14 : 15, fontFamily: typography.bold, color: '#fff' },
+  trackBtnText: { fontFamily: typography.bold, color: '#fff' },
 });

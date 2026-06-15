@@ -227,9 +227,11 @@ export const HomePage: React.FC = () => {
               </TouchableOpacity>
             ))}
           </View>
-  
-          <NewsSlider />
+        </View>
 
+        <NewsSlider />
+
+        <View style={{ paddingHorizontal: paddingH }}>
           <View style={styles.sectionHeader}>
              <Text style={styles.sectionTitle}>Recent Orders</Text>
              <TouchableOpacity 

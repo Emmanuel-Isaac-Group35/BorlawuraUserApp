@@ -58,7 +58,7 @@ export const LocationSelector: React.FC<LocationSelectorProps> = ({ value, onCha
       // Try to get current position with high accuracy
       // If it takes too long or fails, we'll catch it
       const location = await Location.getCurrentPositionAsync({ 
-        accuracy: Location.Accuracy.Balanced, // Balanced is faster and more reliable indoors
+        accuracy: Location.Accuracy.Highest, // Use highest accuracy for precise map centering
       });
       
       const { latitude, longitude } = location.coords;
@@ -163,6 +163,21 @@ export const LocationSelector: React.FC<LocationSelectorProps> = ({ value, onCha
 
          <TouchableOpacity onPress={handleDetectLocation} style={styles.recenterBtn}>
             <RemixIcon name="ri-focus-3-fill" size={20} color="#0f172a" />
+         </TouchableOpacity>
+
+         <TouchableOpacity 
+            onPress={confirmPinLocation} 
+            style={styles.confirmPinBtn}
+            disabled={isReverseGeocoding}
+         >
+            {isReverseGeocoding ? (
+               <ActivityIndicator color="#fff" size="small" />
+            ) : (
+               <>
+                  <RemixIcon name="ri-map-pin-2-fill" size={18} color="#fff" />
+                  <Text style={styles.confirmPinText}>Confirm Pin Location</Text>
+               </>
+            )}
          </TouchableOpacity>
       </View>
 

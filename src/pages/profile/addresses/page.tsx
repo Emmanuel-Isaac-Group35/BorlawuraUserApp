@@ -62,7 +62,7 @@ const SavedAddressesPage: React.FC = () => {
         return;
       }
 
-      let location = await Location.getCurrentPositionAsync({});
+      let location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Highest });
       setCoords({ lat: location.coords.latitude, lng: location.coords.longitude });
       
       // Reverse geocode to get address text
