@@ -13,11 +13,30 @@ import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { typography } from '../../utils/typography';
 import { resolveRealUserId } from '../../utils/user';
-import { useRoute } from '@react-navigation/native';
+import { useRoute, useNavigation } from '@react-navigation/native';
+import { LinearGradient } from 'expo-linear-gradient';
+import * as Haptics from 'expo-haptics';
+
+const calculateEstimatedPrice = (serviceType: string, bagSize: string) => {
+  let base = 30;
+  let sizeAdd = 0;
+  if (bagSize === 'small') sizeAdd = 10;
+  else if (bagSize === 'medium') sizeAdd = 25;
+  else if (bagSize === 'large') sizeAdd = 45;
+  else if (bagSize === 'xl') sizeAdd = 150;
+
+  let serviceAdd = 0;
+  if (serviceType === 'instant') serviceAdd = 20;
+  else if (serviceType === 'bulk') serviceAdd = 50;
+
+  return base + sizeAdd + serviceAdd;
+};
+
 
 const BookingPage: React.FC = () => {
   const insets = useSafeAreaInsets();
   const route = useRoute();
+  const navigation = useNavigation<any>();
   const { width: screenWidth } = Dimensions.get('window');
   const params = (route.params as { editId?: string, type?: string | number }) || {};
   
@@ -42,6 +61,11 @@ const BookingPage: React.FC = () => {
 
   const [completedOrder, setCompletedOrder] = useState<any>(null);
   const { user } = useAuth();
+
+  // Reset tab bar visibility on mount
+  useEffect(() => {
+    navigation.setParams({ hideTabBar: false });
+  }, []);
 
   useEffect(() => {
     // Handle initial service type from params
@@ -123,8 +147,18 @@ const BookingPage: React.FC = () => {
     }
   };
 
-  const nextStep = () => { if (step < 4) setStep(step + 1); };
-  const prevStep = () => { if (step > 1) setStep(step - 1); };
+  const nextStep = () => { 
+    if (step < 4) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      setStep(step + 1); 
+    }
+  };
+  const prevStep = () => { 
+    if (step > 1) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      setStep(step - 1); 
+    }
+  };
 
   const handleBooking = async () => {
     if (isBooking) return;
@@ -143,7 +177,7 @@ const BookingPage: React.FC = () => {
         address: bookingData.location,
         pickup_latitude: bookingData.latitude || 5.6037,
         pickup_longitude: bookingData.longitude || -0.1870,
-        waste_type: bookingData.wasteTypes.join(', '),
+        waste_type: 'General',
         waste_size: bookingData.bagSize,
         notes: `${bookingData.notes || ''}`.trim(),
         status: 'pending',
@@ -153,14 +187,20 @@ const BookingPage: React.FC = () => {
       if (isEditing && params.editId) {
         const { error } = await supabase.from('orders').update(orderPayload).eq('id', params.editId);
         if (error) throw error;
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         Alert.alert("Success", "Order updated.", [{ text: "OK", onPress: () => navigateTo('/track-order', { id: params.editId }) }]);
       } else {
         const { data, error } = await supabase.from('orders').insert([orderPayload]).select('id').single();
         if (error || !data) throw error;
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         setCompletedOrder({ id: data.id });
+        navigation.setParams({ hideTabBar: true });
         setShowFindingRider(true);
       }
-    } catch (e) { Alert.alert("Error", "Failed to place order."); }
+    } catch (e: any) { 
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert("Error", `Failed to place order: ${e.message || JSON.stringify(e)}`); 
+    }
     finally { setIsBooking(false); }
   };
 
@@ -171,7 +211,10 @@ const BookingPage: React.FC = () => {
           userLat={bookingData.latitude} userLng={bookingData.longitude}
           orderId={completedOrder?.id}
           onRiderFound={(r) => navigateTo('/track-order', { id: completedOrder?.id })} 
-          onCancel={() => setShowFindingRider(false)}
+          onCancel={() => {
+            navigation.setParams({ hideTabBar: false });
+            setShowFindingRider(false);
+          }}
         />
       </View>
     );
@@ -194,7 +237,11 @@ const BookingPage: React.FC = () => {
                 {steps.map((s, idx) => (
                    <React.Fragment key={s.id}>
                       <View style={[styles.stepDot, step >= s.id && styles.stepDotActive]}>
-                         <Text style={[styles.stepNumText, step >= s.id && styles.stepNumTextActive]}>{s.id}</Text>
+                         {step > s.id ? (
+                            <RemixIcon name="ri-check-line" size={14} color="#ffffff" />
+                         ) : (
+                            <Text style={[styles.stepNumText, step >= s.id && styles.stepNumTextActive]}>{s.id}</Text>
+                         )}
                       </View>
                       {idx < steps.length - 1 && <View style={[styles.connector, step > s.id && styles.connectorActive]} />}
                    </React.Fragment>
@@ -206,28 +253,39 @@ const BookingPage: React.FC = () => {
           <View style={styles.mainCard}>
             {step === 1 && <LocationSelector value={bookingData.location} onChange={(v, c) => updateBookingData({ location: v, latitude: c?.latitude || 5.6037, longitude: c?.longitude || -0.1870 })} />}
             {step === 2 && <ServiceSelector value={bookingData.serviceType} onChange={(v) => updateBookingData('serviceType', v)} scheduledTime={bookingData.scheduledTime} onTimeChange={(v) => updateBookingData('scheduledTime', v)} />}
-            {step === 3 && <WasteTypeSelector selectedTypes={bookingData.wasteTypes} selectedSize={bookingData.bagSize} notes={bookingData.notes} onTypesChange={(v) => updateBookingData('wasteTypes', v)} onSizeChange={(v) => updateBookingData('bagSize', v)} onNotesChange={(v) => updateBookingData('notes', v)} />}
+            {step === 3 && <WasteTypeSelector selectedSize={bookingData.bagSize} notes={bookingData.notes} onSizeChange={(v) => updateBookingData('bagSize', v)} onNotesChange={(v) => updateBookingData('notes', v)} />}
             {step === 4 && <PricingSummary bookingData={bookingData} />}
           </View>
 
           <View style={styles.footerNav}>
              {step > 1 && (
-              <TouchableOpacity onPress={prevStep} style={styles.backBtn}>
+              <TouchableOpacity onPress={prevStep} style={styles.backBtn} activeOpacity={0.8}>
                 <RemixIcon name="ri-arrow-left-s-line" size={20} color="#64748b" />
                 <Text style={styles.backBtnText}>Back</Text>
               </TouchableOpacity>
              )}
+             
              <TouchableOpacity 
               onPress={step < 4 ? nextStep : handleBooking} 
-              style={[styles.nextBtn, (step < 4 && !canGoNext(step, bookingData)) && styles.nextBtnDisabled]} 
+              style={styles.nextBtnContainer}
               disabled={(step < 4 && !canGoNext(step, bookingData)) || isBooking}
+              activeOpacity={0.9}
              >
-                {isBooking ? <ActivityIndicator color="#fff" /> : (
-                  <>
-                    <Text style={styles.nextBtnText}>{step < 4 ? 'Continue' : 'Place Order'}</Text>
-                    <RemixIcon name="ri-arrow-right-s-line" size={20} color="#fff" />
-                  </>
-                )}
+                <LinearGradient
+                   colors={((step < 4 && !canGoNext(step, bookingData)) || isBooking) ? ['#e2e8f0', '#cbd5e1'] : ['#10b981', '#059669']}
+                   start={{ x: 0, y: 0 }}
+                   end={{ x: 1, y: 0 }}
+                   style={styles.nextBtnGradient}
+                >
+                  {isBooking ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <>
+                      <Text style={styles.nextBtnText}>{step < 4 ? 'Continue' : 'Place Order'}</Text>
+                      <RemixIcon name="ri-arrow-right-s-line" size={20} color="#fff" />
+                    </>
+                  )}
+                </LinearGradient>
              </TouchableOpacity>
           </View>
         </ScrollView>
@@ -239,7 +297,7 @@ const BookingPage: React.FC = () => {
 const canGoNext = (step: number, data: any) => {
   if (step === 1) return !!data.location;
   if (step === 2) return !!data.serviceType;
-  if (step === 3) return data.wasteTypes.length > 0 && !!data.bagSize;
+  if (step === 3) return !!data.bagSize;
   return true;
 };
 
@@ -249,20 +307,20 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#ffffff' },
   scrollView: { flex: 1 },
   content: { },
-  stepIndicatorPage: { marginBottom: 32, alignItems: 'center', paddingHorizontal: 10 },
-  stepLineContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', width: '100%', paddingHorizontal: 20 },
-  stepDot: { width: 24, height: 24, borderRadius: 12, backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center' },
-  stepDotActive: { backgroundColor: '#10b981' },
-  stepNumText: { fontSize: 11, fontFamily: typography.bold, color: '#94a3b8' },
+  stepIndicatorPage: { marginBottom: 24, alignItems: 'center', paddingHorizontal: 10 },
+  stepLineContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', width: '100%', paddingHorizontal: 10 },
+  stepDot: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#cbd5e1' },
+  stepDotActive: { backgroundColor: '#10b981', borderColor: '#10b981' },
+  stepNumText: { fontSize: 13, fontFamily: typography.bold, color: '#94a3b8' },
   stepNumTextActive: { color: '#ffffff' },
-  connector: { flex: 1, height: 2, backgroundColor: '#f1f5f9' },
+  connector: { flex: 1, height: 3, backgroundColor: '#f1f5f9', marginHorizontal: -4 },
   connectorActive: { backgroundColor: '#10b981' },
-  stepLabelMain: { marginTop: 12, fontSize: 14, fontFamily: typography.bold, color: '#0f172a', textTransform: 'uppercase' },
-  mainCard: { backgroundColor: '#ffffff', borderRadius: 24, marginBottom: 32 },
+  stepLabelMain: { marginTop: 10, fontSize: 12, fontFamily: typography.bold, color: '#10b981', textTransform: 'uppercase', letterSpacing: 1.5 },
+  mainCard: { backgroundColor: '#ffffff', borderRadius: 24, marginBottom: 28 },
   footerNav: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  backBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, height: 50, borderRadius: 16, backgroundColor: '#f8fafc' },
+  backBtn: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, height: 52, borderRadius: 16, backgroundColor: '#f1f5f9', borderWidth: 1, borderColor: '#e2e8f0' },
   backBtnText: { fontSize: 14, fontFamily: typography.bold, color: '#64748b', marginLeft: 4 },
-  nextBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', height: 50, borderRadius: 16, backgroundColor: '#10b981', gap: 8 },
-  nextBtnDisabled: { backgroundColor: '#cbd5e1' },
+  nextBtnContainer: { flex: 1, height: 52, borderRadius: 16, overflow: 'hidden' },
+  nextBtnGradient: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 16 },
   nextBtnText: { fontSize: 15, fontFamily: typography.bold, color: '#ffffff' },
 });

@@ -61,7 +61,8 @@ export const BottomNavigation: React.FC = () => {
 
   const route = navigationRef.isReady() ? navigationRef.getCurrentRoute() : null;
   const showOn = ['Home', 'Booking', 'Orders', 'Profile', 'Settings'];
-  const isVisible = isNavReady && route && showOn.includes(route.name);
+  const params = route?.params as { hideTabBar?: boolean } | undefined;
+  const isVisible = isNavReady && route && showOn.includes(route.name) && !params?.hideTabBar;
 
   if (!isVisible) return null;
 

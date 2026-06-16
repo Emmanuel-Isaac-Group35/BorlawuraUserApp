@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Image, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, Image } from 'react-native';
 import { RemixIcon } from '../../../utils/icons';
 import { supabase } from '../../../lib/supabase';
 import { typography } from '../../../utils/typography';
@@ -35,45 +35,105 @@ export const PricingSummary: React.FC<PricingSummaryProps> = ({ bookingData }) =
     }
   }, [bookingData.riderId]);
 
+  // Price calculations matching the main page
+  const basePrice = 30;
+  
+  let volumePrice = 0;
+  if (bookingData.bagSize === 'small') volumePrice = 10;
+  else if (bookingData.bagSize === 'medium') volumePrice = 25;
+  else if (bookingData.bagSize === 'large') volumePrice = 45;
+  else if (bookingData.bagSize === 'xl') volumePrice = 150;
+
+  let priorityPrice = 0;
+  if (bookingData.serviceType === 'instant') priorityPrice = 20;
+  else if (bookingData.serviceType === 'bulk') priorityPrice = 50;
+
+  const totalPrice = basePrice + volumePrice + priorityPrice;
+
   const details = [
     { label: 'Location', value: bookingData.location, icon: 'ri-map-pin-2-fill' },
-    { label: 'Service', value: bookingData.serviceType === 'instant' ? 'Instant Pickup' : 'Scheduled', icon: 'ri-flashlight-fill' },
-    { label: 'Schedule', value: bookingData.scheduledTime || 'ASAP (30-45 mins)', icon: 'ri-calendar-event-fill' },
-    { label: 'Volume', value: (bookingData.bagSize || '').charAt(0).toUpperCase() + (bookingData.bagSize || '').slice(1), icon: 'ri-database-2-fill' },
+    { label: 'Service Speed', value: bookingData.serviceType === 'instant' ? 'Instant Pickup' : 'Scheduled Pickup', icon: 'ri-flashlight-fill' },
+    { label: 'Schedule Date', value: bookingData.scheduledTime || 'ASAP (30-45 mins)', icon: 'ri-calendar-event-fill' },
+    { label: 'Load Volume', value: (bookingData.bagSize || '').toUpperCase(), icon: 'ri-database-2-fill' },
   ];
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Review & Confirm</Text>
-        <Text style={styles.subtitle}>Please verify your pickup request details</Text>
+        <Text style={styles.title}>Confirm Booking</Text>
+        <Text style={styles.subtitle}>Review your estimated receipt details</Text>
       </View>
       
-      <View style={styles.summaryCard}>
-        {details.map((item, idx) => (
-          <View key={idx} style={[styles.row, idx === details.length - 1 && styles.rowLast]}>
-            <View style={styles.rowLead}>
-              <View style={styles.iconBox}><RemixIcon name={item.icon} size={16} color="#10b981" /></View>
-              <Text style={styles.rowLabel}>{item.label}</Text>
-            </View>
-            <Text style={styles.rowValue} numberOfLines={2}>{item.value}</Text>
-          </View>
-        ))}
+      <View style={styles.receiptContainer}>
+        {/* Receipt Header Top Card */}
+        <View style={styles.receiptHeader}>
+          <RemixIcon name="ri-bill-fill" size={24} color="#10b981" />
+          <Text style={styles.receiptTitle}>Waste Collection Ticket</Text>
+        </View>
 
+        {/* Details section */}
+        <View style={styles.detailsBlock}>
+          {details.map((item, idx) => (
+            <View key={idx} style={styles.detailRow}>
+              <View style={styles.detailLabelRow}>
+                <RemixIcon name={item.icon} size={14} color="#94a3b8" style={styles.detailIcon} />
+                <Text style={styles.detailLabel}>{item.label}</Text>
+              </View>
+              <Text style={styles.detailValue} numberOfLines={2}>{item.value}</Text>
+            </View>
+          ))}
+        </View>
+
+        {/* Dotted Separator */}
+        <View style={styles.dashedLineContainer}>
+          <View style={styles.dashedLine} />
+        </View>
+
+        {/* Pricing breakdown section */}
+        <View style={styles.breakdownBlock}>
+          <View style={styles.breakdownRow}>
+            <Text style={styles.breakdownLabel}>Base Pickup Fee</Text>
+            <Text style={styles.breakdownValue}>GHS {basePrice.toFixed(2)}</Text>
+          </View>
+          <View style={styles.breakdownRow}>
+            <Text style={styles.breakdownLabel}>Volume Surcharge ({bookingData.bagSize})</Text>
+            <Text style={styles.breakdownValue}>+ GHS {volumePrice.toFixed(2)}</Text>
+          </View>
+          {priorityPrice > 0 && (
+            <View style={styles.breakdownRow}>
+              <Text style={styles.breakdownLabel}>Service Speed Premium</Text>
+              <Text style={styles.breakdownValue}>+ GHS {priorityPrice.toFixed(2)}</Text>
+            </View>
+          )}
+
+          {/* Dotted Line */}
+          <View style={[styles.dashedLineContainer, { marginVertical: 12 }]}>
+            <View style={styles.dashedLine} />
+          </View>
+
+          {/* Total */}
+          <View style={styles.totalRow}>
+            <Text style={styles.totalLabel}>Estimated Total</Text>
+            <Text style={styles.totalValue}>GHS {totalPrice.toFixed(2)}</Text>
+          </View>
+        </View>
+
+        {/* Notes Instructions inside receipt */}
         {bookingData.notes ? (
            <View style={styles.notesBox}>
-              <Text style={styles.notesTitle}>Instructions</Text>
+              <Text style={styles.notesTitle}>Special Instructions</Text>
               <Text style={styles.notesText}>{bookingData.notes}</Text>
            </View>
         ) : null}
 
+        {/* Rider profile if assigned */}
         {riderInfo && (
            <View style={styles.riderSummary}>
               <View style={styles.divider} />
               <View style={styles.riderBox}>
                  <Image source={{ uri: riderInfo.avatar || 'https://cdn-icons-png.flaticon.com/512/149/149071.png' }} style={styles.riderImg} />
                  <View style={styles.riderMain}>
-                    <Text style={styles.riderLabel}>Your Preferred Rider</Text>
+                    <Text style={styles.riderLabel}>Assigned Rider</Text>
                     <Text style={styles.riderName}>{riderInfo.name}</Text>
                  </View>
                  <View style={styles.statusBox}><View style={styles.dot} /><Text style={styles.statusText}>Selected</Text></View>
@@ -83,8 +143,8 @@ export const PricingSummary: React.FC<PricingSummaryProps> = ({ bookingData }) =
       </View>
 
       <View style={styles.disclaimer}>
-         <RemixIcon name="ri-information-fill" size={14} color="#94a3b8" />
-         <Text style={styles.disclaimerText}>By confirming, you agree to our service terms and pickup guidelines.</Text>
+         <RemixIcon name="ri-shield-check-fill" size={14} color="#10b981" />
+         <Text style={styles.disclaimerText}>By booking, you agree to our service terms. Final fare is collected upon completion.</Text>
       </View>
     </View>
   );
@@ -92,18 +152,29 @@ export const PricingSummary: React.FC<PricingSummaryProps> = ({ bookingData }) =
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { marginBottom: 24 },
-  title: { fontSize: 20, fontFamily: typography.bold, color: '#0f172a' },
+  header: { marginBottom: 20 },
+  title: { fontSize: 18, fontFamily: typography.bold, color: '#0f172a' },
   subtitle: { fontSize: 13, fontFamily: typography.medium, color: '#94a3b8', marginTop: 2 },
-  summaryCard: { backgroundColor: '#ffffff', borderRadius: 24, padding: 20, borderWidth: 1.5, borderColor: '#f1f5f9' },
-  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#f8fafc' },
-  rowLast: { borderBottomWidth: 0 },
-  rowLead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  iconBox: { width: 30, height: 30, borderRadius: 10, backgroundColor: '#f0fdf4', alignItems: 'center', justifyContent: 'center' },
-  rowLabel: { fontSize: 13, fontFamily: typography.semiBold, color: '#64748b' },
-  rowValue: { fontSize: 14, fontFamily: typography.bold, color: '#0f172a', flex: 1, textAlign: 'right', marginLeft: 16 },
-  notesBox: { marginTop: 16, padding: 14, backgroundColor: '#f8fafc', borderRadius: 16 },
-  notesTitle: { fontSize: 12, fontFamily: typography.bold, color: '#94a3b8', marginBottom: 4, textTransform: 'uppercase' },
+  receiptContainer: { backgroundColor: '#ffffff', borderRadius: 24, padding: 18, borderWidth: 1.5, borderColor: '#cbd5e1' },
+  receiptHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
+  receiptTitle: { fontSize: 13, fontFamily: typography.bold, color: '#10b981', textTransform: 'uppercase', letterSpacing: 1 },
+  detailsBlock: { marginTop: 14, gap: 12 },
+  detailRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  detailLabelRow: { flexDirection: 'row', alignItems: 'center', width: '35%' },
+  detailIcon: { marginRight: 6 },
+  detailLabel: { fontSize: 12, fontFamily: typography.semiBold, color: '#64748b' },
+  detailValue: { fontSize: 13, fontFamily: typography.bold, color: '#1e293b', flex: 1, textAlign: 'right' },
+  dashedLineContainer: { height: 1, overflow: 'hidden', marginVertical: 14 },
+  dashedLine: { height: 2, borderWidth: 1, borderColor: '#cbd5e1', borderStyle: 'dashed', borderRadius: 1 },
+  breakdownBlock: { gap: 8 },
+  breakdownRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  breakdownLabel: { fontSize: 12, fontFamily: typography.medium, color: '#64748b' },
+  breakdownValue: { fontSize: 13, fontFamily: typography.semiBold, color: '#1e293b' },
+  totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  totalLabel: { fontSize: 15, fontFamily: typography.bold, color: '#0f172a' },
+  totalValue: { fontSize: 18, fontFamily: typography.bold, color: '#10b981' },
+  notesBox: { marginTop: 16, padding: 12, backgroundColor: '#f8fafc', borderRadius: 14, borderWidth: 1, borderColor: '#cbd5e1' },
+  notesTitle: { fontSize: 11, fontFamily: typography.bold, color: '#94a3b8', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 },
   notesText: { fontSize: 13, fontFamily: typography.medium, color: '#475569', lineHeight: 18 },
   riderSummary: { marginTop: 8 },
   divider: { height: 1, backgroundColor: '#f1f5f9', marginVertical: 12 },
@@ -115,6 +186,6 @@ const styles = StyleSheet.create({
   statusBox: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#f0fdf4', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#10b981' },
   statusText: { fontSize: 10, fontFamily: typography.bold, color: '#10b981' },
-  disclaimer: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginTop: 20, paddingHorizontal: 4 },
+  disclaimer: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginTop: 16, paddingHorizontal: 4 },
   disclaimerText: { fontSize: 11, fontFamily: typography.medium, color: '#94a3b8', flex: 1, lineHeight: 16 },
 });

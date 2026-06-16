@@ -61,14 +61,15 @@ const linking = {
 import { GlobalOrderListener } from './components/feature/GlobalOrderListener';
 
 import SavedAddressesPage from './pages/profile/addresses/page';
+import PaymentMethodsPage from './pages/profile/payment-methods/page';
 
 function AppNavigator() {
-  const { isLoggedIn, isSuspended, isLoading } = useAuth();
+  const { isLoggedIn, isSuspended, isInitialLoading } = useAuth();
 
-  if (isLoading) return null; // Or a loading spinner
+  if (isInitialLoading) return <SplashView />;
 
   return (
-    <NavigationContainer ref={navigationRef} linking={linking}>
+    <NavigationContainer ref={navigationRef}>
       <Stack.Navigator
         initialRouteName={isLoggedIn ? (isSuspended ? "Auth" : "Home") : "Auth"}
         screenOptions={{
@@ -94,6 +95,7 @@ function AppNavigator() {
             <Stack.Screen name="Services" component={ServicesPage} />
             <Stack.Screen name="Profile" component={ProfilePage} />
             <Stack.Screen name="SavedAddresses" component={SavedAddressesPage} />
+            <Stack.Screen name="PaymentMethods" component={PaymentMethodsPage} />
             <Stack.Screen name="Support" component={SupportPage} />
             <Stack.Screen name="SupportChat" component={SupportChatPage} />
             <Stack.Screen name="TrackOrder" component={TrackOrderPage} />
@@ -103,6 +105,7 @@ function AppNavigator() {
             <Stack.Screen name="Chatbot" component={ChatbotPage} />
             <Stack.Screen name="ChatRider" component={RiderChatPage} />
             <Stack.Screen name="Settings" component={SettingsPage} />
+            <Stack.Screen name="ResetPassword" component={ResetPasswordPage} />
           </>
         )}
         <Stack.Screen name="NotFound" component={NotFound} />

@@ -1,22 +1,22 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Navigation } from '../../../components/feature/Navigation';
 import { RemixIcon } from '../../../utils/icons';
-import { useNavigation } from '@react-navigation/native';
+import { typography } from '../../../utils/typography';
 
 const TermsPage: React.FC = () => {
-  const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState('terms');
 
   const termsContent = [
     {
       title: '1. Acceptance of Terms',
-      content: 'By accessing and using Borla Wura\'s services, you accept and agree to be bound by the terms and provision of this agreement. If you do not agree to these terms, please do not use our services.'
+      content: 'By accessing and using Borlawura\'s services, you accept and agree to be bound by the terms and provision of this agreement. If you do not agree to these terms, please do not use our services.'
     },
     {
       title: '2. Service Description',
-      content: 'Borla Wura provides on-demand waste collection and disposal services. We connect users with verified waste collection riders who pick up and properly dispose of household and commercial waste.'
+      content: 'Borlawura provides on-demand waste collection and disposal services. We connect users with verified waste collection riders who pick up and properly dispose of household and commercial waste.'
     },
     {
       title: '3. User Responsibilities',
@@ -32,7 +32,7 @@ const TermsPage: React.FC = () => {
     },
     {
       title: '6. Limitation of Liability',
-      content: 'Borla Wura is not liable for any indirect, incidental, or consequential damages arising from the use of our services. Our liability is limited to the amount paid for the specific service.'
+      content: 'Borlawura is not liable for any indirect, incidental, or consequential damages arising from the use of our services. Our liability is limited to the amount paid for the specific service.'
     },
     {
       title: '7. Changes to Terms',
@@ -77,20 +77,15 @@ const TermsPage: React.FC = () => {
       
       <ScrollView 
         style={styles.scrollView}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[
+          styles.content,
+          { paddingTop: insets.top + 70, paddingBottom: insets.bottom + 40 },
+        ]}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <TouchableOpacity
-            onPress={() => navigation.goBack()}
-            style={styles.backButton}
-          >
-            <RemixIcon name="ri-arrow-left-line" size={24} color="#1f2937" />
-          </TouchableOpacity>
-          <View style={styles.headerText}>
-            <Text style={styles.title}>Legal Information</Text>
-            <Text style={styles.subtitle}>Terms of service and privacy policy</Text>
-          </View>
+          <Text style={styles.title}>Legal Information</Text>
+          <Text style={styles.subtitle}>Terms of service and privacy policy</Text>
         </View>
 
         <View style={styles.tabs}>
@@ -153,47 +148,27 @@ export default TermsPage;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f9fafb',
+    backgroundColor: '#fdfdfd',
   },
   scrollView: {
     flex: 1,
   },
   content: {
-    paddingTop: 80,
-    paddingBottom: 100,
     paddingHorizontal: 16,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
     marginBottom: 24,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  headerText: {
-    flex: 1,
   },
   title: {
     fontSize: 24,
-    fontWeight: 'bold',
-    color: '#1f2937',
+    fontFamily: typography.bold,
+    color: '#0f172a',
     marginBottom: 4,
   },
   subtitle: {
     fontSize: 14,
-    color: '#4b5563',
+    fontFamily: typography.medium,
+    color: '#64748b',
   },
   tabs: {
     flexDirection: 'row',

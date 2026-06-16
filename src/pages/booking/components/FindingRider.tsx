@@ -90,6 +90,10 @@ const PulseRing: React.FC<{ delay: number; size: number; color: string }> = ({ d
         borderRadius: size / 2,
         borderWidth: 1.5,
         borderColor: color,
+        top: '50%',
+        left: '50%',
+        marginTop: -size / 2,
+        marginLeft: -size / 2,
         transform: [{ scale }],
         opacity,
       }}
@@ -126,7 +130,7 @@ export const FindingRider: React.FC<FindingRiderProps> = ({
   const isSmall  = H < 700;
   const isMed    = H < 812;
   const PAD      = W * 0.06;
-  const SONAR    = Math.min(200, Math.max(120, W * 0.38));
+  const SONAR    = isSmall ? 110 : Math.min(200, Math.max(120, W * 0.38));
 
   const [status, setStatus] = useState<'searching' | 'connecting' | 'waiting' | 'found'>(
     selectedRiderId ? 'connecting' : 'searching'
@@ -178,11 +182,17 @@ export const FindingRider: React.FC<FindingRiderProps> = ({
   useEffect(() => {
     (async () => {
       const { data } = await supabase.from('riders').select('id, latitude, longitude').eq('is_online', true).limit(8);
-      if (data) setOnlineRiders(data.map(r => ({
-        id: r.id,
-        lat: r.latitude || lat + (Math.random() - 0.5) * 0.012,
-        lng: r.longitude || lng + (Math.random() - 0.5) * 0.012,
-      })));
+      if (data) {
+        setOnlineRiders(
+          data
+            .map(r => ({
+              id: r.id,
+              lat: parseFloat(r.latitude),
+              lng: parseFloat(r.longitude),
+            }))
+            .filter(r => Number.isFinite(r.lat) && Number.isFinite(r.lng))
+        );
+      }
     })();
   }, [lat, lng]);
 
@@ -221,7 +231,12 @@ export const FindingRider: React.FC<FindingRiderProps> = ({
       const { data: order } = await supabase.from('orders').select('status, rider_id').eq('id', orderId).single();
       if (order?.rider_id && ACCEPTED_STATUSES.includes(order.status)) {
         const rider = await fetchRider(order.rider_id);
-        if (rider) { setLocalRider(rider); setStatus('found'); setTimeout(() => onRiderFound(rider), 1500); }
+        if (rider) { 
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          setLocalRider(rider); 
+          setStatus('found'); 
+          setTimeout(() => onRiderFound(rider), 1500); 
+        }
       }
     };
 
@@ -236,6 +251,7 @@ export const FindingRider: React.FC<FindingRiderProps> = ({
           if (!rider) return;
           setLocalRider(rider);
           if (ACCEPTED_STATUSES.includes(payload.new.status)) {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             setStatus('found');
             sendLocalNotification('Rider Assigned!', `${rider.name} is on the way to collect your waste.`, { orderId });
             setTimeout(() => onRiderFound(rider), 2000);
@@ -277,7 +293,7 @@ export const FindingRider: React.FC<FindingRiderProps> = ({
               lat: r.lat, lng: r.lng, type: 'rider' as const, label: 'Rider',
             })),
           ]}
-          showRadar={status !== 'found'}
+          showRadar={false}
           radarTitle="Finding riders"
           radarSubtitle={`${onlineRiders.length} rider${onlineRiders.length !== 1 ? 's' : ''} nearby`}
           telemetry={status === 'found' ? { distance: '< 1 km', duration: '~3 min' } : undefined}
@@ -306,7 +322,11 @@ export const FindingRider: React.FC<FindingRiderProps> = ({
 
       {/* ── Animated bottom sheet ── */}
       <Animated.View style={[styles.sheet, { transform: [{ translateY: sheetY }], maxHeight: H * 0.62 }]}>
+        <View style={styles.sheetHeader}>
+          <View style={styles.dragHandle} />
+        </View>
         <ScrollView
+          style={styles.scrollViewContainer}
           showsVerticalScrollIndicator={false}
           bounces={false}
           contentContainerStyle={[styles.sheetScroll, { paddingBottom: (isSmall ? 24 : 36) + insets.bottom, paddingHorizontal: PAD }]}
@@ -448,13 +468,28 @@ const styles = StyleSheet.create({
 
   // Bottom sheet
   sheet: {
+    flexShrink: 1,
     backgroundColor: '#ffffff',
     borderTopLeftRadius: 32, borderTopRightRadius: 32,
     shadowColor: '#0f172a', shadowOpacity: 0.08, shadowRadius: 28, elevation: 14,
     borderTopWidth: 1, borderTopColor: '#f1f5f9',
   },
+  scrollViewContainer: {
+    flex: 1,
+  },
+  sheetHeader: {
+    alignItems: 'center',
+    paddingVertical: 10,
+    width: '100%',
+  },
+  dragHandle: {
+    width: 38,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: '#cbd5e1',
+  },
   sheetScroll: {
-    paddingTop: 10,
+    paddingTop: 4,
   },
 
   // ── Searching ─────────────────────────────────────────────────────────────
@@ -545,7 +580,7 @@ const styles = StyleSheet.create({
   },
   riderMeta: { flex: 1, minWidth: 0 },
   riderName:  { fontFamily: typography.bold, color: '#0f172a' },
-  ratingRow:  { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 },
+  ratingRow:  { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3, flexWrap: 'wrap' },
   ratingText: { fontSize: 12, fontFamily: typography.bold, color: '#f59e0b' },
   ratingDivider: { fontSize: 12, color: '#cbd5e1' },
   verifiedText:  { fontSize: 12, fontFamily: typography.medium, color: '#10b981' },

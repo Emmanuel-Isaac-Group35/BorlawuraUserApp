@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Alert, Linking, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Alert, Linking, ActivityIndicator, useWindowDimensions } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { supabase } from '../../lib/supabase';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -11,7 +11,7 @@ import * as Location from 'expo-location';
 import { NavigatrMap } from '../../components/feature/NavigatrMap';
 import { typography } from '../../utils/typography';
 import { sendLocalNotification } from '../../utils/notifications';
-import { getDistanceMatrix } from '../../utils/maps';
+import { fetchRoute } from '../../utils/maps';
 import { useAlert } from '../../context/AlertContext';
 import { LinearGradient } from 'expo-linear-gradient';
 
@@ -19,6 +19,9 @@ const TrackOrderPage: React.FC = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const route = useRoute();
+  const { width: W, height: H } = useWindowDimensions();
+  const isSmall = H < 700;
+  const mapHeight = H < 700 ? 220 : (H < 850 ? 280 : 350);
   const { id: orderId } = (route.params as { id?: string }) || {};
   const { showAlert } = useAlert();
   const [order, setOrder] = useState<any>(null);
@@ -26,6 +29,8 @@ const TrackOrderPage: React.FC = () => {
   const [userLocation, setUserLocation] = useState<Location.LocationObject | null>(null);
   const [isLiveTracking, setIsLiveTracking] = useState(true);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [routeCoordinates, setRouteCoordinates] = useState<{ lat: number; lng: number }[]>([]);
   const watchSubscription = useRef<Location.LocationSubscription | null>(null);
 
   useEffect(() => {
@@ -45,9 +50,14 @@ const TrackOrderPage: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (!orderId) { setLoading(false); return; }
+    if (!orderId) {
+      setLoadError('No order selected.');
+      setLoading(false);
+      return;
+    }
     const fetchData = async () => {
       try {
+        setLoadError(null);
         const { data: orderData, error: orderError } = await supabase.from('orders').select('*').eq('id', orderId).single();
         if (orderError) throw orderError;
         let riderObj = null;
@@ -57,6 +67,11 @@ const TrackOrderPage: React.FC = () => {
         if (orderData.rider_id) {
           const { data: riderData } = await supabase.from('riders').select('*').eq('id', orderData.rider_id).single();
           if (riderData) {
+            const riderLat = parseFloat(riderData.latitude);
+            const riderLng = parseFloat(riderData.longitude);
+            const pickupLat = parseFloat(orderData.pickup_latitude);
+            const pickupLng = parseFloat(orderData.pickup_longitude);
+
             riderObj = {
               id: riderData.id,
               name: riderData.full_name || 'Your Rider',
@@ -64,19 +79,22 @@ const TrackOrderPage: React.FC = () => {
               vehicle: riderData.vehicle_info || 'Tricycle',
               vehicleNumber: riderData.vehicle_number || 'TRC-102-GH',
               photo: riderData.avatar_url || 'https://cdn-icons-png.flaticon.com/512/149/149071.png',
-              lat: riderData.latitude || 5.6037,
-              lng: riderData.longitude || -0.1870
+              lat: Number.isFinite(riderLat) ? riderLat : 5.6037,
+              lng: Number.isFinite(riderLng) ? riderLng : -0.1870,
             };
             setRiderLocation({ lat: riderObj.lat, lng: riderObj.lng, heading: riderData.heading || 0 });
 
-            try {
-              const matrix = await getDistanceMatrix([`${riderObj.lat},${riderObj.lng}`], [`${orderData.pickup_latitude},${orderData.pickup_longitude}`]);
-              if (matrix?.status === 'OK' && matrix.rows?.[0]?.elements?.[0]) {
-                estimatedTime = matrix.rows[0].elements[0].duration.text;
-                distanceText = matrix.rows[0].elements[0].distance.text;
-                if (orderData.status === 'completed') estimatedTime = 'Arrived';
-              }
-            } catch (e) { }
+            if (Number.isFinite(pickupLat) && Number.isFinite(pickupLng)) {
+              try {
+                const route = await fetchRoute(riderObj.lat, riderObj.lng, pickupLat, pickupLng);
+                if (route) {
+                  estimatedTime = route.durationText;
+                  distanceText = route.distanceText;
+                  setRouteCoordinates(route.polyline);
+                  if (orderData.status === 'completed') estimatedTime = 'Arrived';
+                }
+              } catch (e) { /* telemetry optional */ }
+            }
           }
         }
 
@@ -92,7 +110,10 @@ const TrackOrderPage: React.FC = () => {
           estimatedArrival: estimatedTime,
           distance: distanceText
         });
-      } catch (e) { } finally { setLoading(false); }
+      } catch (e) {
+        console.error('[TrackOrder] Fetch error:', e);
+        setLoadError('Unable to load this order. It may have been removed or you may not have access.');
+      } finally { setLoading(false); }
     };
     fetchData();
   }, [orderId]);
@@ -109,18 +130,21 @@ const TrackOrderPage: React.FC = () => {
 
   const refreshTelemetry = async (rLat: number, rLng: number) => {
     if (!order?.latitude || !order?.longitude) return;
+    const pickupLat = parseFloat(order.latitude);
+    const pickupLng = parseFloat(order.longitude);
+    if (!Number.isFinite(pickupLat) || !Number.isFinite(pickupLng)) return;
+
     try {
-      const matrix = await getDistanceMatrix([`${rLat},${rLng}`], [`${order.latitude},${order.longitude}`]);
-      if (matrix?.status === 'OK' && matrix.rows?.[0]?.elements?.[0]) {
-        const time = matrix.rows[0].elements[0].duration.text;
-        const dist = matrix.rows[0].elements[0].distance.text;
-        setOrder((prev: any) => ({ 
-          ...prev, 
-          estimatedArrival: order.status === 'completed' ? 'Arrived' : time,
-          distance: dist 
+      const route = await fetchRoute(rLat, rLng, pickupLat, pickupLng);
+      if (route) {
+        setRouteCoordinates(route.polyline);
+        setOrder((prev: any) => ({
+          ...prev,
+          estimatedArrival: order.status === 'completed' ? 'Arrived' : route.durationText,
+          distance: route.distanceText,
         }));
       }
-    } catch (e) { console.log("Telemetry sync error:", e); }
+    } catch (e) { console.log('Telemetry sync error:', e); }
   };
 
   useEffect(() => {
@@ -165,6 +189,30 @@ const TrackOrderPage: React.FC = () => {
     );
   }
 
+  if (!order) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <Navigation />
+        <View style={[styles.loaderContainer, { paddingTop: insets.top + 84 }]}>
+          <RemixIcon name="ri-error-warning-line" size={40} color="#f59e0b" />
+          <Text style={styles.loaderText}>{loadError || 'Order not found'}</Text>
+          <TouchableOpacity onPress={() => navigateTo('/orders')} style={styles.errorBtn}>
+            <Text style={styles.errorBtnText}>View all orders</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const pickupLat = parseFloat(order.latitude);
+  const pickupLng = parseFloat(order.longitude);
+  const hasPickupCoords = Number.isFinite(pickupLat) && Number.isFinite(pickupLng);
+  const mapMarkers = [
+    { id: order?.rider?.id, lat: riderLocation.lat, lng: riderLocation.lng, type: 'rider' as const, label: order?.rider?.name || 'Rider', heading: riderLocation.heading },
+    ...(hasPickupCoords ? [{ id: 'pickup-point', lat: pickupLat, lng: pickupLng, type: 'landmark' as const, label: 'Pickup Point' }] : []),
+    ...(userLocation ? [{ id: 'user-loc', lat: userLocation.coords.latitude, lng: userLocation.coords.longitude, type: 'user' as const }] : []),
+  ];
+
   return (
     <SafeAreaView style={styles.container}>
       <Navigation />
@@ -180,31 +228,28 @@ const TrackOrderPage: React.FC = () => {
           </View>
         </View>
 
-        <View style={styles.mapCard}>
+        <View style={[styles.mapCard, { marginHorizontal: isSmall ? 12 : 20 }]}>
           <NavigatrMap 
              centerLat={riderLocation.lat} 
              centerLng={riderLocation.lng} 
              zoom={16}
-             height={400}
+             height={mapHeight}
              variant="light"
-             markers={[
-               { id: order?.rider?.id, lat: riderLocation.lat, lng: riderLocation.lng, type: 'rider', label: order?.rider?.name || 'Rider', heading: riderLocation.heading },
-               { id: 'pickup-point', lat: order.latitude, lng: order.longitude, type: 'landmark', label: 'Pickup Point' },
-               ...(userLocation ? [{ id: 'user-loc', lat: userLocation.coords.latitude, lng: userLocation.coords.longitude, type: 'user' as const }] : [])
-             ]}
+             markers={mapMarkers}
              showRadar={true}
              radarTitle="Live tracking"
              radarSubtitle={`Order #${order.id}`}
              fitToMarkers={true}
              telemetry={{ distance: order.distance, duration: order.estimatedArrival }}
-             showRoute={true}
+             showRoute={hasPickupCoords}
              routeOrigin={{ lat: riderLocation.lat, lng: riderLocation.lng }}
-             routeDestination={{ lat: order.latitude, lng: order.longitude }}
+             routeDestination={hasPickupCoords ? { lat: pickupLat, lng: pickupLng } : undefined}
+             routeCoordinates={routeCoordinates}
           />
         </View>
 
         {order.rider && (
-          <View style={styles.riderCard}>
+          <View style={[styles.riderCard, { margin: isSmall ? 12 : 20, padding: isSmall ? 12 : 20 }]}>
             <Image source={{ uri: order.rider.photo }} style={styles.riderAvatar} />
             <View style={styles.riderInfo}>
                <Text style={styles.riderName}>{order.rider.name}</Text>
@@ -221,7 +266,7 @@ const TrackOrderPage: React.FC = () => {
            <Text style={styles.sectionLabel}>Order Progress</Text>
            <View style={styles.trackerList}>
               {trackingSteps.map((step, idx) => (
-                <View key={idx} style={styles.stepRow}>
+                <View key={idx} style={[styles.stepRow, { minHeight: isSmall ? 48 : 60, paddingBottom: isSmall ? 8 : 12 }]}>
                    <View style={styles.indicatorCol}>
                       <View style={[styles.stepCircle, step.completed && styles.stepCircleDone]}>
                          {step.completed ? <RemixIcon name="ri-check-line" size={12} color="#fff" /> : <View style={styles.stepDot} />}
@@ -279,6 +324,8 @@ const styles = StyleSheet.create({
   stepTitleDone: { color: '#0f172a' },
   footerBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 32 },
   footerBtnText: { fontSize: 13, fontFamily: typography.bold, color: '#0d9488' },
+  errorBtn: { marginTop: 8, backgroundColor: '#10b981', paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12 },
+  errorBtnText: { fontSize: 13, fontFamily: typography.bold, color: '#fff' },
 });
 
 export default TrackOrderPage;

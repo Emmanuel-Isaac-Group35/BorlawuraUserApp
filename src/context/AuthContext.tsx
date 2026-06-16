@@ -10,6 +10,7 @@ import * as WebBrowser from 'expo-web-browser';
 import { supabase } from '../lib/supabase';
 import { registerForPushNotificationsAsync } from '../utils/notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { navigate } from '../utils/navigation';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -18,11 +19,12 @@ interface AuthContextType {
   isLoggedIn: boolean;
   isSuspended: boolean;
   user: any;
-  login: (userData: any) => Promise<void>;
+  login: (userData: any) => Promise<any>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   isLoading: boolean;
+  isInitialLoading: boolean;
   needsProfileCompletion: boolean;
 }
 
@@ -31,23 +33,109 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [user, setUser] = useState<any>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isSuspended, setIsSuspended] = useState(false);
   const processingRef = React.useRef(false);
 
   useEffect(() => {
-    // 1. Manual Deep Link Interceptor (for OAuth)
+    // 1. Manual Deep Link Interceptor (for OAuth & Password Reset)
     const handleDeepLink = async (event: { url: string }) => {
       console.log('🔗 Deep Link Detected:', event.url);
-      if (event.url.includes('access_token=') || event.url.includes('refresh_token=')) {
-        setIsLoading(true);
-        const { data, error } = await supabase.auth.getSession();
-        if (data?.session?.user) {
-           handleSupabaseSession(data.session.user);
-        } else if (error) {
-           console.error('Deep link session error:', error);
-           setIsLoading(false);
+      
+      const getParamsFromUrl = (url: string) => {
+        const params: { [key: string]: string } = {};
+        const hashIndex = url.indexOf('#');
+        const queryIndex = url.indexOf('?');
+        
+        let searchPart = '';
+        if (hashIndex !== -1) {
+          searchPart = url.substring(hashIndex + 1);
+        } else if (queryIndex !== -1) {
+          searchPart = url.substring(queryIndex + 1);
         }
+        
+        if (searchPart) {
+          const pairs = searchPart.split('&');
+          for (const pair of pairs) {
+            const [key, value] = pair.split('=');
+            if (key && value) {
+              params[decodeURIComponent(key)] = decodeURIComponent(value);
+            }
+          }
+        }
+        return params;
+      };
+
+      const params = getParamsFromUrl(event.url);
+      const accessToken = params.access_token;
+      const refreshToken = params.refresh_token;
+      const code = params.code;
+
+      let isResetting = event.url.includes('reset-password') || params.type === 'recovery';
+      try {
+        const isResetFlag = await RNAsyncStorage.getItem('isResettingPassword');
+        if (isResetFlag === 'true') {
+          isResetting = true;
+          await RNAsyncStorage.removeItem('isResettingPassword');
+        }
+      } catch (storageErr) {
+        console.error('Failed to read reset flag:', storageErr);
+      }
+
+      if (accessToken && refreshToken) {
+        setIsLoading(true);
+        try {
+          const { data, error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken
+          });
+          
+          if (error) throw error;
+          
+          if (data?.user) {
+            await handleSupabaseSession(data.user);
+            
+            // Redirect to ResetPassword page if resetting password
+            if (isResetting) {
+              setTimeout(() => {
+                navigate('ResetPassword');
+              }, 500);
+            }
+          }
+        } catch (err: any) {
+          console.error('Deep link session recovery error:', err);
+          Alert.alert('Auth Error', 'Failed to recover session from link: ' + err.message);
+        } finally {
+          setIsLoading(false);
+          setIsInitialLoading(false);
+        }
+      } else if (code) {
+        setIsLoading(true);
+        try {
+          const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+          
+          if (error) throw error;
+          
+          if (data?.user) {
+            await handleSupabaseSession(data.user);
+            
+            // Redirect to ResetPassword page if resetting password
+            if (isResetting) {
+              setTimeout(() => {
+                navigate('ResetPassword');
+              }, 500);
+            }
+          }
+        } catch (err: any) {
+          console.error('Deep link code exchange error:', err);
+          Alert.alert('Auth Error', 'Failed to exchange verification code: ' + err.message);
+        } finally {
+          setIsLoading(false);
+          setIsInitialLoading(false);
+        }
+      } else {
+        setIsInitialLoading(false);
       }
     };
 
@@ -55,7 +143,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Initial check for a deep link if the app was opened via one
     Linking.getInitialURL().then((url) => {
-      if (url) handleDeepLink({ url });
+      if (url) {
+        handleDeepLink({ url });
+      } else {
+        setIsInitialLoading(false);
+      }
+    }).catch(() => {
+      setIsInitialLoading(false);
     });
 
     // 2. Listen for Supabase Auth state changes
@@ -79,28 +173,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // 2. Check for persisted login state on app open
     const checkAuth = async () => {
       try {
-        const storedUserJSON = await RNAsyncStorage.getItem('user');
-        if (storedUserJSON) {
-          try {
-            const userData = JSON.parse(storedUserJSON);
-            if (userData && (userData.id || userData.supabase_id)) {
-              setUser(userData);
-              setIsLoggedIn(true);
-              const isRestricted = ['suspended', 'flagged', 'rejected', 'pending'].includes(userData.status);
-              setIsSuspended(isRestricted);
-            } else {
-               // Corrupted data structure, clean it up
-               await RNAsyncStorage.removeItem('user');
+        const initialUrl = await Linking.getInitialURL().catch(() => null);
+        const isResetLink = initialUrl && (initialUrl.includes('access_token=') || initialUrl.includes('reset-password') || initialUrl.includes('recovery'));
+
+        if (!isResetLink) {
+          const storedUserJSON = await RNAsyncStorage.getItem('user');
+          if (storedUserJSON) {
+            try {
+              const userData = JSON.parse(storedUserJSON);
+              if (userData && (userData.id || userData.supabase_id)) {
+                setUser(userData);
+                setIsLoggedIn(true);
+                const isRestricted = ['suspended', 'flagged', 'rejected', 'pending'].includes(userData.status);
+                setIsSuspended(isRestricted);
+              } else {
+                 // Corrupted data structure, clean it up
+                 await RNAsyncStorage.removeItem('user');
+              }
+            } catch (parseErr) {
+              console.error('Invalid storage data, clearing...');
+              await RNAsyncStorage.removeItem('user');
             }
-          } catch (parseErr) {
-            console.error('Invalid storage data, clearing...');
-            await RNAsyncStorage.removeItem('user');
           }
         }
       } catch (e) {
         console.error('Failed to load auth state', e);
       } finally {
-        setIsLoading(false);
+        const initialUrl = await Linking.getInitialURL().catch(() => null);
+        const isResetLink = initialUrl && (initialUrl.includes('access_token=') || initialUrl.includes('reset-password') || initialUrl.includes('recovery'));
+        if (!isResetLink) {
+          setIsInitialLoading(false);
+        }
       }
     };
 
@@ -130,8 +233,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const { data: newUser, error: insertError } = await supabase
           .from('users')
           .insert([{
+            id: supabaseUser.id,
             email: supabaseUser.email,
             full_name: supabaseUser.user_metadata?.full_name || supabaseUser.user_metadata?.name || 'New User',
+            phone_number: supabaseUser.user_metadata?.phone || supabaseUser.user_metadata?.phone_number || '',
             avatar_url: supabaseUser.user_metadata?.avatar_url || supabaseUser.user_metadata?.picture,
             status: 'active',
             registration_status: 'approved'
@@ -251,6 +356,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
         
         authUserId = authData.user?.id || null;
+        const isEmailConfRequired = authData.user && !authData.session;
 
         // 2. Create or Update the Public Profile linked to that Auth ID
         if (authUserId) {
@@ -304,6 +410,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
           
           dbUser = insertedOrUpdatedUser || { id: authUserId, email: userData.email }; 
+        }
+
+        if (isEmailConfRequired) {
+          setIsLoading(false);
+          return { emailVerificationRequired: true };
         }
       }
       // CASE 3: Standard Login State Update (Auth already happened in AuthPage)
@@ -415,6 +526,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       refreshUser, 
       signInWithGoogle, 
       isLoading,
+      isInitialLoading,
       needsProfileCompletion
     }}>
       {children}

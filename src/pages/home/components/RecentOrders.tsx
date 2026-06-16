@@ -2,7 +2,7 @@ import React from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
   LayoutAnimation, ScrollView, Image,
-  ActivityIndicator, Dimensions
+  ActivityIndicator, Dimensions, useWindowDimensions
 } from 'react-native';
 import { typography } from '../../../utils/typography';
 import { RemixIcon } from '../../../utils/icons';
@@ -16,8 +16,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 // Constants
 // ─────────────────────────────────────────────────────────────────────────────
 
-const { width: SCREEN_W } = Dimensions.get('window');
-const CARD_W = SCREEN_W > 400 ? 300 : SCREEN_W - 64;
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -44,8 +43,8 @@ interface RecentOrdersProps {
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-const getProgress = (status: string) => {
-  const s = status.toLowerCase();
+const getProgress = (status?: string | null) => {
+  const s = (status || '').toLowerCase();
   if (s === 'completed' || s === 'done') return 1;
   if (s === 'arrived') return 0.85;
   if (s === 'heading') return 0.6;
@@ -55,8 +54,8 @@ const getProgress = (status: string) => {
   return 0.1; // pending
 };
 
-const getStatusConfig = (status: string) => {
-  const s = status.toLowerCase();
+const getStatusConfig = (status?: string | null) => {
+  const s = (status || '').toLowerCase();
   if (s === 'completed' || s === 'done')
     return { label: 'Completed',  color: '#10b981', icon: 'ri-checkbox-circle-fill',  progressColors: ['#10b981', '#059669'] as [string,string] };
   if (['in_progress', 'heading', 'arrived', 'active', 'accepted', 'assigned', 'confirmed'].includes(s))
@@ -66,8 +65,8 @@ const getStatusConfig = (status: string) => {
   return   { label: 'Pending',   color: '#f59e0b', icon: 'ri-time-fill',             progressColors: ['#f59e0b', '#d97706'] as [string,string] };
 };
 
-const statusLabel = (status: string) => {
-  const s = status.toLowerCase();
+const statusLabel = (status?: string | null) => {
+  const s = (status || '').toLowerCase();
   if (s === 'completed' || s === 'done') return 'Delivered';
   if (s === 'arrived') return 'Rider arrived';
   if (s === 'heading') return 'Rider en route';
@@ -81,6 +80,8 @@ const statusLabel = (status: string) => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const RecentOrders: React.FC<RecentOrdersProps> = React.memo(({ refreshing }) => {
+  const { width: screenWidth } = useWindowDimensions();
+  const cardWidth = screenWidth > 400 ? 300 : screenWidth - 64;
   const { user } = useAuth();
   const [orders, setOrders] = React.useState<Order[]>([]);
   const [isLoading, setIsLoading] = React.useState(false);
@@ -127,8 +128,8 @@ export const RecentOrders: React.FC<RecentOrdersProps> = React.memo(({ refreshin
         return {
           id: p.id,
           type: p.service_type || 'Waste Pickup',
-          date: new Date(p.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }),
-          time: new Date(p.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
+          date: p.created_at ? new Date(p.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : 'Pending',
+          time: p.created_at ? new Date(p.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '--:--',
           status: p.status,
           amount: p.total_price ? `GHS ${p.total_price}` : undefined,
           icon: (p.service_type || '').toLowerCase().includes('instant') ? 'ri-flashlight-fill' : 'ri-moped-fill',
@@ -201,7 +202,7 @@ export const RecentOrders: React.FC<RecentOrdersProps> = React.memo(({ refreshin
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
         decelerationRate="fast"
-        snapToInterval={CARD_W + 16}
+        snapToInterval={cardWidth + 16}
         snapToAlignment="start"
       >
         {orders.map((order, idx) => {
@@ -214,7 +215,7 @@ export const RecentOrders: React.FC<RecentOrdersProps> = React.memo(({ refreshin
           return (
             <TouchableOpacity
               key={order.id}
-              style={[styles.orderCard, highlight && styles.orderCardHighlight]}
+              style={[styles.orderCard, { width: cardWidth }, highlight && styles.orderCardHighlight]}
               onPress={() => navigateTo('/track-order', { id: order.id })}
               activeOpacity={0.92}
             >
@@ -344,7 +345,6 @@ const styles = StyleSheet.create({
 
   // Order card
   orderCard: {
-    width: CARD_W,
     backgroundColor: '#ffffff',
     borderRadius: 24,
     padding: 20,

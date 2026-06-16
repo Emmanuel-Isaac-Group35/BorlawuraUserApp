@@ -75,7 +75,7 @@ export const generateReceipt = async (order: OrderDetails) => {
     </head>
     <body>
       <div class="header">
-        <div class="logo">BORLA WURA</div>
+        <div class="logo">BORLAWURA</div>
         <div class="subtitle">Booking Confirmation</div>
       </div>
 
@@ -120,7 +120,7 @@ export const generateReceipt = async (order: OrderDetails) => {
       </div>
 
       <div class="footer">
-        <p>Thank you for choosing Borla Wura!</p>
+        <p>Thank you for choosing Borlawura!</p>
         <p>For support, contact us at: borlawuraapp@gmail.com</p>
         <p>This is a computer-generated receipt.</p>
       </div>

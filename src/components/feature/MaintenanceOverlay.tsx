@@ -23,7 +23,7 @@ export const MaintenanceOverlay: React.FC = () => {
         
         <Text style={styles.title}>System Upgrade</Text>
         <Text style={styles.subtitle}>
-          Borla Wura is currently undergoing scheduled maintenance to improve our eco-friendly services. 
+          Borlawura is currently undergoing scheduled maintenance to improve our eco-friendly services. 
         </Text>
         
         <View style={styles.card}>

@@ -125,8 +125,8 @@ const SignupPage = () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          sender: 'BorlaWura',
-          message: `Your BorlaWura verification code is: ${otpCode}`,
+          sender: 'Borlawura',
+          message: `Your Borlawura verification code is: ${otpCode}`,
           recipients: [fullNumberRaw]
         })
       });
@@ -182,7 +182,7 @@ const SignupPage = () => {
                 resizeMode="contain"
               />
             </View>
-            <Text style={styles.brandName}>Join Borla Wura</Text>
+            <Text style={styles.brandName}>Join Borlawura</Text>
             <Text style={styles.brandTagline}>Start your sustainable waste journey today</Text>
           </View>
 

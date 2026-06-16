@@ -11,7 +11,6 @@ interface ServiceSelectorProps {
 }
 
 export const ServiceSelector: React.FC<ServiceSelectorProps> = ({ value, onChange, scheduledTime, onTimeChange }) => {
-  // ... (keep logic, but update styles and typography usage)
   const initialDate = scheduledTime ? scheduledTime.split('|')[0].trim() : '';
   const initialTime = scheduledTime ? scheduledTime.split('|')[1].trim() : '';
 
@@ -92,75 +91,92 @@ export const ServiceSelector: React.FC<ServiceSelectorProps> = ({ value, onChang
       </View>
       
       <View style={styles.list}>
-        {services.map((service) => (
-          <TouchableOpacity
-            key={service.id}
-            onPress={() => handleServiceChange(service.id)}
-            style={[styles.card, value === service.id && styles.cardActive]}
-            activeOpacity={0.8}
-          >
-            <View style={[styles.iconBox, { backgroundColor: service.color + '15' }]}>
-               <RemixIcon name={service.icon} size={24} color={service.color} />
-            </View>
-            <View style={styles.info}>
-               <View style={styles.titleRow}>
-                 <Text style={styles.cardTitle}>{service.title}</Text>
-                 <View style={[styles.badge, { backgroundColor: service.color + '20' }]}>
-                    <Text style={[styles.badgeText, { color: service.color }]}>{service.badge}</Text>
+        {services.map((service) => {
+          const isSelected = value === service.id;
+          return (
+            <TouchableOpacity
+              key={service.id}
+              onPress={() => handleServiceChange(service.id)}
+              style={[styles.card, isSelected && styles.cardActive]}
+              activeOpacity={0.8}
+            >
+              <View style={[styles.iconBox, { backgroundColor: service.color + '15' }]}>
+                 <RemixIcon name={service.icon} size={22} color={service.color} />
+              </View>
+              <View style={styles.info}>
+                 <View style={styles.titleRow}>
+                   <Text style={styles.cardTitle}>{service.title}</Text>
+                   <View style={[styles.badge, { backgroundColor: service.id === 'instant' ? '#fee2e2' : '#dbeafe' }]}>
+                      <Text style={[styles.badgeText, { color: service.id === 'instant' ? '#ef4444' : '#2563eb' }]}>{service.badge}</Text>
+                   </View>
                  </View>
-               </View>
-               <Text style={styles.cardDesc}>{service.description}</Text>
-            </View>
-            <View style={[styles.check, value === service.id && styles.checkActive]}>
-               {value === service.id && <RemixIcon name="ri-check-line" size={14} color="#fff" />}
-            </View>
-          </TouchableOpacity>
-        ))}
+                 <Text style={styles.cardDesc}>{service.description}</Text>
+              </View>
+              <View style={[styles.check, isSelected && styles.checkActive]}>
+                 {isSelected && <RemixIcon name="ri-check-line" size={12} color="#fff" />}
+              </View>
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
       {value === 'scheduled' && (
         <View style={styles.scheduleBox}>
-           <Text style={styles.scheduleTitle}>Details</Text>
-           <TouchableOpacity onPress={() => setShowDatePicker(true)} style={styles.pickerTrigger}>
+           <Text style={styles.scheduleTitle}>SELECT DATE & TIME</Text>
+           
+           <TouchableOpacity onPress={() => setShowDatePicker(true)} style={styles.pickerTrigger} activeOpacity={0.8}>
               <View style={styles.pickerLeft}>
-                 <RemixIcon name="ri-calendar-line" size={18} color="#64748b" />
+                 <RemixIcon name="ri-calendar-line" size={18} color="#10b981" />
                  <Text style={[styles.pickerText, !selectedDate && styles.pickerPlaceholder]}>
-                    {selectedDate || 'Select Date'}
+                    {selectedDate || 'Choose Date'}
                  </Text>
               </View>
               <RemixIcon name="ri-arrow-down-s-line" size={20} color="#94a3b8" />
            </TouchableOpacity>
 
            <View style={styles.slotGrid}>
-              {timeSlots.map(slot => (
-                <TouchableOpacity 
-                   key={slot} 
-                   onPress={() => selectTime(slot)}
-                   style={[styles.slot, selectedTime === slot && styles.slotActive]}
-                >
-                   <Text style={[styles.slotText, selectedTime === slot && styles.slotTextActive]}>{slot}</Text>
-                </TouchableOpacity>
-              ))}
+              {timeSlots.map(slot => {
+                const isSlotSelected = selectedTime === slot;
+                return (
+                  <TouchableOpacity 
+                     key={slot} 
+                     onPress={() => selectTime(slot)}
+                     style={[styles.slot, isSlotSelected && styles.slotActive]}
+                     activeOpacity={0.8}
+                  >
+                     <Text style={[styles.slotText, isSlotSelected && styles.slotTextActive]}>{slot}</Text>
+                  </TouchableOpacity>
+                );
+              })}
            </View>
         </View>
       )}
 
-      <Modal visible={showDatePicker} transparent animationType="slide">
+      <Modal visible={showDatePicker} transparent animationType="slide" statusBarTranslucent>
          <View style={styles.modalOverlay}>
             <View style={styles.modalContent}>
+               <View style={styles.modalDragHandle} />
                <View style={styles.modalHeader}>
                   <Text style={styles.modalTitle}>Choose Date</Text>
-                  <TouchableOpacity onPress={() => setShowDatePicker(false)}>
-                     <RemixIcon name="ri-close-line" size={24} color="#64748b" />
+                  <TouchableOpacity onPress={() => setShowDatePicker(false)} style={styles.closeBtn} activeOpacity={0.7}>
+                     <RemixIcon name="ri-close-line" size={20} color="#64748b" />
                   </TouchableOpacity>
                </View>
-               <ScrollView style={styles.dateList}>
-                  {availableDates.map(date => (
-                    <TouchableOpacity key={date} onPress={() => selectDate(date)} style={styles.dateItem}>
-                       <Text style={[styles.dateText, selectedDate === date && styles.dateTextActive]}>{date}</Text>
-                       {selectedDate === date && <RemixIcon name="ri-check-fill" size={20} color="#10b981" />}
-                    </TouchableOpacity>
-                  ))}
+               <ScrollView style={styles.dateList} showsVerticalScrollIndicator={false}>
+                  {availableDates.map(date => {
+                    const isDateSelected = selectedDate === date;
+                    return (
+                      <TouchableOpacity 
+                        key={date} 
+                        onPress={() => selectDate(date)} 
+                        style={[styles.dateItem, isDateSelected && styles.dateItemActive]}
+                        activeOpacity={0.8}
+                      >
+                         <Text style={[styles.dateText, isDateSelected && styles.dateTextActive]}>{date}</Text>
+                         {isDateSelected && <RemixIcon name="ri-checkbox-circle-fill" size={20} color="#10b981" />}
+                      </TouchableOpacity>
+                    );
+                  })}
                </ScrollView>
             </View>
          </View>
@@ -172,7 +188,7 @@ export const ServiceSelector: React.FC<ServiceSelectorProps> = ({ value, onChang
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: { marginBottom: 20 },
-  title: { fontSize: 20, fontFamily: typography.bold, color: '#0f172a' },
+  title: { fontSize: 18, fontFamily: typography.bold, color: '#0f172a' },
   subtitle: { fontSize: 13, fontFamily: typography.medium, color: '#94a3b8', marginTop: 2 },
   list: { gap: 12 },
   card: {
@@ -188,38 +204,42 @@ const styles = StyleSheet.create({
   iconBox: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   info: { flex: 1, marginLeft: 16 },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 2 },
-  cardTitle: { fontSize: 16, fontFamily: typography.bold, color: '#1e293b' },
-  badge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
-  badgeText: { fontSize: 9, fontFamily: typography.bold },
+  cardTitle: { fontSize: 15, fontFamily: typography.bold, color: '#1e293b' },
+  badge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+  badgeText: { fontSize: 9, fontFamily: typography.bold, letterSpacing: 0.5 },
   cardDesc: { fontSize: 13, fontFamily: typography.medium, color: '#64748b' },
-  check: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: '#e2e8f0', alignItems: 'center', justifyContent: 'center' },
+  check: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: '#cbd5e1', alignItems: 'center', justifyContent: 'center' },
   checkActive: { backgroundColor: '#10b981', borderColor: '#10b981' },
   scheduleBox: { marginTop: 24, gap: 12 },
-  scheduleTitle: { fontSize: 14, fontFamily: typography.bold, color: '#1e293b' },
+  scheduleTitle: { fontSize: 11, fontFamily: typography.bold, color: '#94a3b8', letterSpacing: 1.5, marginBottom: 4 },
   pickerTrigger: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 14,
-    borderRadius: 14,
+    paddingHorizontal: 16,
+    height: 52,
+    borderRadius: 16,
     backgroundColor: '#f8fafc',
-    borderWidth: 1,
-    borderColor: '#f1f5f9',
+    borderWidth: 1.5,
+    borderColor: '#cbd5e1',
   },
   pickerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   pickerText: { fontSize: 14, fontFamily: typography.semiBold, color: '#1e293b' },
   pickerPlaceholder: { color: '#94a3b8' },
-  slotGrid: { gap: 8 },
-  slot: { padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#f1f5f9', backgroundColor: '#ffffff' },
+  slotGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 10, marginTop: 4 },
+  slot: { width: '48%', paddingVertical: 14, borderRadius: 14, borderWidth: 1.5, borderColor: '#f1f5f9', backgroundColor: '#ffffff', alignItems: 'center' },
   slotActive: { borderColor: '#10b981', backgroundColor: '#f0fdf4' },
-  slotText: { fontSize: 13, fontFamily: typography.medium, color: '#64748b', textAlign: 'center' },
+  slotText: { fontSize: 12, fontFamily: typography.semiBold, color: '#64748b', textAlign: 'center' },
   slotTextActive: { color: '#10b981', fontFamily: typography.bold },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  modalContent: { backgroundColor: '#fff', borderTopLeftRadius: 30, borderTopRightRadius: 30, padding: 24, maxHeight: '60%' },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(15, 23, 42, 0.4)', justifyContent: 'flex-end' },
+  modalContent: { backgroundColor: '#fff', borderTopLeftRadius: 30, borderTopRightRadius: 30, paddingHorizontal: 24, paddingBottom: 40, maxHeight: '60%', alignItems: 'center' },
+  modalDragHandle: { width: 38, height: 5, borderRadius: 3, backgroundColor: '#e2e8f0', marginTop: 10, marginBottom: 20 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%', marginBottom: 15 },
   modalTitle: { fontSize: 18, fontFamily: typography.bold, color: '#0f172a' },
-  dateList: { gap: 10 },
-  dateItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
-  dateText: { fontSize: 15, fontFamily: typography.medium, color: '#64748b' },
+  closeBtn: { padding: 4, borderRadius: 10, backgroundColor: '#f1f5f9' },
+  dateList: { width: '100%' },
+  dateItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 4, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
+  dateItemActive: { borderBottomColor: '#dcfce7' },
+  dateText: { fontSize: 15, fontFamily: typography.medium, color: '#475569' },
   dateTextActive: { color: '#10b981', fontFamily: typography.bold },
 });

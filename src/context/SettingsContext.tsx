@@ -51,7 +51,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           whatsapp: cs?.support?.whatsapp || ld?.contact_whatsapp || '+233 24 000 0000',
         },
         mobileApp: {
-          headerTitle: cs?.headerTitle || ls?.headerTitle || 'Borla Wura',
+          headerTitle: cs?.headerTitle || ls?.headerTitle || 'Borlawura',
           headerTagline: cs?.headerTagline || ls?.headerTagline || 'Clean. Green. Simple.',
           popupActive: cs?.announcement?.enabled ?? ls?.popupActive ?? false,
           popupTitle: cs?.announcement?.title || ls?.popupTitle || '',

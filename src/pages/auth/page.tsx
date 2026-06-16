@@ -136,7 +136,7 @@ const AuthPage = () => {
                 resizeMode="contain"
               />
             </View>
-            <Text style={styles.brandName}>Borla Wura</Text>
+            <Text style={styles.brandName}>Borlawura</Text>
             <Text style={styles.brandTagline}>Eco-friendly waste management for everyone</Text>
           </LinearGradient>
 

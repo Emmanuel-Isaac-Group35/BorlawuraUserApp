@@ -1,26 +1,66 @@
-import { NavigatrCore as Navigatr } from '@navigatr/core';
 import * as Location from 'expo-location';
 
-// Initialize Navigatr
-const nav = new Navigatr();
+const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '';
 
 /**
- * Reverse Geocodes coordinates to a human-readable address using Navigatr API
- * Fallback to Expo Location if Navigatr fails
+ * Decodes a Google Maps Directions API encoded polyline string into coordinates.
+ */
+function decodePolyline(encoded: string): { lat: number; lng: number }[] {
+  const points: { lat: number; lng: number }[] = [];
+  let index = 0, len = encoded.length;
+  let lat = 0, lng = 0;
+
+  while (index < len) {
+    let b, shift = 0, result = 0;
+    do {
+      b = encoded.charCodeAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while (b >= 0x20);
+    let dlat = ((result & 1) ? ~(result >> 1) : (result >> 1));
+    lat += dlat;
+
+    shift = 0;
+    result = 0;
+    do {
+      b = encoded.charCodeAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while (b >= 0x20);
+    let dlng = ((result & 1) ? ~(result >> 1) : (result >> 1));
+    lng += dlng;
+
+    points.push({
+      lat: lat / 1E5,
+      lng: lng / 1E5
+    });
+  }
+  return points;
+}
+
+/**
+ * Reverse Geocodes coordinates to a human-readable address using Google Geocoding API
+ * Fallback to Expo Native Location if key is missing or request fails
  */
 export const reverseGeocode = async (latitude: number, longitude: number): Promise<string> => {
   const fallbackGps = `GPS: ${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
   
+  if (!GOOGLE_MAPS_API_KEY) {
+    console.warn("Google Maps API Key is missing. Falling back to native geocoding.");
+    return await tryNativeGeocode(latitude, longitude) || fallbackGps;
+  }
+
   try {
-    const result = await nav.reverseGeocode({ lat: latitude, lng: longitude });
-    
-    if (result && result.displayName) {
-      return result.displayName;
+    const response = await fetch(
+      `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${GOOGLE_MAPS_API_KEY}`
+    );
+    const data = await response.json();
+    if (data.status === 'OK' && data.results && data.results[0]) {
+      return data.results[0].formatted_address;
     }
-    
     return await tryNativeGeocode(latitude, longitude) || fallbackGps;
   } catch (error: any) {
-    console.warn("Navigatr Reverse Geocode Error, trying native fallback:", error.message);
+    console.warn("Google Geocode Error, trying native fallback:", error.message);
     return await tryNativeGeocode(latitude, longitude) || fallbackGps;
   }
 };
@@ -41,24 +81,79 @@ async function tryNativeGeocode(latitude: number, longitude: number) {
   return null;
 }
 
+export interface RouteResult {
+  durationText: string;
+  durationSeconds: number;
+  distanceText: string;
+  distanceMeters: number;
+  polyline: { lat: number; lng: number }[];
+}
+
 /**
- * Calculates estimated distance and time between two points using Navigatr
+ * Fetches a driving route with road-following polyline coordinates using Google Directions API
+ */
+export const fetchRoute = async (
+  originLat: number,
+  originLng: number,
+  destLat: number,
+  destLng: number
+): Promise<RouteResult | null> => {
+  if (!Number.isFinite(originLat) || !Number.isFinite(originLng) ||
+      !Number.isFinite(destLat) || !Number.isFinite(destLng)) {
+    return null;
+  }
+
+  if (!GOOGLE_MAPS_API_KEY) {
+    console.warn("Google Maps API Key is missing. Cannot fetch route from Google.");
+    // Fallback: straight line route
+    return {
+      durationText: "12 mins",
+      durationSeconds: 720,
+      distanceText: "5.0 km",
+      distanceMeters: 5000,
+      polyline: [
+        { lat: originLat, lng: originLng },
+        { lat: destLat, lng: destLng }
+      ]
+    };
+  }
+
+  try {
+    const response = await fetch(
+      `https://maps.googleapis.com/maps/api/directions/json?origin=${originLat},${originLng}&destination=${destLat},${destLng}&mode=driving&key=${GOOGLE_MAPS_API_KEY}`
+    );
+    const data = await response.json();
+    if (data.status === 'OK' && data.routes && data.routes[0]) {
+      const route = data.routes[0];
+      const leg = route.legs[0];
+      const points = decodePolyline(route.overview_polyline.points);
+      
+      return {
+        durationText: leg.duration.text,
+        durationSeconds: leg.duration.value,
+        distanceText: leg.distance.text,
+        distanceMeters: leg.distance.value,
+        polyline: points,
+      };
+    }
+    return null;
+  } catch (error) {
+    console.error('Google Directions API Error:', error);
+    return null;
+  }
+};
+
+/**
+ * Calculates estimated distance and time between two points using Google Directions API
  * Mocks Google Distance Matrix response structure for compatibility
  */
 export const getDistanceMatrix = async (origins: string[], destinations: string[]) => {
   try {
-    // Navigatr route is 1:1, so we take the first origin and first destination
-    // Origins/Destinations are expected as "lat,lng" strings
     const originCoords = origins[0].split(',').map(Number);
     const destCoords = destinations[0].split(',').map(Number);
+    const route = await fetchRoute(originCoords[0], originCoords[1], destCoords[0], destCoords[1]);
+    if (!route) return null;
 
-    const route = await nav.route({
-      origin: { lat: originCoords[0], lng: originCoords[1] },
-      destination: { lat: destCoords[0], lng: destCoords[1] },
-      mode: 'drive'
-    });
-
-    // Transform Navigatr RouteResult to Google DistanceMatrix format
     return {
       status: 'OK',
       rows: [
@@ -68,72 +163,99 @@ export const getDistanceMatrix = async (origins: string[], destinations: string[
               status: 'OK',
               duration: {
                 text: route.durationText,
-                value: route.durationSeconds
+                value: route.durationSeconds,
               },
               distance: {
                 text: route.distanceText,
-                value: route.distanceMeters
-              }
-            }
-          ]
-        }
-      ]
+                value: route.distanceMeters,
+              },
+            },
+          ],
+        },
+      ],
     };
   } catch (error) {
-    console.error("Navigatr Route Error:", error);
+    console.error('Google Distance Matrix calculation Error:', error);
     return null;
   }
 };
 
 /**
- * Searches for places based on user input (Autocomplete)
+ * Searches for places based on user input (Google Places Autocomplete API)
  */
 export const fetchPlacesAutocomplete = async (input: string) => {
   if (!input) return [];
 
+  if (!GOOGLE_MAPS_API_KEY) {
+    console.warn("Google Maps API Key is missing. Autocomplete is unavailable.");
+    return [];
+  }
+
   try {
-    const results = await nav.autocomplete({ query: input, limit: 10 });
-    
-    // Map Navigatr AutocompleteResult to Google Places format
-    return results.map(item => ({
-      place_id: `${item.lat}:${item.lng}`, // Unique ID for compatibility with ':' separator to handle negative values
-      description: item.displayName,
-      structured_formatting: {
-        main_text: item.name,
-        secondary_text: `${item.city || ''} ${item.country || ''}`.trim()
-      }
-    }));
+    const response = await fetch(
+      `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(input)}&components=country:gh&key=${GOOGLE_MAPS_API_KEY}`
+    );
+    const data = await response.json();
+    if (data.status === 'OK' && data.predictions) {
+      return data.predictions.map((item: any) => ({
+        place_id: item.place_id,
+        description: item.description,
+        structured_formatting: {
+          main_text: item.structured_formatting.main_text,
+          secondary_text: item.structured_formatting.secondary_text
+        }
+      }));
+    }
+    return [];
   } catch (error) {
-    console.error("Navigatr Autocomplete Error:", error);
+    console.error("Google Places Autocomplete Error:", error);
     return [];
   }
 };
 
 /**
- * Gets detailed info (including coordinates) for a specific place ID
- * Since we encoded coords in the place_id for autocomplete, we extract them here
+ * Gets detailed info (including coordinates) for a specific place ID using Google Place Details API
  */
 export const fetchPlaceDetails = async (placeId: string) => {
   if (!placeId) return null;
 
   try {
-    // Handle our custom place_id format "lat:lng"
-    const [lat, lng] = placeId.split(':').map(Number);
-    
-    if (!isNaN(lat) && !isNaN(lng)) {
-        // Fetch detailed display name via reverse geocode
-        const displayName = await reverseGeocode(lat, lng);
-        return {
-            address: displayName,
-            latitude: lat,
-            longitude: lng,
-        };
+    // Handle our legacy/fallback place_id format "lat:lng" (just in case)
+    if (placeId.includes(':')) {
+      const [lat, lng] = placeId.split(':').map(Number);
+      if (!isNaN(lat) && !isNaN(lng)) {
+          const displayName = await reverseGeocode(lat, lng);
+          return {
+              address: displayName,
+              latitude: lat,
+              longitude: lng,
+          };
+      }
+      return null;
+    }
+
+    if (!GOOGLE_MAPS_API_KEY) {
+      console.warn("Google Maps API Key is missing. Place details is unavailable.");
+      return null;
+    }
+
+    const response = await fetch(
+      `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=formatted_address,geometry&key=${GOOGLE_MAPS_API_KEY}`
+    );
+    const data = await response.json();
+    if (data.status === 'OK' && data.result) {
+      const { formatted_address, geometry } = data.result;
+      return {
+        address: formatted_address,
+        latitude: geometry.location.lat,
+        longitude: geometry.location.lng,
+      };
     }
     return null;
   } catch (error) {
-    console.error("Navigatr Place Details Error:", error);
+    console.error("Google Place Details Error:", error);
     return null;
   }
 };
 
-export default { reverseGeocode, getDistanceMatrix, fetchPlacesAutocomplete, fetchPlaceDetails };
+export default { reverseGeocode, getDistanceMatrix, fetchPlacesAutocomplete, fetchPlaceDetails, fetchRoute };

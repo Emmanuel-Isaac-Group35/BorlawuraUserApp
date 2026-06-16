@@ -72,7 +72,22 @@ const OTPPage = () => {
       setIsVerifying(true);
       if (finalCode === currentOtp) {
         try {
-          await login({ phoneNumber, id: 'user_' + Date.now(), name, email, password, isSignup });
+          const result = await login({ phoneNumber, id: 'user_' + Date.now(), name, email, password, isSignup });
+          if (result && (result as any).emailVerificationRequired) {
+            setIsVerifying(false);
+            Alert.alert(
+              "Verify Your Email",
+              "A verification link has been sent to your email. Please check your inbox and click the verification link to activate your account.",
+              [
+                {
+                  text: "OK",
+                  onPress: () => {
+                    navigation.navigate('Auth');
+                  }
+                }
+              ]
+            );
+          }
         } catch (error: any) {
           setIsVerifying(false);
           Alert.alert("Auth Error", error.message || "Failed to log in.");

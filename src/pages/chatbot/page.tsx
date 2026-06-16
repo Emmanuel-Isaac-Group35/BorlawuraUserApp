@@ -12,7 +12,7 @@ const CHATBOT_WIDGET_HTML = `
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Borla Wura Chatbot</title>
+    <title>Borlawura Chatbot</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -46,7 +46,7 @@ const CHATBOT_WIDGET_HTML = `
       accent-color="#10B981"
       button-base-color="#059669"
       button-accent-color="#FFFFFF"
-      main-label="Chat with Borla Wura Support"
+      main-label="Chat with Borlawura Support"
       start-button-text="Start Chat"
       end-button-text="End Chat"
       defer

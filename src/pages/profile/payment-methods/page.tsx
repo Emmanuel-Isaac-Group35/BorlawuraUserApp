@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput, Alert, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Navigation } from '../../../components/feature/Navigation';
 import { RemixIcon } from '../../../utils/icons';
-import { useNavigation } from '@react-navigation/native';
+import { typography } from '../../../utils/typography';
 import { useAuth } from '../../../context/AuthContext';
 import { supabase } from '../../../lib/supabase';
 
 const PaymentMethodsPage: React.FC = () => {
-  const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
   const { user: authUser } = useAuth();
   const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -165,20 +165,15 @@ const PaymentMethodsPage: React.FC = () => {
       
       <ScrollView 
         style={styles.scrollView}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[
+          styles.content,
+          { paddingTop: insets.top + 70, paddingBottom: insets.bottom + 40 },
+        ]}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <TouchableOpacity
-            onPress={() => navigation.goBack()}
-            style={styles.backButton}
-          >
-            <RemixIcon name="ri-arrow-left-line" size={24} color="#1f2937" />
-          </TouchableOpacity>
-          <View style={styles.headerText}>
-            <Text style={styles.title}>Payment Methods</Text>
-            <Text style={styles.subtitle}>Manage your MoMo accounts</Text>
-          </View>
+          <Text style={styles.title}>Payment Methods</Text>
+          <Text style={styles.subtitle}>Manage your MoMo accounts</Text>
         </View>
 
         <View style={styles.paymentMethodsList}>
@@ -333,47 +328,27 @@ export default PaymentMethodsPage;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f9fafb',
+    backgroundColor: '#fdfdfd',
   },
   scrollView: {
     flex: 1,
   },
   content: {
-    paddingTop: 80,
-    paddingBottom: 100,
     paddingHorizontal: 16,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
     marginBottom: 24,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  headerText: {
-    flex: 1,
   },
   title: {
     fontSize: 24,
-    fontWeight: 'bold',
-    color: '#1f2937',
+    fontFamily: typography.bold,
+    color: '#0f172a',
     marginBottom: 4,
   },
   subtitle: {
     fontSize: 14,
-    color: '#4b5563',
+    fontFamily: typography.medium,
+    color: '#64748b',
   },
   paymentMethodsList: {
     gap: 16,

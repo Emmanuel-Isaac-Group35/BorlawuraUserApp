@@ -2,9 +2,13 @@ import { createNavigationContainerRef } from '@react-navigation/native';
 
 export const navigationRef = createNavigationContainerRef<any>();
 
-export const navigate = (name: any, params?: any) => {
+export const navigate = (name: any, params?: any, retries = 50) => {
   if (navigationRef.isReady()) {
     (navigationRef as any).navigate(name, params);
+  } else if (retries > 0) {
+    setTimeout(() => {
+      navigate(name, params, retries - 1);
+    }, 100);
   }
 };
 

@@ -36,10 +36,10 @@ export const Navigation: React.FC = () => {
   };
   
   const isHome = route.name === 'Home';
-  const headerTitle = isHome ? (settings?.mobileApp?.headerTitle || 'Borla Wura') : formatRouteName(route.name);
+  const headerTitle = isHome ? (settings?.mobileApp?.headerTitle || 'Borlawura') : formatRouteName(route.name);
   const headerTagline = isHome ? (settings?.mobileApp?.headerTagline || 'Cleaner City. Simple.') : null;
   
-  const isDark = ['TrackOrder', 'ChatRider', 'ActiveTrip', 'FindingRider'].includes(route.name) || route.name.toLowerCase().includes('track');
+  const isDark = ['ChatRider', 'ActiveTrip', 'FindingRider'].includes(route.name);
 
   return (
     <View style={styles.navWrapper}>

@@ -119,7 +119,7 @@ const NotificationsPage: React.FC = () => {
     try {
       const uid = await resolveRealUserId(user);
       if (!uid) throw new Error('Not authenticated');
-      await supabase.from('user_notification_prefs').upsert({
+      const { error } = await supabase.from('user_notification_prefs').upsert({
         user_id: uid,
         order_updates:       settings.orderUpdates,
         rider_arrival:       settings.riderArrival,
@@ -132,11 +132,21 @@ const NotificationsPage: React.FC = () => {
         vibration_enabled:   settings.vibrationEnabled,
         updated_at:          new Date().toISOString(),
       }, { onConflict: 'user_id' });
+      
+      if (error) throw error;
+      
       setIsDirty(false);
       if (settings.vibrationEnabled) Vibration.vibrate([0, 60, 40, 60]);
       Alert.alert('Configuration Saved', 'Your terminal alert preferences have been updated.');
     } catch (e: any) {
-      Alert.alert('Sync Failed', e.message || 'Failed to update preferences.');
+      if (e?.code === 'PGRST205' || (e?.message && e.message.includes('user_notification_prefs'))) {
+        Alert.alert(
+          'Database Sync Failed',
+          'Could not sync preferences. The user_notification_prefs table does not exist in your Supabase database. Please run the user_notification_prefs database migration in your Supabase SQL Editor.'
+        );
+      } else {
+        Alert.alert('Sync Failed', e.message || 'Failed to update preferences.');
+      }
     } finally { setIsSaving(false); }
   };
 

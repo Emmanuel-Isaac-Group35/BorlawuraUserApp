@@ -12,13 +12,15 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { typography } from '../../utils/typography';
 import { supabase } from '../../lib/supabase';
 
 const ResetPasswordPage = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
+  const route = useRoute<any>();
+  const fromSettings = route.params?.fromSettings || false;
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -48,9 +50,30 @@ const ResetPasswordPage = () => {
 
       if (error) throw error;
       
-      Alert.alert("Success", "Your password has been reset successfully. Please login with your new password.", [
-        { text: "Log In", onPress: () => navigation.navigate('Auth') }
-      ]);
+      if (fromSettings) {
+        Alert.alert("Success", "Your password has been changed successfully.", [
+          {
+            text: "OK",
+            onPress: () => {
+              navigation.goBack();
+            }
+          }
+        ]);
+      } else {
+        Alert.alert("Success", "Your password has been reset successfully. Please login with your new password.", [
+          {
+            text: "Log In",
+            onPress: async () => {
+              try {
+                await supabase.auth.signOut();
+              } catch (signOutErr) {
+                console.error('Sign out error on password reset:', signOutErr);
+              }
+              navigation.navigate('Auth');
+            }
+          }
+        ]);
+      }
     } catch (error: any) {
       Alert.alert("Reset Failed", error.message);
     } finally {
@@ -64,12 +87,32 @@ const ResetPasswordPage = () => {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
       >
+        <View style={[styles.header, { paddingTop: insets.top + 20 }]}>
+          <TouchableOpacity 
+            style={styles.backBtn}
+            onPress={async () => {
+              if (fromSettings) {
+                navigation.goBack();
+              } else {
+                try {
+                  await supabase.auth.signOut();
+                } catch (signOutErr) {
+                  console.error('Sign out error on password reset back button:', signOutErr);
+                }
+                navigation.navigate('Auth');
+              }
+            }}
+          >
+            <Ionicons name="arrow-back" size={24} color="#0f172a" />
+          </TouchableOpacity>
+        </View>
+
         <View style={styles.content}>
           <View style={styles.iconCircle}>
             <Ionicons name="lock-closed-outline" size={40} color="#10b981" />
           </View>
 
-          <Text style={styles.title}>New Password</Text>
+          <Text style={styles.title}>{fromSettings ? "Change Password" : "New Password"}</Text>
           <Text style={styles.subtitle}>
             Please enter your new password below. Ensure it is secure and easy for you to remember.
           </Text>
@@ -131,7 +174,16 @@ const ResetPasswordPage = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#ffffff' },
-  content: { paddingHorizontal: 30, paddingTop: 60, alignItems: 'center' },
+  header: { paddingHorizontal: 20 },
+  backBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#f8fafc',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  content: { paddingHorizontal: 30, paddingTop: 20, alignItems: 'center' },
   iconCircle: {
     width: 80,
     height: 80,

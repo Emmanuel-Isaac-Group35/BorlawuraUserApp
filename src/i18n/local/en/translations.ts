@@ -1,7 +1,7 @@
 // English translations
 const en = {
   // App
-  'app_name': 'Borla Wura',
+  'app_name': 'Borlawura',
   'app_tagline': 'A Cleaner Home, A Cleaner City',
   
   // Common

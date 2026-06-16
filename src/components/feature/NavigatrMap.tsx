@@ -22,6 +22,7 @@ interface NavigatrMapProps {
   showRoute?: boolean;
   routeOrigin?: { lat: number; lng: number };
   routeDestination?: { lat: number; lng: number };
+  routeCoordinates?: { lat: number; lng: number }[];
   interactive?: boolean;
   fitToMarkers?: boolean;
   height?: number;
@@ -44,6 +45,7 @@ export const NavigatrMap: React.FC<NavigatrMapProps> = ({
   showRoute = false,
   routeOrigin,
   routeDestination,
+  routeCoordinates,
   interactive = true,
   fitToMarkers = false,
   height,
@@ -107,11 +109,13 @@ export const NavigatrMap: React.FC<NavigatrMapProps> = ({
   };
 
   const reCenter = () => {
-    if (!mapRef.current || (markers.length === 0 && !centerLat)) return;
+    if (!mapRef.current) return;
     if (markers.length > 0) {
-      const coords = markers.filter(m => m.lat && m.lng).map(m => ({ latitude: m.lat, longitude: m.lng }));
-      mapRef.current.fitToCoordinates(coords, { edgePadding: { top: 100, right: 100, bottom: 100, left: 100 }, animated: true });
-    } else {
+      const coords = markers.filter(m => Number.isFinite(m.lat) && Number.isFinite(m.lng)).map(m => ({ latitude: m.lat, longitude: m.lng }));
+      if (coords.length > 0) {
+        mapRef.current.fitToCoordinates(coords, { edgePadding: { top: 100, right: 100, bottom: 100, left: 100 }, animated: true });
+      }
+    } else if (Number.isFinite(centerLat) && Number.isFinite(centerLng)) {
       mapRef.current.animateToRegion(region, 1000);
     }
     setIsUserInteracting(false);
@@ -121,19 +125,37 @@ export const NavigatrMap: React.FC<NavigatrMapProps> = ({
 
   useEffect(() => {
     if (fitToMarkers && markers.length > 0 && mapRef.current && !isUserInteracting) {
-      const coords = markers.filter(m => m.lat && m.lng).map(m => ({ latitude: m.lat, longitude: m.lng }));
+      const coords = markers.filter(m => Number.isFinite(m.lat) && Number.isFinite(m.lng)).map(m => ({ latitude: m.lat, longitude: m.lng }));
       if (coords.length > 0) {
         mapRef.current.fitToCoordinates(coords, { edgePadding: { top: 140, right: 80, bottom: 140, left: 80 }, animated: true });
       }
     }
   }, [markersHash, fitToMarkers, isUserInteracting]);
 
-  // Programmatically center and animate map when center coordinates change
   useEffect(() => {
-    if (mapRef.current && centerLat && centerLng && !isUserInteracting && !fitToMarkers) {
+    if (mapRef.current && Number.isFinite(centerLat) && Number.isFinite(centerLng) && !isUserInteracting && !fitToMarkers) {
       mapRef.current.animateToRegion(region, 1000);
     }
   }, [centerLat, centerLng, region, isUserInteracting, fitToMarkers]);
+
+  const routeLine = useMemo(() => {
+    if (routeCoordinates && routeCoordinates.length >= 2) {
+      return routeCoordinates.map(point => ({ latitude: point.lat, longitude: point.lng }));
+    }
+    if (showRoute && routeOrigin && routeDestination) {
+      return [
+        { latitude: routeOrigin.lat, longitude: routeOrigin.lng },
+        { latitude: routeDestination.lat, longitude: routeDestination.lng },
+      ];
+    }
+    return null;
+  }, [routeCoordinates, showRoute, routeOrigin, routeDestination]);
+
+  const handleRegionChangeComplete = (nextRegion: { latitude: number; longitude: number; latitudeDelta?: number; longitudeDelta?: number }) => {
+    onRegionChangeComplete?.({ latitude: nextRegion.latitude, longitude: nextRegion.longitude });
+  };
+
+  const mapProvider = PROVIDER_GOOGLE;
 
   const flatStyle = StyleSheet.flatten(style);
   const hasHeightOrFlex = flatStyle && (flatStyle.height !== undefined || flatStyle.flex !== undefined);
@@ -142,6 +164,23 @@ export const NavigatrMap: React.FC<NavigatrMapProps> = ({
   const scanTranslate = scanAnim.interpolate({ inputRange: [0, 1], outputRange: [-100, 400] });
 
   const isDark = variant === 'dark';
+
+  if (Platform.OS === 'web') {
+    return (
+      <View style={[styles.container, isDark && styles.containerDark, !hasHeightOrFlex && { height: resolvedHeight }, style]}>
+        <View style={styles.webFallback}>
+          <RemixIcon name="ri-map-2-line" size={36} color="#10b981" />
+          <Text style={[styles.webFallbackTitle, isDark && styles.webFallbackTitleDark]}>Map preview unavailable on web</Text>
+          <Text style={styles.webFallbackCoords}>
+            {centerLat.toFixed(5)}, {centerLng.toFixed(5)}
+          </Text>
+          {markers.length > 0 && (
+            <Text style={styles.webFallbackMeta}>{markers.length} location{markers.length !== 1 ? 's' : ''} tracked</Text>
+          )}
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View 
@@ -156,7 +195,7 @@ export const NavigatrMap: React.FC<NavigatrMapProps> = ({
       <MapView
         ref={mapRef}
         style={[styles.map, StyleSheet.absoluteFillObject]}
-        provider={PROVIDER_GOOGLE}
+        provider={mapProvider}
         initialRegion={region}
         showsUserLocation={false}
         showsPointsOfInterest={false}
@@ -167,7 +206,7 @@ export const NavigatrMap: React.FC<NavigatrMapProps> = ({
         rotateEnabled={interactive}
         onPanDrag={handleUserInteraction}
         onTouchStart={handleUserInteraction}
-        onRegionChangeComplete={onRegionChangeComplete}
+        onRegionChangeComplete={handleRegionChangeComplete}
         customMapStyle={isDark ? darkMapConfig : []}
       >
 
@@ -196,26 +235,10 @@ export const NavigatrMap: React.FC<NavigatrMapProps> = ({
           </Marker>
         ))}
 
-        {showRoute && routeOrigin && routeDestination && (
+        {routeLine && (
           <>
-            {/* Glow outer backing */}
-            <Polyline 
-              coordinates={[
-                { latitude: routeOrigin.lat, longitude: routeOrigin.lng }, 
-                { latitude: routeDestination.lat, longitude: routeDestination.lng }
-              ]} 
-              strokeColor="rgba(16, 185, 129, 0.25)" 
-              strokeWidth={7} 
-            />
-            {/* Sharp inner line */}
-            <Polyline 
-              coordinates={[
-                { latitude: routeOrigin.lat, longitude: routeOrigin.lng }, 
-                { latitude: routeDestination.lat, longitude: routeDestination.lng }
-              ]} 
-              strokeColor="#10b981" 
-              strokeWidth={3.5} 
-            />
+            <Polyline coordinates={routeLine} strokeColor="rgba(16, 185, 129, 0.25)" strokeWidth={7} />
+            <Polyline coordinates={routeLine} strokeColor="#10b981" strokeWidth={3.5} />
           </>
         )}
       </MapView>
@@ -365,5 +388,31 @@ const styles = StyleSheet.create({
     borderRadius: 3,
     position: 'absolute',
     bottom: -2,
+  },
+  webFallback: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+    gap: 8,
+    backgroundColor: '#ecfdf5',
+  },
+  webFallbackTitle: {
+    fontSize: 14,
+    fontFamily: typography.bold,
+    color: '#0f172a',
+    textAlign: 'center',
+  },
+  webFallbackTitleDark: { color: '#f1f5f9' },
+  webFallbackCoords: {
+    fontSize: 12,
+    fontFamily: typography.medium,
+    color: '#64748b',
+  },
+  webFallbackMeta: {
+    fontSize: 11,
+    fontFamily: typography.medium,
+    color: '#10b981',
+    marginTop: 4,
   },
 });

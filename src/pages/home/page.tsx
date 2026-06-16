@@ -2,7 +2,6 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { Dimensions, View, StyleSheet, ScrollView, RefreshControl, Text, TouchableOpacity, Image } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Navigation } from '../../components/feature/Navigation';
-import { ChatFloatingButton } from '../../components/feature/ChatFloatingButton';
 import { NewsSlider } from './components/NewsSlider';
 import { PopUpAnnouncement } from '../../components/feature/PopUpAnnouncement';
 import { RecentOrders } from './components/RecentOrders';
@@ -246,8 +245,6 @@ export const HomePage: React.FC = () => {
         <RecentOrders refreshing={refreshing} />
       </ScrollView>
 
-
-      <ChatFloatingButton />
       <PopUpAnnouncement />
     </SafeAreaView>
   );

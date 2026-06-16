@@ -18,6 +18,8 @@ import { typography } from '../../../utils/typography';
 import { navigateTo } from '../../../utils/navigation';
 import { useAuth } from '../../../context/AuthContext';
 import { LinearGradient } from 'expo-linear-gradient';
+import { supabase } from '../../../lib/supabase';
+import { resolveRealUserId } from '../../../utils/user';
 
 export const SettingsPage: React.FC = () => {
   const navigation = useNavigation<any>();
@@ -26,69 +28,67 @@ export const SettingsPage: React.FC = () => {
 
   // Local settings states (can be backed by state/storage)
   const [pushEnabled, setPushEnabled] = useState(true);
+  const [loaded, setLoaded] = useState(false);
 
-  // Load pushEnabled from AsyncStorage on mount
+  // Load pushEnabled from AsyncStorage and Supabase on mount
   useEffect(() => {
+    if (loaded) return;
     (async () => {
       try {
-        const value = await AsyncStorage.getItem('pushEnabled');
-        if (value !== null) setPushEnabled(value === 'true');
+        const localVal = await AsyncStorage.getItem('pushEnabled');
+        if (localVal !== null) {
+          setPushEnabled(localVal === 'true');
+        }
+
+        const uid = await resolveRealUserId(user);
+        if (uid) {
+          const { data } = await supabase
+            .from('user_notification_prefs')
+            .select('push_notifications')
+            .eq('user_id', uid)
+            .maybeSingle();
+          if (data && data.push_notifications !== undefined) {
+            setPushEnabled(data.push_notifications);
+            await AsyncStorage.setItem('pushEnabled', data.push_notifications ? 'true' : 'false');
+          }
+          setLoaded(true);
+        }
       } catch (e) {
-        // fallback to default true
+        // fallback
       }
     })();
-  }, []);
+  }, [user, loaded]);
 
-  // Save pushEnabled to AsyncStorage when changed
+  // Save pushEnabled to AsyncStorage and Supabase when changed
   const handlePushToggle = async (value: boolean) => {
+    const oldValue = pushEnabled;
     setPushEnabled(value);
     try {
       await AsyncStorage.setItem('pushEnabled', value ? 'true' : 'false');
-    } catch (e) {
-      // handle error
+      const uid = await resolveRealUserId(user);
+      if (uid) {
+        const { error } = await supabase.from('user_notification_prefs').upsert({
+          user_id: uid,
+          push_notifications: value,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'user_id' });
+        if (error) throw error;
+      }
+    } catch (e: any) {
+      if (e?.code === 'PGRST205' || (e?.message && e.message.includes('user_notification_prefs'))) {
+        Alert.alert(
+          'Database Sync Note',
+          'Your preference is saved locally, but could not sync to the database. Please ensure you run the user_notification_prefs database migration in your Supabase SQL Editor.'
+        );
+      } else {
+        setPushEnabled(oldValue);
+        await AsyncStorage.setItem('pushEnabled', oldValue ? 'true' : 'false');
+        Alert.alert('Sync Failed', 'Could not update notification preferences. Please try again.');
+      }
     }
   };
-  const [clearingCache, setClearingCache] = useState(false);
 
 
-
-  const handleClearCache = () => {
-    Alert.alert(
-      'Clear Cache',
-      'Are you sure you want to purge cached telemetry and maps logs? This will not affect your profile data.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Clear',
-          style: 'destructive',
-          onPress: () => {
-            setClearingCache(true);
-            setTimeout(() => {
-              setClearingCache(false);
-              Alert.alert('Cache Cleared', 'Successfully purged 18.4 MB of temporary logs.');
-            }, 1500);
-          }
-        }
-      ]
-    );
-  };
-
-  const handleDeleteAccount = () => {
-    Alert.alert(
-      '⚠️ Delete Account',
-      'This action is irreversible. All your order history, saved addresses, and profile details will be permanently wiped from the BorlaWura servers.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete Permanently',
-          style: 'destructive',
-          onPress: () => {
-            Alert.alert('Security Protocol', 'Please contact support to complete account termination.');
-          }
-        }
-      ]
-    );
-  };
 
   const handleLogout = () => {
     Alert.alert(
@@ -166,49 +166,45 @@ export const SettingsPage: React.FC = () => {
           </View>
         </View>
 
-
-
-
-        {/* Section: Account & App */}
-        <Text style={styles.sectionLabel}>Account & App</Text>
+        {/* Section: Account & Security */}
+        <Text style={styles.sectionLabel}>Account & Security</Text>
         <View style={styles.settingsCard}>
-          <TouchableOpacity style={styles.row} onPress={() => Alert.alert('Security', 'Security features coming soon!')} activeOpacity={0.7}>
+          <TouchableOpacity style={styles.row} onPress={() => navigateTo('ResetPassword', { fromSettings: true })} activeOpacity={0.7}>
             <View style={[styles.iconBox, { backgroundColor: '#f0fdf4' }]}> 
               <RemixIcon name="ri-shield-user-fill" size={18} color="#0d9488" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.rowTitle}>Security</Text>
-              <Text style={styles.rowDesc}>Manage password and security</Text>
+              <Text style={styles.rowTitle}>Change Password</Text>
+              <Text style={styles.rowDesc}>Update your account security credentials</Text>
             </View>
             <RemixIcon name="ri-arrow-right-s-line" size={20} color="#94a3b8" />
           </TouchableOpacity>
           <View style={styles.divider} />
-          <TouchableOpacity style={styles.row} onPress={() => Alert.alert('App Info', 'BorlaWura v3.4.2\nAll rights reserved.')} activeOpacity={0.7}>
+          <TouchableOpacity style={styles.row} onPress={() => navigateTo('/saved-addresses')} activeOpacity={0.7}>
             <View style={[styles.iconBox, { backgroundColor: '#f0fdf4' }]}> 
-              <RemixIcon name="ri-information-fill" size={18} color="#0d9488" />
+              <RemixIcon name="ri-map-pin-user-fill" size={18} color="#0d9488" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.rowTitle}>App Info</Text>
-              <Text style={styles.rowDesc}>Version, terms, and policies</Text>
+              <Text style={styles.rowTitle}>Saved Addresses</Text>
+              <Text style={styles.rowDesc}>Manage locations for quick pickups</Text>
             </View>
             <RemixIcon name="ri-arrow-right-s-line" size={20} color="#94a3b8" />
           </TouchableOpacity>
           <View style={styles.divider} />
-          <TouchableOpacity style={styles.row} onPress={() => Alert.alert('Feedback', 'Send your feedback to support@borlawura.com')} activeOpacity={0.7}>
+          <TouchableOpacity style={styles.row} onPress={() => navigateTo('/profile/payment-methods')} activeOpacity={0.7}>
             <View style={[styles.iconBox, { backgroundColor: '#f0fdf4' }]}> 
-              <RemixIcon name="ri-chat-1-fill" size={18} color="#0d9488" />
+              <RemixIcon name="ri-wallet-3-fill" size={18} color="#0d9488" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.rowTitle}>Feedback</Text>
-              <Text style={styles.rowDesc}>Send feedback or report an issue</Text>
+              <Text style={styles.rowTitle}>Payment Methods</Text>
+              <Text style={styles.rowDesc}>Manage your mobile money accounts</Text>
             </View>
             <RemixIcon name="ri-arrow-right-s-line" size={20} color="#94a3b8" />
           </TouchableOpacity>
         </View>
 
-
-        {/* Section: System Utility */}
-        <Text style={styles.sectionLabel}>System Utilities</Text>
+        {/* Section: App & Information */}
+        <Text style={styles.sectionLabel}>App & Information</Text>
         <View style={styles.settingsCard}>
           <TouchableOpacity style={styles.row} onPress={() => navigateTo('/profile/about')} activeOpacity={0.7}>
             <View style={[styles.iconBox, { backgroundColor: '#f0fdf4' }]}> 
@@ -216,13 +212,35 @@ export const SettingsPage: React.FC = () => {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.rowTitle}>About BorlaWura</Text>
-              <Text style={styles.rowDesc}>Version 3.4.2 · Terms & Legal policies</Text>
+              <Text style={styles.rowDesc}>Company info, mission, and app version</Text>
+            </View>
+            <RemixIcon name="ri-arrow-right-s-line" size={20} color="#94a3b8" />
+          </TouchableOpacity>
+          <View style={styles.divider} />
+          <TouchableOpacity style={styles.row} onPress={() => navigateTo('/profile/terms')} activeOpacity={0.7}>
+            <View style={[styles.iconBox, { backgroundColor: '#f0fdf4' }]}> 
+              <RemixIcon name="ri-file-shield-fill" size={18} color="#0d9488" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rowTitle}>Terms & Privacy Policy</Text>
+              <Text style={styles.rowDesc}>Legal agreements and data protection policies</Text>
+            </View>
+            <RemixIcon name="ri-arrow-right-s-line" size={20} color="#94a3b8" />
+          </TouchableOpacity>
+          <View style={styles.divider} />
+          <TouchableOpacity style={styles.row} onPress={() => navigateTo('/support')} activeOpacity={0.7}>
+            <View style={[styles.iconBox, { backgroundColor: '#f0fdf4' }]}> 
+              <RemixIcon name="ri-customer-service-2-fill" size={18} color="#0d9488" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rowTitle}>Help & Support</Text>
+              <Text style={styles.rowDesc}>Contact dispatch or read helpful FAQ articles</Text>
             </View>
             <RemixIcon name="ri-arrow-right-s-line" size={20} color="#94a3b8" />
           </TouchableOpacity>
         </View>
 
-        {/* Account Termination & Logout */}
+        {/* Account Actions */}
         <View style={{ marginTop: 32, gap: 12 }}>
           <TouchableOpacity
             style={styles.logoutBtn}
@@ -301,12 +319,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   logoutBtnText: { fontSize: 14, fontFamily: typography.bold, color: '#ef4444' },
-  deleteBtn: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    height: 48,
-  },
-  deleteBtnText: { fontSize: 12, fontFamily: typography.bold, color: '#94a3b8' },
+
 });
 
 export default SettingsPage;

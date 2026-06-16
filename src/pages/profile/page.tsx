@@ -101,21 +101,6 @@ const ProfilePage: React.FC = () => {
     }
   }, [authUser]);
 
-  const [addresses, setAddresses] = useState<any[]>([]);
-
-  useEffect(() => {
-    const fetchAddressCount = async () => {
-      const searchId = authUser?.supabase_id || authUser?.id;
-      if (searchId && !String(searchId).startsWith('user_')) {
-        const { count } = await supabase
-          .from('user_addresses')
-          .select('*', { count: 'exact', head: true })
-          .eq('user_id', searchId);
-        setAddresses(new Array(count || 0).fill({}));
-      }
-    };
-    fetchAddressCount();
-  }, [authUser]);
 
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [editName, setEditName] = useState('');
@@ -282,12 +267,6 @@ const ProfilePage: React.FC = () => {
     }
   };
 
-  const menuItems = [
-    { icon: 'ri-map-pin-2-fill', title: 'Saved Addresses', subtitle: `${addresses.length} locations`, action: () => navigateTo('/saved-addresses'), color: '#10b981' },
-    { icon: 'ri-history-fill', title: 'Pickup History', subtitle: 'View past orders', action: () => navigateTo('/orders'), color: '#8b5cf6' },
-    { icon: 'ri-customer-service-2-fill', title: 'Help Center', subtitle: 'FAQs & Support', action: () => navigateTo('/support'), color: '#f59e0b' },
-    { icon: 'ri-settings-4-fill', title: 'App Settings', subtitle: 'System Configuration', action: () => navigateTo('/settings'), color: '#64748b' }
-  ];
 
   const handleLogout = () => {
     Alert.alert('Sign Out', 'Are you sure you want to log out of the terminal?', [
@@ -366,30 +345,11 @@ const ProfilePage: React.FC = () => {
            </View>
         </LinearGradient>
 
-        <View style={styles.sectionContainer}>
-           <Text style={styles.sectionTitle}>Account Settings</Text>
-           <View style={styles.menuList}>
-              {menuItems.map((item, idx) => (
-                 <TouchableOpacity key={idx} onPress={item.action} style={styles.menuItem}>
-                    <View style={[styles.menuIconBox, { backgroundColor: item.color + '10' }]}>
-                      <RemixIcon name={item.icon} size={20} color={item.color} />
-                    </View>
-                    <View style={styles.menuText}>
-                      <Text style={styles.menuTitle}>{item.title}</Text>
-                      <Text style={styles.menuSubtitle}>{item.subtitle}</Text>
-                    </View>
-                    <RemixIcon name="ri-arrow-right-s-line" size={20} color="#94a3b8" />
-                 </TouchableOpacity>
-              ))}
-           </View>
-        </View>
 
         <TouchableOpacity onPress={handleLogout} style={styles.logoutBtn}>
            <RemixIcon name="ri-logout-box-r-line" size={18} color="#ef4444" />
-           <Text style={styles.logoutBtnText}>Secure Sign Out</Text>
+           <Text style={styles.logoutBtnText}>Sign Out</Text>
         </TouchableOpacity>
-
-        <Text style={styles.versionText}>System Version 1.1.0 • Zenith V6 Terminal</Text>
       </ScrollView>
 
 
@@ -654,15 +614,6 @@ const styles = StyleSheet.create({
     fontSize: 15, 
     fontFamily: typography.bold, 
     color: '#ef4444' 
-  },
-  versionText: { 
-    textAlign: 'center', 
-    fontSize: 11, 
-    fontFamily: typography.bold, 
-    color: '#cbd5e1', 
-    marginTop: 40,
-    textTransform: 'uppercase',
-    letterSpacing: 1
   },
   modalOverlay: { 
     flex: 1, 

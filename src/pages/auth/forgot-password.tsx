@@ -14,6 +14,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { typography } from '../../utils/typography';
 import { supabase } from '../../lib/supabase';
 
@@ -60,6 +61,12 @@ const ForgotPasswordPage = () => {
       });
 
       if (error) throw error;
+      
+      try {
+        await AsyncStorage.setItem('isResettingPassword', 'true');
+      } catch (storageErr) {
+        console.error('Failed to set reset flag:', storageErr);
+      }
       
       setResolvedEmail(targetEmail);
       setIsSubmitted(true);
@@ -120,7 +127,7 @@ const ForgotPasswordPage = () => {
                       <Text style={styles.countryCode}>+233</Text>
                     </View>
                     <TextInput
-                      style={styles.input}
+                      style={[styles.input, { flex: 1 }]}
                       placeholder="50 000 0000"
                       keyboardType="phone-pad"
                       value={identifier}
