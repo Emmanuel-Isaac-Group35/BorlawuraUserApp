@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, Animated, TouchableOpacity,
-  Image, Dimensions, ActivityIndicator, Easing, ScrollView, useWindowDimensions
+  Image, ActivityIndicator, Easing, ScrollView, useWindowDimensions
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NavigatrMap } from '../../../components/feature/NavigatrMap';
@@ -12,7 +12,6 @@ import { sendLocalNotification } from '../../../utils/notifications';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
 import * as Haptics from 'expo-haptics';
-import { Audio } from 'expo-av';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -137,6 +136,8 @@ export const FindingRider: React.FC<FindingRiderProps> = ({
   );
   const [localRider, setLocalRider] = useState<Rider | null>(null);
   const [isCancelling, setIsCancelling] = useState(false);
+  // Guard: prevent onRiderFound from being called more than once
+  const riderFoundRef = useRef(false);
 
   // Slide-up animation for the sheet
   const sheetAnim = useRef(new Animated.Value(0)).current;
@@ -227,16 +228,21 @@ export const FindingRider: React.FC<FindingRiderProps> = ({
       } as Rider;
     };
 
+    const triggerRiderFound = (rider: Rider, delay: number) => {
+      if (riderFoundRef.current) return; // already triggered
+      riderFoundRef.current = true;
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setLocalRider(rider);
+      setStatus('found');
+      setTimeout(() => onRiderFound(rider), delay);
+    };
+
     const checkStatus = async () => {
+      if (riderFoundRef.current) return; // already found, stop polling
       const { data: order } = await supabase.from('orders').select('status, rider_id').eq('id', orderId).single();
       if (order?.rider_id && ACCEPTED_STATUSES.includes(order.status)) {
         const rider = await fetchRider(order.rider_id);
-        if (rider) { 
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          setLocalRider(rider); 
-          setStatus('found'); 
-          setTimeout(() => onRiderFound(rider), 1500); 
-        }
+        if (rider) triggerRiderFound(rider, 1500);
       }
     };
 
@@ -246,16 +252,15 @@ export const FindingRider: React.FC<FindingRiderProps> = ({
     const channel = supabase.channel(`order-sync-${orderId}`)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders', filter: `id=eq.${orderId}` },
         async (payload: any) => {
+          if (riderFoundRef.current) return;
           if (!payload.new.rider_id) return;
           const rider = await fetchRider(payload.new.rider_id);
           if (!rider) return;
-          setLocalRider(rider);
           if (ACCEPTED_STATUSES.includes(payload.new.status)) {
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            setStatus('found');
             sendLocalNotification('Rider Assigned!', `${rider.name} is on the way to collect your waste.`, { orderId });
-            setTimeout(() => onRiderFound(rider), 2000);
+            triggerRiderFound(rider, 2000);
           } else {
+            setLocalRider(rider);
             setStatus('waiting');
           }
         })
@@ -278,7 +283,7 @@ export const FindingRider: React.FC<FindingRiderProps> = ({
   return (
     <View style={styles.container}>
       {/* ── Map ── */}
-      <View style={[styles.mapWrap, { minHeight: H * 0.30 }]}>
+      <View style={[styles.mapWrap, { flex: isSmall ? 3 : 4 }]}>
         <NavigatrMap
           style={styles.map}
           centerLat={lat}
@@ -321,7 +326,7 @@ export const FindingRider: React.FC<FindingRiderProps> = ({
       </View>
 
       {/* ── Animated bottom sheet ── */}
-      <Animated.View style={[styles.sheet, { transform: [{ translateY: sheetY }], maxHeight: H * 0.62 }]}>
+      <Animated.View style={[styles.sheet, { transform: [{ translateY: sheetY }], flex: isSmall ? 5 : 6 }]}>
         <View style={styles.sheetHeader}>
           <View style={styles.dragHandle} />
         </View>
@@ -371,7 +376,18 @@ export const FindingRider: React.FC<FindingRiderProps> = ({
               </View>
             </Animated.View>
 
-            <TouchableOpacity onPress={() => onRiderFound(localRider)} style={styles.trackBtn} activeOpacity={0.85}>
+            <TouchableOpacity
+              onPress={() => {
+                if (riderFoundRef.current && localRider) {
+                  onRiderFound(localRider);
+                } else if (localRider) {
+                  riderFoundRef.current = true;
+                  onRiderFound(localRider);
+                }
+              }}
+              style={styles.trackBtn}
+              activeOpacity={0.85}
+            >
               <LinearGradient colors={['#10b981', '#059669']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={[styles.trackBtnInner, { paddingVertical: isSmall ? 13 : 16 }]}>
                 <RemixIcon name="ri-moped-fill" size={18} color="#fff" />
                 <Text style={[styles.trackBtnText, { fontSize: isSmall ? 14 : 15 }]}>Track your pickup</Text>
@@ -444,8 +460,8 @@ export const FindingRider: React.FC<FindingRiderProps> = ({
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f8fafc' },
 
-  // Map — takes remaining space above sheet
-  mapWrap: { flex: 1, overflow: 'hidden' },
+  // Map — flex-based; ratio controlled dynamically via inline style
+  mapWrap: { overflow: 'hidden' },
   map:     { flex: 1 },
 
   // Map badge overlay — positioned relative to screen height
@@ -468,11 +484,11 @@ const styles = StyleSheet.create({
 
   // Bottom sheet
   sheet: {
-    flexShrink: 1,
     backgroundColor: '#ffffff',
     borderTopLeftRadius: 32, borderTopRightRadius: 32,
     shadowColor: '#0f172a', shadowOpacity: 0.08, shadowRadius: 28, elevation: 14,
     borderTopWidth: 1, borderTopColor: '#f1f5f9',
+    overflow: 'hidden',
   },
   scrollViewContainer: {
     flex: 1,
