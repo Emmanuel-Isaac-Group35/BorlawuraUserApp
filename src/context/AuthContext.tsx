@@ -42,6 +42,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // 1. Manual Deep Link Interceptor (for OAuth & Password Reset)
     const handleDeepLink = async (event: { url: string }) => {
       console.log('🔗 Deep Link Detected:', event.url);
+      // #region debug-point D:deep-link-entry
+      fetch("http://192.168.137.166:7777/event",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:"user-app-startup",runId:"pre-fix",hypothesisId:"D",location:"src/context/AuthContext.tsx:44",msg:"[DEBUG] Deep link handler entered",data:{url:event.url},ts:Date.now()})}).catch(()=>{});
+      // #endregion
       
       const getParamsFromUrl = (url: string) => {
         const params: { [key: string]: string } = {};
@@ -71,6 +74,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const accessToken = params.access_token;
       const refreshToken = params.refresh_token;
       const code = params.code;
+      // #region debug-point B:deep-link-params
+      fetch("http://192.168.100.53:7777/event",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:"google-auth-failure",runId:"pre-fix",hypothesisId:"B",location:"src/context/AuthContext.tsx:76",msg:"[DEBUG] Deep link params parsed",data:{hasAccessToken:!!accessToken,hasRefreshToken:!!refreshToken,hasCode:!!code,url:event.url},ts:Date.now()})}).catch(()=>{});
+      // #endregion
 
       let isResetting = event.url.includes('reset-password') || params.type === 'recovery';
       try {
@@ -105,6 +111,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         } catch (err: any) {
           console.error('Deep link session recovery error:', err);
+          // #region debug-point C:deep-link-session-error
+          fetch("http://192.168.100.53:7777/event",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:"google-auth-failure",runId:"pre-fix",hypothesisId:"C",location:"src/context/AuthContext.tsx:110",msg:"[DEBUG] Deep link setSession failed",data:{message:err?.message||String(err)},ts:Date.now()})}).catch(()=>{});
+          // #endregion
           Alert.alert('Auth Error', 'Failed to recover session from link: ' + err.message);
         } finally {
           setIsLoading(false);
@@ -129,6 +138,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         } catch (err: any) {
           console.error('Deep link code exchange error:', err);
+          // #region debug-point C:deep-link-code-error
+          fetch("http://192.168.100.53:7777/event",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:"google-auth-failure",runId:"pre-fix",hypothesisId:"C",location:"src/context/AuthContext.tsx:134",msg:"[DEBUG] Deep link exchangeCodeForSession failed",data:{message:err?.message||String(err)},ts:Date.now()})}).catch(()=>{});
+          // #endregion
           Alert.alert('Auth Error', 'Failed to exchange verification code: ' + err.message);
         } finally {
           setIsLoading(false);
@@ -143,6 +155,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Initial check for a deep link if the app was opened via one
     Linking.getInitialURL().then((url) => {
+      // #region debug-point E:initial-url
+      fetch("http://192.168.137.166:7777/event",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:"user-app-startup",runId:"pre-fix",hypothesisId:"E",location:"src/context/AuthContext.tsx:145",msg:"[DEBUG] Initial URL resolved",data:{url},ts:Date.now()})}).catch(()=>{});
+      // #endregion
       if (url) {
         handleDeepLink({ url });
       } else {
@@ -155,6 +170,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // 2. Listen for Supabase Auth state changes
     const authListener = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('🔄 Auth State Event:', event, session?.user?.email);
+      // #region debug-point F:auth-state-change
+      fetch("http://192.168.137.166:7777/event",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:"user-app-startup",runId:"pre-fix",hypothesisId:"F",location:"src/context/AuthContext.tsx:157",msg:"[DEBUG] Auth state change",data:{event,hasSessionUser:!!session?.user,email:session?.user?.email||null},ts:Date.now()})}).catch(()=>{});
+      // #endregion
       
       if (session?.user) {
         if (!processingRef.current) {
@@ -201,6 +219,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } finally {
         const initialUrl = await Linking.getInitialURL().catch(() => null);
         const isResetLink = initialUrl && (initialUrl.includes('access_token=') || initialUrl.includes('reset-password') || initialUrl.includes('recovery'));
+        // #region debug-point G:check-auth-finally
+        fetch("http://192.168.137.166:7777/event",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:"user-app-startup",runId:"pre-fix",hypothesisId:"G",location:"src/context/AuthContext.tsx:202",msg:"[DEBUG] checkAuth finally",data:{initialUrl,isResetLink,willClearInitialLoading:!isResetLink},ts:Date.now()})}).catch(()=>{});
+        // #endregion
         if (!isResetLink) {
           setIsInitialLoading(false);
         }
@@ -220,6 +241,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (processingRef.current) return;
     processingRef.current = true;
     setIsLoading(true);
+    // #region debug-point H:handle-session-start
+    fetch("http://192.168.137.166:7777/event",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:"user-app-startup",runId:"pre-fix",hypothesisId:"H",location:"src/context/AuthContext.tsx:223",msg:"[DEBUG] handleSupabaseSession start",data:{email:supabaseUser?.email||null,id:supabaseUser?.id||null},ts:Date.now()})}).catch(()=>{});
+    // #endregion
     try {
       const { data: dbUser, error } = await supabase
         .from('users')
@@ -259,12 +283,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setIsLoggedIn(true);
         const isRestricted = ['suspended', 'flagged', 'rejected', 'pending'].includes(finalUser.status);
         setIsSuspended(isRestricted);
+        // #region debug-point D:user-sync-success
+        fetch("http://192.168.100.53:7777/event",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:"google-auth-failure",runId:"pre-fix",hypothesisId:"D",location:"src/context/AuthContext.tsx:276",msg:"[DEBUG] Supabase user sync succeeded",data:{userId:finalUser?.id||null,email:finalUser?.email||null,isRestricted},ts:Date.now()})}).catch(()=>{});
+        // #endregion
       }
     } catch (err) {
       console.error('OAuth sync error:', err);
+      // #region debug-point I:handle-session-error
+      fetch("http://192.168.137.166:7777/event",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:"user-app-startup",runId:"pre-fix",hypothesisId:"I",location:"src/context/AuthContext.tsx:264",msg:"[DEBUG] handleSupabaseSession error",data:{message:err instanceof Error?err.message:String(err)},ts:Date.now()})}).catch(()=>{});
+      // #endregion
     } finally {
       setIsLoading(false);
       processingRef.current = false;
+      // #region debug-point J:handle-session-finally
+      fetch("http://192.168.137.166:7777/event",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:"user-app-startup",runId:"pre-fix",hypothesisId:"J",location:"src/context/AuthContext.tsx:267",msg:"[DEBUG] handleSupabaseSession finally",data:{processing:false},ts:Date.now()})}).catch(()=>{});
+      // #endregion
     }
   };
 
@@ -477,6 +510,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signInWithGoogle = async () => {
     const redirectUrl = Linking.createURL('auth-callback');
     console.log('🔗 OAuth redirect URL:', redirectUrl);
+    // #region debug-point A:google-auth-start
+    fetch("http://192.168.100.53:7777/event",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:"google-auth-failure",runId:"pre-fix",hypothesisId:"A",location:"src/context/AuthContext.tsx:500",msg:"[DEBUG] Google sign-in started",data:{platform:Platform.OS,redirectUrl},ts:Date.now()})}).catch(()=>{});
+    // #endregion
 
     try {
       if (Platform.OS !== 'web') await WebBrowser.warmUpAsync();
@@ -486,12 +522,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         options: { redirectTo: redirectUrl, skipBrowserRedirect: true },
       });
       if (error) throw error;
+      // #region debug-point A:google-oauth-url
+      fetch("http://192.168.100.53:7777/event",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:"google-auth-failure",runId:"pre-fix",hypothesisId:"A",location:"src/context/AuthContext.tsx:509",msg:"[DEBUG] Google OAuth URL created",data:{hasUrl:!!data?.url},ts:Date.now()})}).catch(()=>{});
+      // #endregion
 
       if (!data?.url) {
         throw new Error('Could not generate Google sign-in URL. Please try again.');
       }
 
       const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl);
+      // #region debug-point B:browser-result
+      fetch("http://192.168.100.53:7777/event",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:"google-auth-failure",runId:"pre-fix",hypothesisId:"B",location:"src/context/AuthContext.tsx:518",msg:"[DEBUG] Browser auth session completed",data:{type:result?.type||null,hasUrl:!!(result as any)?.url,url:(result as any)?.url||null},ts:Date.now()})}).catch(()=>{});
+      // #endregion
 
       if (result.type === 'success' && result.url) {
         if (Platform.OS === 'ios') WebBrowser.dismissBrowser();
@@ -499,6 +541,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // ── Directly process the callback URL ─────────────────────────
         const params = parseUrlParams(result.url);
         setIsLoading(true);
+        // #region debug-point B:browser-params
+        fetch("http://192.168.100.53:7777/event",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:"google-auth-failure",runId:"pre-fix",hypothesisId:"B",location:"src/context/AuthContext.tsx:526",msg:"[DEBUG] Browser callback params parsed",data:{hasAccessToken:!!params.access_token,hasRefreshToken:!!params.refresh_token,hasCode:!!params.code,url:result.url},ts:Date.now()})}).catch(()=>{});
+        // #endregion
 
         try {
           if (params.access_token && params.refresh_token) {
@@ -528,10 +573,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         } catch (sessionErr: any) {
           console.error('OAuth session error:', sessionErr);
+          // #region debug-point C:browser-session-error
+          fetch("http://192.168.100.53:7777/event",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:"google-auth-failure",runId:"pre-fix",hypothesisId:"C",location:"src/context/AuthContext.tsx:551",msg:"[DEBUG] Browser callback session recovery failed",data:{message:sessionErr?.message||String(sessionErr)},ts:Date.now()})}).catch(()=>{});
+          // #endregion
           // Last-resort fallback after a short delay
           setTimeout(async () => {
             const { data: fallback } = await supabase.auth.getSession();
             if (fallback?.session?.user && !isLoggedIn) {
+              // #region debug-point D:fallback-session-found
+              fetch("http://192.168.100.53:7777/event",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:"google-auth-failure",runId:"pre-fix",hypothesisId:"D",location:"src/context/AuthContext.tsx:556",msg:"[DEBUG] Fallback session poll found user",data:{userId:fallback.session.user?.id||null,email:fallback.session.user?.email||null},ts:Date.now()})}).catch(()=>{});
+              // #endregion
               handleSupabaseSession(fallback.session.user);
             }
           }, 1000);

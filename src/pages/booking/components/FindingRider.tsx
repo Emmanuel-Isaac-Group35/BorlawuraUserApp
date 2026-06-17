@@ -210,7 +210,7 @@ export const FindingRider: React.FC<FindingRiderProps> = ({
   // ── Online riders for map ─────────────────────────────────────────────────
   const [onlineRiders, setOnlineRiders] = useState<{ id: string; lat: number; lng: number }[]>([]);
   useEffect(() => {
-    (async () => {
+    const fetchOnlineRiders = async () => {
       const { data } = await supabase.from('riders').select('id, latitude, longitude').eq('is_online', true).limit(8);
       if (data) {
         setOnlineRiders(
@@ -223,8 +223,20 @@ export const FindingRider: React.FC<FindingRiderProps> = ({
             .filter(r => Number.isFinite(r.lat) && Number.isFinite(r.lng))
         );
       }
-    })();
-  }, [lat, lng]);
+    };
+
+    fetchOnlineRiders();
+    const ridersChannel = supabase
+      .channel('finding-rider-map-live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'riders' }, () => {
+        fetchOnlineRiders();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(ridersChannel);
+    };
+  }, []);
 
   // ── Mount animation ───────────────────────────────────────────────────────
   useEffect(() => {

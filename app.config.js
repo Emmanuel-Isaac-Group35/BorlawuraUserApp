@@ -1,5 +1,4 @@
-const googleMapsApiKey =
-  process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || 'YOUR_GOOGLE_MAPS_API_KEY_HERE';
+const googleMapsApiKey = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY?.trim();
 
 /** @type {import('expo/config').ExpoConfig} */
 export default {
@@ -16,13 +15,20 @@ export default {
       resizeMode: 'contain',
       backgroundColor: '#ffffff',
     },
+    updates: {
+      enabled: false,
+      checkAutomatically: 'NEVER',
+      fallbackToCacheTimeout: 0,
+    },
     assetBundlePatterns: ['**/*'],
     ios: {
       supportsTablet: true,
       bundleIdentifier: 'com.borlawura.user',
-      config: {
-        googleMapsApiKey,
-      },
+      ...(googleMapsApiKey ? {
+        config: {
+          googleMapsApiKey,
+        },
+      } : {}),
     },
     android: {
       adaptiveIcon: {
@@ -30,11 +36,13 @@ export default {
         backgroundColor: '#ffffff',
       },
       package: 'com.borlawura.user',
-      config: {
-        googleMaps: {
-          apiKey: googleMapsApiKey,
+      ...(googleMapsApiKey ? {
+        config: {
+          googleMaps: {
+            apiKey: googleMapsApiKey,
+          },
         },
-      },
+      } : {}),
     },
     web: {
       favicon: './assets/favicon.png',

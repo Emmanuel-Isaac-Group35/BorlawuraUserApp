@@ -1,6 +1,42 @@
 import * as Location from 'expo-location';
 
-const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || '';
+const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY?.trim() || '';
+export const hasGoogleMapsApiKey = GOOGLE_MAPS_API_KEY.length > 0;
+
+const buildRouteFallback = (
+  originLat: number,
+  originLng: number,
+  destLat: number,
+  destLng: number
+): RouteResult => {
+  const toRadians = (value: number) => value * Math.PI / 180;
+  const earthRadiusMeters = 6371000;
+  const dLat = toRadians(destLat - originLat);
+  const dLng = toRadians(destLng - originLng);
+  const lat1 = toRadians(originLat);
+  const lat2 = toRadians(destLat);
+
+  const a = Math.sin(dLat / 2) ** 2
+    + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  const distanceMeters = Math.max(Math.round(earthRadiusMeters * c), 50);
+  const estimatedDurationSeconds = Math.max(Math.round(distanceMeters / 5.5), 60);
+  const distanceKm = distanceMeters / 1000;
+  const durationMinutes = Math.max(Math.round(estimatedDurationSeconds / 60), 1);
+
+  return {
+    durationText: `${durationMinutes} min${durationMinutes === 1 ? '' : 's'}`,
+    durationSeconds: estimatedDurationSeconds,
+    distanceText: distanceKm >= 1
+      ? `${distanceKm.toFixed(1)} km`
+      : `${distanceMeters} m`,
+    distanceMeters,
+    polyline: [
+      { lat: originLat, lng: originLng },
+      { lat: destLat, lng: destLng }
+    ]
+  };
+};
 
 /**
  * Decodes a Google Maps Directions API encoded polyline string into coordinates.
@@ -105,17 +141,7 @@ export const fetchRoute = async (
 
   if (!GOOGLE_MAPS_API_KEY) {
     console.warn("Google Maps API Key is missing. Cannot fetch route from Google.");
-    // Fallback: straight line route
-    return {
-      durationText: "12 mins",
-      durationSeconds: 720,
-      distanceText: "5.0 km",
-      distanceMeters: 5000,
-      polyline: [
-        { lat: originLat, lng: originLng },
-        { lat: destLat, lng: destLng }
-      ]
-    };
+    return buildRouteFallback(originLat, originLng, destLat, destLng);
   }
 
   try {
@@ -136,10 +162,11 @@ export const fetchRoute = async (
         polyline: points,
       };
     }
-    return null;
+    console.warn('Google Directions API returned non-OK status:', data.status);
+    return buildRouteFallback(originLat, originLng, destLat, destLng);
   } catch (error) {
     console.error('Google Directions API Error:', error);
-    return null;
+    return buildRouteFallback(originLat, originLng, destLat, destLng);
   }
 };
 

@@ -33,6 +33,17 @@ const TrackOrderPage: React.FC = () => {
   const [routeCoordinates, setRouteCoordinates] = useState<{ lat: number; lng: number }[]>([]);
   const watchSubscription = useRef<Location.LocationSubscription | null>(null);
 
+  const getOrderRiderCoords = (row: any) => {
+    const lat = parseFloat(row?.rider_lat);
+    const lng = parseFloat(row?.rider_lng);
+
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      return null;
+    }
+
+    return { lat, lng };
+  };
+
   useEffect(() => {
     (async () => {
       const { status } = await Location.requestForegroundPermissionsAsync();
@@ -67,8 +78,9 @@ const TrackOrderPage: React.FC = () => {
         if (orderData.rider_id) {
           const { data: riderData } = await supabase.from('riders').select('*').eq('id', orderData.rider_id).single();
           if (riderData) {
-            const riderLat = parseFloat(riderData.latitude);
-            const riderLng = parseFloat(riderData.longitude);
+            const orderRiderCoords = getOrderRiderCoords(orderData);
+            const riderLat = orderRiderCoords?.lat ?? parseFloat(riderData.latitude);
+            const riderLng = orderRiderCoords?.lng ?? parseFloat(riderData.longitude);
             const pickupLat = parseFloat(orderData.pickup_latitude);
             const pickupLng = parseFloat(orderData.pickup_longitude);
 
@@ -82,7 +94,11 @@ const TrackOrderPage: React.FC = () => {
               lat: Number.isFinite(riderLat) ? riderLat : 5.6037,
               lng: Number.isFinite(riderLng) ? riderLng : -0.1870,
             };
-            setRiderLocation({ lat: riderObj.lat, lng: riderObj.lng, heading: riderData.heading || 0 });
+            setRiderLocation({
+              lat: riderObj.lat,
+              lng: riderObj.lng,
+              heading: Number(orderData.rider_heading ?? riderData.heading ?? 0) || 0
+            });
 
             if (Number.isFinite(pickupLat) && Number.isFinite(pickupLng)) {
               try {
@@ -123,7 +139,23 @@ const TrackOrderPage: React.FC = () => {
     const orderChannel = supabase.channel(`order-tracking-${orderId}`)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'orders', filter: `id=eq.${orderId}` }, async (payload) => {
         const orderData = payload.new;
-        setOrder((prev: any) => ({ ...prev, status: orderData.status }));
+        const nextRiderCoords = getOrderRiderCoords(orderData);
+
+        setOrder((prev: any) => prev ? ({
+          ...prev,
+          status: orderData.status,
+          latitude: orderData.pickup_latitude ?? prev.latitude,
+          longitude: orderData.pickup_longitude ?? prev.longitude,
+        }) : prev);
+
+        if (nextRiderCoords) {
+          setRiderLocation((prev) => ({
+            lat: nextRiderCoords.lat,
+            lng: nextRiderCoords.lng,
+            heading: Number(orderData.rider_heading ?? prev.heading ?? 0) || 0
+          }));
+          refreshTelemetry(nextRiderCoords.lat, nextRiderCoords.lng);
+        }
       }).subscribe();
     return () => { supabase.removeChannel(orderChannel); };
   }, [orderId]);
@@ -146,32 +178,6 @@ const TrackOrderPage: React.FC = () => {
       }
     } catch (e) { console.log('Telemetry sync error:', e); }
   };
-
-  useEffect(() => {
-    if (!orderId || !isLiveTracking) return;
-    let riderChannel: any;
-    const setupRiderSubscription = async () => {
-      const { data: currentOrder } = await supabase.from('orders').select('rider_id').eq('id', orderId).single();
-      if (currentOrder?.rider_id) {
-        riderChannel = supabase.channel(`rider-loc-${currentOrder.rider_id}`)
-          .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'riders', filter: `id=eq.${currentOrder.rider_id}` }, (payload: any) => {
-              if (payload.new.latitude && payload.new.longitude) {
-                const nLat = parseFloat(payload.new.latitude);
-                const nLng = parseFloat(payload.new.longitude);
-                setRiderLocation({ 
-                  lat: nLat, 
-                  lng: nLng,
-                  heading: payload.new.heading || 0
-                });
-                // Trigger telemetry refresh on movement
-                refreshTelemetry(nLat, nLng);
-              }
-          }).subscribe();
-      }
-    };
-    setupRiderSubscription();
-    return () => { if (riderChannel) supabase.removeChannel(riderChannel); };
-  }, [orderId, isLiveTracking, order?.latitude, order?.longitude, order?.status]);
 
   const trackingSteps = [
     { title: 'Request Received', completed: true },

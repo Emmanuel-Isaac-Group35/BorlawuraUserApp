@@ -30,6 +30,19 @@ export const LocationSelector: React.FC<LocationSelectorProps> = ({ value, onCha
     handleDetectLocation();
   }, []);
 
+  useEffect(() => {
+    const ridersChannel = supabase
+      .channel('location-selector-riders-live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'riders' }, () => {
+        fetchOnlineRiders();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(ridersChannel);
+    };
+  }, []);
+
   const fetchCloudAddresses = async () => {
     const searchId = await resolveRealUserId(user);
     if (!searchId) return;

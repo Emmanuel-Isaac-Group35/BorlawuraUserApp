@@ -243,7 +243,12 @@ const AuthPage = () => {
               <View style={styles.dividerLine} />
             </View>
 
-            <TouchableOpacity style={styles.socialBtn} onPress={() => signInWithGoogle()}>
+            <TouchableOpacity style={styles.socialBtn} onPress={() => {
+              // #region debug-point A:google-button-tap
+              fetch("http://192.168.100.53:7777/event",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:"google-auth-failure",runId:"pre-fix",hypothesisId:"A",location:"src/pages/auth/page.tsx:246",msg:"[DEBUG] Google sign-in button tapped",data:{screen:"AuthPage"},ts:Date.now()})}).catch(()=>{});
+              // #endregion
+              signInWithGoogle();
+            }}>
                <Image source={{ uri: 'https://cdn-icons-png.flaticon.com/512/2991/2991148.png' }} style={styles.socialIcon} />
                <Text style={styles.socialBtnText}>Continue with Google</Text>
             </TouchableOpacity>

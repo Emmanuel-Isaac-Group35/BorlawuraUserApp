@@ -66,6 +66,10 @@ import PaymentMethodsPage from './pages/profile/payment-methods/page';
 function AppNavigator() {
   const { isLoggedIn, isSuspended, isInitialLoading } = useAuth();
 
+  // #region debug-point C:app-navigator-state
+  fetch("http://192.168.137.166:7777/event",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:"user-app-startup",runId:"pre-fix",hypothesisId:"C",location:"src/App.tsx:69",msg:"[DEBUG] AppNavigator render",data:{isLoggedIn,isSuspended,isInitialLoading},ts:Date.now()})}).catch(()=>{});
+  // #endregion
+
   if (isInitialLoading) return <SplashView />;
 
   return (
@@ -126,6 +130,9 @@ function App() {
 
   useEffect(() => {
     const timer = setTimeout(() => {
+      // #region debug-point A:timed-splash-release
+      fetch("http://192.168.137.166:7777/event",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:"user-app-startup",runId:"pre-fix",hypothesisId:"A",location:"src/App.tsx:129",msg:"[DEBUG] Timed splash released",data:{showSplashBefore:true},ts:Date.now()})}).catch(()=>{});
+      // #endregion
       setShowSplash(false);
     }, 1500); // reduced from 5 seconds to 1.5s to speed up app loading
 
@@ -139,6 +146,10 @@ function App() {
     'Montserrat-Bold': Montserrat_700Bold,
     'Montserrat': Montserrat_400Regular, // Default fallback
   });
+
+  // #region debug-point B:root-app-state
+  fetch("http://192.168.137.166:7777/event",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sessionId:"user-app-startup",runId:"pre-fix",hypothesisId:"B",location:"src/App.tsx:143",msg:"[DEBUG] Root app render",data:{showSplash,fontsLoaded},ts:Date.now()})}).catch(()=>{});
+  // #endregion
 
   if (showSplash || !fontsLoaded) {
     return <SplashView />;

@@ -39,8 +39,8 @@ const BookingPage: React.FC = () => {
   const [isBooking, setIsBooking] = useState(false);
   const [bookingData, setBookingData] = useState({
     location: '',
-    latitude: 5.6037 as number | null, // Default to Accra center
-    longitude: -0.1870 as number | null,
+    latitude: null as number | null,
+    longitude: null as number | null,
     serviceType: '',
     wasteTypes: [] as string[],
     bagSize: '',
@@ -101,7 +101,11 @@ const BookingPage: React.FC = () => {
 
   useEffect(() => {
     const routeParams = (route.params as { prefillLocation?: string, prefillLat?: number, prefillLng?: number }) || {};
-    if (routeParams.prefillLocation && routeParams.prefillLat && routeParams.prefillLng) {
+    if (
+      routeParams.prefillLocation
+      && Number.isFinite(Number(routeParams.prefillLat))
+      && Number.isFinite(Number(routeParams.prefillLng))
+    ) {
       setBookingData(prev => ({
         ...prev,
         location: routeParams.prefillLocation!,
@@ -165,8 +169,8 @@ const BookingPage: React.FC = () => {
         customer_name: user?.full_name || 'Customer',
         service_type: bookingData.serviceType === 'instant' ? 'Instant Pickup' : (bookingData.serviceType === 'bulk' ? 'Bulk Collection' : 'Scheduled Pickup'),
         address: bookingData.location,
-        pickup_latitude: bookingData.latitude || 5.6037,
-        pickup_longitude: bookingData.longitude || -0.1870,
+        pickup_latitude: bookingData.latitude,
+        pickup_longitude: bookingData.longitude,
         waste_type: 'General',
         waste_size: bookingData.bagSize,
         notes: `${bookingData.notes || ''}`.trim(),
@@ -241,7 +245,15 @@ const BookingPage: React.FC = () => {
           </View>
 
           <View style={styles.mainCard}>
-            {step === 1 && <LocationSelector value={bookingData.location} onChange={(v, c) => updateBookingData({ location: v, latitude: c?.latitude || 5.6037, longitude: c?.longitude || -0.1870 })} />}
+            {step === 1 && (
+              <LocationSelector
+                value={bookingData.location}
+                onChange={(v, c) => updateBookingData({
+                  location: v,
+                  ...(c ? { latitude: c.latitude, longitude: c.longitude } : {})
+                })}
+              />
+            )}
             {step === 2 && <ServiceSelector value={bookingData.serviceType} onChange={(v) => updateBookingData('serviceType', v)} scheduledTime={bookingData.scheduledTime} onTimeChange={(v) => updateBookingData('scheduledTime', v)} />}
             {step === 3 && <WasteTypeSelector selectedSize={bookingData.bagSize} notes={bookingData.notes} onSizeChange={(v) => updateBookingData('bagSize', v)} onNotesChange={(v) => updateBookingData('notes', v)} />}
             {step === 4 && <PricingSummary bookingData={bookingData} />}
@@ -285,7 +297,11 @@ const BookingPage: React.FC = () => {
 };
 
 const canGoNext = (step: number, data: any) => {
-  if (step === 1) return !!data.location;
+  if (step === 1) {
+    return !!data.location
+      && Number.isFinite(data.latitude)
+      && Number.isFinite(data.longitude);
+  }
   if (step === 2) return !!data.serviceType;
   if (step === 3) return !!data.bagSize;
   return true;

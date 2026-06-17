@@ -4,6 +4,7 @@ import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import { RemixIcon } from '../../utils/icons';
 import { typography } from '../../utils/typography';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { hasGoogleMapsApiKey } from '../../utils/maps';
 
 interface MapMarker {
   id?: string;
@@ -155,7 +156,7 @@ export const NavigatrMap: React.FC<NavigatrMapProps> = ({
     onRegionChangeComplete?.({ latitude: nextRegion.latitude, longitude: nextRegion.longitude });
   };
 
-  const mapProvider = PROVIDER_GOOGLE;
+  const mapProvider = Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined;
 
   const flatStyle = StyleSheet.flatten(style);
   const hasHeightOrFlex = flatStyle && (flatStyle.height !== undefined || flatStyle.flex !== undefined);
@@ -221,7 +222,7 @@ export const NavigatrMap: React.FC<NavigatrMapProps> = ({
                   <RemixIcon 
                     name={
                       marker.type === 'rider' 
-                        ? 'ri-truck-fill' 
+                        ? 'ri-moped-fill' 
                         : (marker.type === 'user' ? 'ri-home-4-fill' : 'ri-delete-bin-6-fill')
                     } 
                     size={16} 
@@ -242,6 +243,13 @@ export const NavigatrMap: React.FC<NavigatrMapProps> = ({
           </>
         )}
       </MapView>
+
+      {Platform.OS === 'android' && !hasGoogleMapsApiKey && (
+        <View style={styles.mapWarning} pointerEvents="none">
+          <RemixIcon name="ri-error-warning-line" size={16} color="#92400e" />
+          <Text style={styles.mapWarningText}>Google Maps API key is missing. Map tiles and Google search may not load.</Text>
+        </View>
+      )}
 
       {/* Center Pin Logic moved inside NavigatrMap */}
       {showCenterPin && (
@@ -314,6 +322,28 @@ const styles = StyleSheet.create({
   container: { overflow: 'hidden', backgroundColor: '#F1F5F9' },
   containerDark: { backgroundColor: '#020617' },
   map: { width: '100%' },
+  mapWarning: {
+    position: 'absolute',
+    top: 14,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    maxWidth: '92%',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 251, 235, 0.96)',
+    borderWidth: 1,
+    borderColor: '#fcd34d',
+    zIndex: 20,
+  },
+  mapWarningText: {
+    flex: 1,
+    fontSize: 11,
+    fontFamily: typography.medium,
+    color: '#92400e',
+  },
   markerWrapper: { alignItems: 'center', justifyContent: 'center', width: 80, height: 80 },
   glowCircle: { position: 'absolute', width: 40, height: 40, borderRadius: 20 },
   glow_user: { backgroundColor: 'rgba(13, 148, 136, 0.4)' },
