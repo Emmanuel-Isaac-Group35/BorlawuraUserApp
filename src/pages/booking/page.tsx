@@ -16,20 +16,10 @@ import { resolveRealUserId } from '../../utils/user';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
+import { PRICE_TABLE } from '../../utils/pricing';
 
 const calculateEstimatedPrice = (serviceType: string, bagSize: string) => {
-  let base = 30;
-  let sizeAdd = 0;
-  if (bagSize === 'small') sizeAdd = 10;
-  else if (bagSize === 'medium') sizeAdd = 25;
-  else if (bagSize === 'large') sizeAdd = 45;
-  else if (bagSize === 'xl') sizeAdd = 150;
-
-  let serviceAdd = 0;
-  if (serviceType === 'instant') serviceAdd = 20;
-  else if (serviceType === 'bulk') serviceAdd = 50;
-
-  return base + sizeAdd + serviceAdd;
+  return PRICE_TABLE[bagSize] ?? 0;
 };
 
 

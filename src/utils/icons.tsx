@@ -175,6 +175,25 @@ const iconMap: { [key: string]: { lib: 'Ionicons' | 'MCI', name: any } } = {
   'ri-volume-up-fill':        { lib: 'Ionicons', name: 'volume-high' },
   'ri-search-eye-line':       { lib: 'Ionicons', name: 'search-outline' },
   'ri-calendar-event-line':   { lib: 'Ionicons', name: 'calendar-outline' },
+
+  // Missing User App icon mappings
+  'ri-shopping-bag-3-fill':   { lib: 'Ionicons', name: 'bag' },
+  'ri-handbag-fill':          { lib: 'Ionicons', name: 'basket' },
+  'ri-grid-fill':             { lib: 'Ionicons', name: 'grid' },
+  'ri-whatsapp-fill':         { lib: 'Ionicons', name: 'logo-whatsapp' },
+  'ri-mail-fill':             { lib: 'Ionicons', name: 'mail' },
+  'ri-shield-user-fill':      { lib: 'Ionicons', name: 'lock-closed' },
+  'ri-wallet-3-fill':         { lib: 'Ionicons', name: 'wallet' },
+  'ri-file-shield-fill':      { lib: 'Ionicons', name: 'document-text' },
+  'ri-credit-card-line':      { lib: 'Ionicons', name: 'card-outline' },
+  'ri-user-unfollow-line':    { lib: 'Ionicons', name: 'person-remove-outline' },
+  'ri-bill-fill':             { lib: 'Ionicons', name: 'receipt' },
+  'ri-broadcast-line':        { lib: 'Ionicons', name: 'radio-outline' },
+  'ri-sound-module-line':     { lib: 'Ionicons', name: 'options-outline' },
+  'ri-briefcase-line':        { lib: 'Ionicons', name: 'briefcase-outline' },
+  'ri-home-line':             { lib: 'Ionicons', name: 'home-outline' },
+  'ri-map-2-line':            { lib: 'Ionicons', name: 'map-outline' },
+  'ri-home-4-fill':           { lib: 'Ionicons', name: 'home' },
 };
 
 export const RemixIcon: React.FC<IconProps> = ({ name, size = 24, color = '#000', style }) => {

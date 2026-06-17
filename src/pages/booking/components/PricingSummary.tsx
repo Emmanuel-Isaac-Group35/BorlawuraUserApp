@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Image } from 'react-native';
 import { RemixIcon } from '../../../utils/icons';
 import { supabase } from '../../../lib/supabase';
 import { typography } from '../../../utils/typography';
+import { PRICE_TABLE } from '../../../utils/pricing';
 
 interface PricingSummaryProps {
   bookingData: {
@@ -36,19 +37,8 @@ export const PricingSummary: React.FC<PricingSummaryProps> = ({ bookingData }) =
   }, [bookingData.riderId]);
 
   // Price calculations matching the main page
-  const basePrice = 30;
-  
-  let volumePrice = 0;
-  if (bookingData.bagSize === 'small') volumePrice = 10;
-  else if (bookingData.bagSize === 'medium') volumePrice = 25;
-  else if (bookingData.bagSize === 'large') volumePrice = 45;
-  else if (bookingData.bagSize === 'xl') volumePrice = 150;
-
-  let priorityPrice = 0;
-  if (bookingData.serviceType === 'instant') priorityPrice = 20;
-  else if (bookingData.serviceType === 'bulk') priorityPrice = 50;
-
-  const totalPrice = basePrice + volumePrice + priorityPrice;
+  const volumePrice = PRICE_TABLE[bookingData.bagSize] ?? 0;
+  const totalPrice = volumePrice;
 
   const details = [
     { label: 'Location', value: bookingData.location, icon: 'ri-map-pin-2-fill' },
@@ -92,19 +82,9 @@ export const PricingSummary: React.FC<PricingSummaryProps> = ({ bookingData }) =
         {/* Pricing breakdown section */}
         <View style={styles.breakdownBlock}>
           <View style={styles.breakdownRow}>
-            <Text style={styles.breakdownLabel}>Base Pickup Fee</Text>
-            <Text style={styles.breakdownValue}>GHS {basePrice.toFixed(2)}</Text>
+            <Text style={styles.breakdownLabel}>Collection Fee ({bookingData.bagSize})</Text>
+            <Text style={styles.breakdownValue}>GHS {volumePrice.toFixed(2)}</Text>
           </View>
-          <View style={styles.breakdownRow}>
-            <Text style={styles.breakdownLabel}>Volume Surcharge ({bookingData.bagSize})</Text>
-            <Text style={styles.breakdownValue}>+ GHS {volumePrice.toFixed(2)}</Text>
-          </View>
-          {priorityPrice > 0 && (
-            <View style={styles.breakdownRow}>
-              <Text style={styles.breakdownLabel}>Service Speed Premium</Text>
-              <Text style={styles.breakdownValue}>+ GHS {priorityPrice.toFixed(2)}</Text>
-            </View>
-          )}
 
           {/* Dotted Line */}
           <View style={[styles.dashedLineContainer, { marginVertical: 12 }]}>

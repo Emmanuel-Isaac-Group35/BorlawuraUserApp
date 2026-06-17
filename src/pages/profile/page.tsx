@@ -330,18 +330,6 @@ const ProfilePage: React.FC = () => {
                 <Text style={styles.statValue}>{user.totalOrders}</Text>
                 <Text style={styles.statLabel}>Pickups</Text>
               </View>
-              <View style={styles.statDivider} />
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>{user.rewards}</Text>
-                <Text style={styles.statLabel}>Points</Text>
-              </View>
-              <View style={styles.statDivider} />
-              <View style={styles.statItem}>
-                <Text style={[styles.statValue, { color: '#34d399' }]} numberOfLines={1}>
-                  {user.totalOrders >= 10 ? 'Master 🌿' : user.totalOrders >= 5 ? 'Hero 🌱' : 'Seedling 🍃'}
-                </Text>
-                <Text style={styles.statLabel}>Eco Badge</Text>
-              </View>
            </View>
         </LinearGradient>
 

@@ -54,7 +54,7 @@ const NotificationsPage: React.FC = () => {
   const { user } = useAuth();
   const { notifications, markAllAsRead } = useNotifications();
 
-  const [activeTab, setActiveTab] = useState<'inbox' | 'settings'>('inbox');
+  const [activeTab, setActiveTab] = useState<'inbox'>('inbox');
   const [settings, setSettings] = useState<NotifSettings>(DEFAULT);
   const [isSaving, setIsSaving] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
@@ -192,21 +192,12 @@ const NotificationsPage: React.FC = () => {
           )}
         </View>
         
-        <View style={styles.tabContainer}>
-          <TouchableOpacity 
-            style={[styles.tab, activeTab === 'inbox' && styles.tabActive]} 
-            onPress={() => setActiveTab('inbox')}
-          >
-            <Text style={[styles.tabLabel, activeTab === 'inbox' && styles.tabLabelActive]}>Inbox</Text>
-            {notifications.some(n => !n.read) && <View style={styles.tabDot} />}
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.tab, activeTab === 'settings' && styles.tabActive]} 
-            onPress={() => setActiveTab('settings')}
-          >
-            <Text style={[styles.tabLabel, activeTab === 'settings' && styles.tabLabelActive]}>Settings</Text>
-          </TouchableOpacity>
-        </View>
+        {notifications.some(n => !n.read) && (
+          <View style={styles.unreadIndicatorRow}>
+            <View style={styles.tabDot} />
+            <Text style={styles.unreadIndicatorText}>You have unread notifications</Text>
+          </View>
+        )}
       </View>
 
       <ScrollView
@@ -214,114 +205,59 @@ const NotificationsPage: React.FC = () => {
         contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
         showsVerticalScrollIndicator={false}
       >
-        {activeTab === 'inbox' ? (
-          <View style={styles.inboxContent}>
-            {notifications.length > 0 ? (
-              notifications.map((notif) => (
-                <TouchableOpacity key={notif.id} style={[styles.notifCard, !notif.read && styles.notifUnread]}>
-                  <View style={[styles.notifIconBox, { backgroundColor: notif.color + '15' }]}>
-                    <RemixIcon name={notif.icon} size={20} color={notif.color} />
-                  </View>
-                  <View style={styles.notifInfo}>
-                    <View style={styles.notifHeader}>
-                      <Text style={styles.notifTitle}>{notif.title}</Text>
-                      <Text style={styles.notifTime}>{notif.time}</Text>
-                    </View>
-                    <Text style={styles.notifDesc} numberOfLines={2}>{notif.desc}</Text>
-                  </View>
-                  {!notif.read && <View style={styles.unreadPulse} />}
-                </TouchableOpacity>
-              ))
-            ) : (
-              <View style={styles.emptyState}>
-                <View style={styles.emptyIconCircle}>
-                  <RemixIcon name="ri-notification-off-line" size={32} color="#cbd5e1" />
+        <View style={styles.inboxContent}>
+          {notifications.length > 0 ? (
+            notifications.map((notif) => (
+              <TouchableOpacity key={notif.id} style={[styles.notifCard, !notif.read && styles.notifUnread]}>
+                <View style={[styles.notifIconBox, { backgroundColor: notif.color + '15' }]}>
+                  <RemixIcon name={notif.icon} size={20} color={notif.color} />
                 </View>
-                <Text style={styles.emptyTitle}>Mission Log Empty</Text>
-                <Text style={styles.emptySub}>Recent updates on your pickups will appear here.</Text>
-              </View>
-            )}
-
-            {assignedRider && (
-               <View style={styles.assignedSection}>
-                  <Text style={styles.sectionLabelText}>ACTIVE MISSION UNIT</Text>
-                  <View style={styles.riderCard}>
-                    <View style={styles.riderAvatarWrap}>
-                      {assignedRider.avatar_url
-                        ? <Image source={{ uri: assignedRider.avatar_url }} style={styles.riderAvatar} />
-                        : <View style={[styles.riderAvatar, styles.riderAvatarFallback]}>
-                            <RemixIcon name="ri-user-3-line" size={26} color="#94a3b8" />
-                          </View>}
-                      <View style={[styles.onlineDot, { backgroundColor: assignedRider.is_online ? '#10b981' : '#94a3b8' }]} />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.riderName}>{assignedRider.full_name}</Text>
-                      <Text style={styles.riderMeta}>{assignedRider.vehicle_number || 'TRC-001'} · ⭐ {parseFloat(assignedRider.rating || '5.0').toFixed(1)}</Text>
-                    </View>
-                    <TouchableOpacity
-                      style={styles.riderActionBtn}
-                      onPress={() => navigation.navigate('ChatRider', { riderId: assignedRider.id })}
-                    >
-                      <RemixIcon name="ri-chat-3-line" size={20} color="#10b981" />
-                    </TouchableOpacity>
+                <View style={styles.notifInfo}>
+                  <View style={styles.notifHeader}>
+                    <Text style={styles.notifTitle}>{notif.title}</Text>
+                    <Text style={styles.notifTime}>{notif.time}</Text>
                   </View>
-               </View>
-            )}
-          </View>
-        ) : (
-          <View style={styles.settingsContent}>
-            {groups.map((group) => (
-              <View key={group.title} style={styles.groupWrap}>
-                <View style={styles.sectionLabel}>
-                  <View style={[styles.sectionIconBox, { backgroundColor: group.bg }]}>
-                    <RemixIcon name={group.icon} size={14} color={group.color} />
-                  </View>
-                  <Text style={styles.sectionLabelText}>{group.title}</Text>
+                  <Text style={styles.notifDesc} numberOfLines={2}>{notif.desc}</Text>
                 </View>
-
-                <View style={styles.groupCard}>
-                  {group.items.map((item, idx) => {
-                    const isOn = settings[item.key as keyof NotifSettings];
-                    return (
-                      <View
-                        key={item.key}
-                        style={[styles.row, idx < group.items.length - 1 && styles.rowBorder]}
-                      >
-                        <View style={[styles.rowIcon, { backgroundColor: isOn ? group.bg : '#f8fafc' }]}>
-                          <RemixIcon name={item.icon} size={18} color={isOn ? group.color : '#94a3b8'} />
-                        </View>
-                        <View style={{ flex: 1 }}>
-                          <Text style={[styles.rowLabel, isOn && { color: '#0f172a' }]}>{item.label}</Text>
-                          <Text style={styles.rowDesc}>{item.desc}</Text>
-                        </View>
-                        <Switch
-                          value={!!isOn}
-                          onValueChange={() => handleToggle(item.key as keyof NotifSettings)}
-                          trackColor={{ false: '#e2e8f0', true: group.color }}
-                          thumbColor="#ffffff"
-                          ios_backgroundColor="#e2e8f0"
-                        />
-                      </View>
-                    );
-                  })}
-                </View>
-              </View>
-            ))}
-
-            {isDirty && (
-              <TouchableOpacity style={styles.saveBtn} onPress={handleSave} disabled={isSaving}>
-                {isSaving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.saveBtnText}>Save Notification Settings</Text>}
+                {!notif.read && <View style={styles.unreadPulse} />}
               </TouchableOpacity>
-            )}
-            
-            <View style={styles.infoBanner}>
-              <RemixIcon name="ri-information-line" size={16} color="#3b82f6" />
-              <Text style={styles.infoText}>
-                Some mission-critical alerts (like Rider Arrival) are bypass-enabled for service safety.
-              </Text>
+            ))
+          ) : (
+            <View style={styles.emptyState}>
+              <View style={styles.emptyIconCircle}>
+                <RemixIcon name="ri-notification-off-line" size={32} color="#cbd5e1" />
+              </View>
+              <Text style={styles.emptyTitle}>Mission Log Empty</Text>
+              <Text style={styles.emptySub}>Recent updates on your pickups will appear here.</Text>
             </View>
-          </View>
-        )}
+          )}
+
+          {assignedRider && (
+             <View style={styles.assignedSection}>
+                <Text style={styles.sectionLabelText}>ACTIVE MISSION UNIT</Text>
+                <View style={styles.riderCard}>
+                  <View style={styles.riderAvatarWrap}>
+                    {assignedRider.avatar_url
+                      ? <Image source={{ uri: assignedRider.avatar_url }} style={styles.riderAvatar} />
+                      : <View style={[styles.riderAvatar, styles.riderAvatarFallback]}>
+                          <RemixIcon name="ri-user-3-line" size={26} color="#94a3b8" />
+                        </View>}
+                    <View style={[styles.onlineDot, { backgroundColor: assignedRider.is_online ? '#10b981' : '#94a3b8' }]} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.riderName}>{assignedRider.full_name}</Text>
+                    <Text style={styles.riderMeta}>{assignedRider.vehicle_number || 'TRC-001'} · ⭐ {parseFloat(assignedRider.rating || '5.0').toFixed(1)}</Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.riderActionBtn}
+                    onPress={() => navigation.navigate('ChatRider', { riderId: assignedRider.id })}
+                  >
+                    <RemixIcon name="ri-chat-3-line" size={20} color="#10b981" />
+                  </TouchableOpacity>
+                </View>
+             </View>
+          )}
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -331,18 +267,15 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#ffffff' },
   scroll: { flex: 1 },
   
-  // Header & Tabs
+  // Header
   pageHeader: { paddingHorizontal: 24, marginBottom: 20 },
-  headerTitleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  headerTitleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   pageTitle: { fontSize: 26, fontFamily: typography.bold, color: '#0f172a' },
   markReadBtn: { backgroundColor: '#f0fdf4', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
   markReadText: { fontSize: 12, fontFamily: typography.bold, color: '#10b981' },
-  tabContainer: { flexDirection: 'row', backgroundColor: '#f1f5f9', borderRadius: 14, padding: 4 },
-  tab: { flex: 1, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 10, flexDirection: 'row', gap: 6 },
-  tabActive: { backgroundColor: '#fff', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
-  tabLabel: { fontSize: 14, fontFamily: typography.bold, color: '#94a3b8' },
-  tabLabelActive: { color: '#0f172a' },
   tabDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#ef4444' },
+  unreadIndicatorRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 },
+  unreadIndicatorText: { fontSize: 12, fontFamily: typography.medium, color: '#ef4444' },
 
   // Inbox
   inboxContent: { paddingHorizontal: 20 },

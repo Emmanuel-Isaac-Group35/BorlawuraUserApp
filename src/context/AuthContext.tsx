@@ -450,39 +450,117 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  // ── Helper: extract query/hash params from any URL ─────────────────────
+  const parseUrlParams = (url: string): Record<string, string> => {
+    const params: Record<string, string> = {};
+    const hashIdx = url.indexOf('#');
+    const queryIdx = url.indexOf('?');
+    let searchPart = '';
+    if (hashIdx !== -1) {
+      searchPart = url.substring(hashIdx + 1);
+    } else if (queryIdx !== -1) {
+      searchPart = url.substring(queryIdx + 1);
+    }
+    if (searchPart) {
+      searchPart.split('&').forEach(pair => {
+        const eqIdx = pair.indexOf('=');
+        if (eqIdx > 0) {
+          const k = decodeURIComponent(pair.substring(0, eqIdx));
+          const v = decodeURIComponent(pair.substring(eqIdx + 1).replace(/\+/g, ' '));
+          params[k] = v;
+        }
+      });
+    }
+    return params;
+  };
+
   const signInWithGoogle = async () => {
     const redirectUrl = Linking.createURL('auth-callback');
+    console.log('🔗 OAuth redirect URL:', redirectUrl);
+
     try {
-      if (Platform.OS !== 'web') {
-        await WebBrowser.warmUpAsync();
-      }
+      if (Platform.OS !== 'web') await WebBrowser.warmUpAsync();
 
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: { redirectTo: redirectUrl, skipBrowserRedirect: true },
       });
       if (error) throw error;
-      if (data?.url) {
-        const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl);
-        
-        // Fail-safe: If the browser closed successfully, force-check for the session
-        if (result.type === 'success') {
-          if (Platform.OS === 'ios') WebBrowser.dismissBrowser();
-          
-          // Small delay to allow deep link processing, then force sync
-          setTimeout(async () => {
-            const { data: sessionData } = await supabase.auth.getSession();
-            if (sessionData?.session?.user && !isLoggedIn) {
-              handleSupabaseSession(sessionData.session.user);
-            }
-          }, 500);
-        }
+
+      if (!data?.url) {
+        throw new Error('Could not generate Google sign-in URL. Please try again.');
       }
+
+      const result = await WebBrowser.openAuthSessionAsync(data.url, redirectUrl);
+
+      if (result.type === 'success' && result.url) {
+        if (Platform.OS === 'ios') WebBrowser.dismissBrowser();
+
+        // ── Directly process the callback URL ─────────────────────────
+        const params = parseUrlParams(result.url);
+        setIsLoading(true);
+
+        try {
+          if (params.access_token && params.refresh_token) {
+            // Implicit flow — tokens are in the URL fragment
+            const { data: sd, error: se } = await supabase.auth.setSession({
+              access_token: params.access_token,
+              refresh_token: params.refresh_token,
+            });
+            if (se) throw se;
+            if (sd?.user) await handleSupabaseSession(sd.user);
+
+          } else if (params.code) {
+            // PKCE flow — exchange code for session
+            const { data: cd, error: ce } = await supabase.auth.exchangeCodeForSession(params.code);
+            if (ce) throw ce;
+            if (cd?.user) await handleSupabaseSession(cd.user);
+
+          } else {
+            // Fallback: check if a session already exists (sometimes tokens
+            // arrive via the deep-link listener before we get here)
+            const { data: sessionData } = await supabase.auth.getSession();
+            if (sessionData?.session?.user) {
+              await handleSupabaseSession(sessionData.session.user);
+            } else {
+              throw new Error('Google sign-in completed but no session was returned. Please try again.');
+            }
+          }
+        } catch (sessionErr: any) {
+          console.error('OAuth session error:', sessionErr);
+          // Last-resort fallback after a short delay
+          setTimeout(async () => {
+            const { data: fallback } = await supabase.auth.getSession();
+            if (fallback?.session?.user && !isLoggedIn) {
+              handleSupabaseSession(fallback.session.user);
+            }
+          }, 1000);
+          throw sessionErr;
+        } finally {
+          setIsLoading(false);
+        }
+
+      } else if (result.type === 'cancel' || (result as any).type === 'dismiss') {
+        // User closed the browser — silently do nothing
+        console.log('Google sign-in cancelled by user');
+      } else {
+        // Unexpected state — try a session poll as last resort
+        setTimeout(async () => {
+          const { data: sessionData } = await supabase.auth.getSession();
+          if (sessionData?.session?.user && !isLoggedIn) {
+            handleSupabaseSession(sessionData.session.user);
+          }
+        }, 800);
+      }
+
     } catch (err: any) {
-      Alert.alert('Authentication Error', err.message);
+      Alert.alert(
+        'Google Sign-In Failed',
+        err.message || 'Unable to connect with Google. Please check your internet connection and try again.'
+      );
     } finally {
       if (Platform.OS !== 'web') {
-        await WebBrowser.coolDownAsync();
+        try { await WebBrowser.coolDownAsync(); } catch { /* ignore */ }
       }
     }
   };

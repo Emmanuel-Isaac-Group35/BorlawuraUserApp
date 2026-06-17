@@ -69,7 +69,7 @@ function AppNavigator() {
   if (isInitialLoading) return <SplashView />;
 
   return (
-    <NavigationContainer ref={navigationRef}>
+    <NavigationContainer ref={navigationRef} linking={linking}>
       <Stack.Navigator
         initialRouteName={isLoggedIn ? (isSuspended ? "Auth" : "Home") : "Auth"}
         screenOptions={{

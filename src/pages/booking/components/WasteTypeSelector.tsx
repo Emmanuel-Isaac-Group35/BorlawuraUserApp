@@ -19,8 +19,7 @@ export const WasteTypeSelector: React.FC<WasteTypeSelectorProps> = ({
   const bagSizes = [
     { id: 'small', title: 'Small', label: '1 - 2 Bags', icon: 'ri-shopping-bag-3-fill' },
     { id: 'medium', title: 'Medium', label: '3 - 5 Bags', icon: 'ri-handbag-fill' },
-    { id: 'large', title: 'Large', label: '6+ / Sacks', icon: 'ri-archive-fill' },
-    { id: 'xl', title: 'Extra Large', label: 'Truck Load', icon: 'ri-truck-fill' }
+    { id: 'large', title: 'Large', label: '6+ / Sacks', icon: 'ri-archive-fill' }
   ];
 
   return (

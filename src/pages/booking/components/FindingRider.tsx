@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, Animated, TouchableOpacity,
-  Image, ActivityIndicator, Easing, ScrollView, useWindowDimensions
+  Image, ActivityIndicator, Easing, ScrollView, useWindowDimensions,
+  Modal, TextInput, KeyboardAvoidingView, Platform, Pressable
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NavigatrMap } from '../../../components/feature/NavigatrMap';
@@ -136,6 +137,34 @@ export const FindingRider: React.FC<FindingRiderProps> = ({
   );
   const [localRider, setLocalRider] = useState<Rider | null>(null);
   const [isCancelling, setIsCancelling] = useState(false);
+
+  // ── Cancel reason modal ───────────────────────────────────────────────────
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [selectedReason, setSelectedReason] = useState<string | null>(null);
+  const [customReason, setCustomReason] = useState('');
+  const cancelSheetAnim = useRef(new Animated.Value(0)).current;
+
+  const CANCEL_REASONS = [
+    { id: 'wait_too_long',   icon: 'ri-time-line',            label: 'Wait is too long' },
+    { id: 'wrong_address',   icon: 'ri-map-pin-line',         label: 'I entered the wrong address' },
+    { id: 'change_mind',     icon: 'ri-mind-map',             label: 'I changed my mind' },
+    { id: 'order_mistake',   icon: 'ri-edit-line',            label: 'Made an error in my order' },
+    { id: 'found_another',   icon: 'ri-car-line',             label: 'Found another service' },
+    { id: 'other',           icon: 'ri-question-line',        label: 'Other reason' },
+  ];
+
+  const openCancelModal = () => {
+    setSelectedReason(null);
+    setCustomReason('');
+    setShowCancelModal(true);
+    Animated.spring(cancelSheetAnim, { toValue: 1, tension: 65, friction: 13, useNativeDriver: true }).start();
+  };
+
+  const closeCancelModal = () => {
+    Animated.timing(cancelSheetAnim, { toValue: 0, duration: 220, easing: Easing.in(Easing.ease), useNativeDriver: true }).start(() => {
+      setShowCancelModal(false);
+    });
+  };
   // Guard: prevent onRiderFound from being called more than once
   const riderFoundRef = useRef(false);
 
@@ -272,10 +301,23 @@ export const FindingRider: React.FC<FindingRiderProps> = ({
   // ─────────────────────────────────────────────────────────────────────────
   const sheetY = sheetAnim.interpolate({ inputRange: [0, 1], outputRange: [300, 0] });
 
-  const handleCancel = async () => {
+  const handleCancel = () => {
+    openCancelModal();
+  };
+
+  const confirmCancel = async () => {
+    const reason = selectedReason === 'other'
+      ? (customReason.trim() || 'Other')
+      : (CANCEL_REASONS.find(r => r.id === selectedReason)?.label || selectedReason || 'No reason given');
+
+    closeCancelModal();
     setIsCancelling(true);
     if (orderId) {
-      await supabase.from('orders').update({ status: 'cancelled', sub_status: 'user_cancelled' }).eq('id', orderId);
+      await supabase.from('orders').update({
+        status: 'cancelled',
+        sub_status: 'user_cancelled',
+        cancel_reason: reason,
+      }).eq('id', orderId);
     }
     onCancel();
   };
@@ -445,6 +487,103 @@ export const FindingRider: React.FC<FindingRiderProps> = ({
                   </>
               }
             </TouchableOpacity>
+
+            {/* ── Cancel Reason Modal ── */}
+            <Modal transparent animationType="none" visible={showCancelModal} onRequestClose={closeCancelModal}>
+              <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+                <Pressable style={styles.modalBackdrop} onPress={closeCancelModal}>
+                  <Animated.View
+                    style={[
+                      styles.cancelSheet,
+                      {
+                        transform: [{
+                          translateY: cancelSheetAnim.interpolate({ inputRange: [0, 1], outputRange: [500, 0] }),
+                        }],
+                        opacity: cancelSheetAnim,
+                      },
+                    ]}
+                  >
+                    <Pressable onPress={() => {}} style={{ width: '100%' }}>
+                      {/* Handle */}
+                      <View style={styles.sheetHandle} />
+
+                      {/* Header */}
+                      <View style={styles.cancelSheetHeader}>
+                        <View style={styles.cancelIconCircle}>
+                          <RemixIcon name="ri-close-circle-line" size={22} color="#ef4444" />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.cancelSheetTitle}>Why are you cancelling?</Text>
+                          <Text style={styles.cancelSheetSub}>Your feedback helps us improve the service.</Text>
+                        </View>
+                      </View>
+
+                      {/* Reasons */}
+                      <View style={styles.reasonsList}>
+                        {CANCEL_REASONS.map((r) => (
+                          <TouchableOpacity
+                            key={r.id}
+                            activeOpacity={0.75}
+                            style={[
+                              styles.reasonItem,
+                              selectedReason === r.id && styles.reasonItemSelected,
+                            ]}
+                            onPress={() => setSelectedReason(r.id)}
+                          >
+                            <View style={[
+                              styles.reasonIconBox,
+                              selectedReason === r.id && styles.reasonIconBoxSelected,
+                            ]}>
+                              <RemixIcon name={r.icon} size={16} color={selectedReason === r.id ? '#ef4444' : '#94a3b8'} />
+                            </View>
+                            <Text style={[
+                              styles.reasonLabel,
+                              selectedReason === r.id && styles.reasonLabelSelected,
+                            ]}>{r.label}</Text>
+                            {selectedReason === r.id && (
+                              <RemixIcon name="ri-checkbox-circle-fill" size={18} color="#ef4444" />
+                            )}
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+
+                      {/* Custom reason input */}
+                      {selectedReason === 'other' && (
+                        <View style={styles.customInputWrap}>
+                          <TextInput
+                            style={styles.customInput}
+                            placeholder="Tell us more (optional)…"
+                            placeholderTextColor="#94a3b8"
+                            value={customReason}
+                            onChangeText={setCustomReason}
+                            multiline
+                            maxLength={200}
+                          />
+                        </View>
+                      )}
+
+                      {/* Action buttons */}
+                      <View style={styles.cancelSheetActions}>
+                        <TouchableOpacity style={styles.keepBtn} onPress={closeCancelModal} activeOpacity={0.8}>
+                          <Text style={styles.keepBtnText}>Keep Searching</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.confirmCancelBtn, !selectedReason && styles.confirmCancelBtnDisabled]}
+                          onPress={confirmCancel}
+                          disabled={!selectedReason}
+                          activeOpacity={0.85}
+                        >
+                          <RemixIcon name="ri-close-line" size={16} color={selectedReason ? '#fff' : '#fca5a5'} />
+                          <Text style={[styles.confirmCancelBtnText, !selectedReason && styles.confirmCancelBtnTextDisabled]}>
+                            Cancel Ride
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    </Pressable>
+                  </Animated.View>
+                </Pressable>
+              </KeyboardAvoidingView>
+            </Modal>
           </View>
         )}
         </ScrollView>
@@ -561,6 +700,154 @@ const styles = StyleSheet.create({
     minWidth: 160, justifyContent: 'center', alignSelf: 'center',
   },
   cancelText: { fontFamily: typography.bold, color: '#ef4444' },
+
+  // ── Cancel reason modal ─────────────────────────────────────────────────
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(15,23,42,0.55)',
+    justifyContent: 'flex-end',
+  },
+  cancelSheet: {
+    backgroundColor: '#ffffff',
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    paddingHorizontal: 20,
+    paddingBottom: 36,
+    paddingTop: 8,
+    shadowColor: '#0f172a',
+    shadowOpacity: 0.18,
+    shadowRadius: 24,
+    elevation: 20,
+    alignItems: 'center',
+  },
+  sheetHandle: {
+    width: 40, height: 5, borderRadius: 3,
+    backgroundColor: '#e2e8f0',
+    alignSelf: 'center',
+    marginBottom: 18,
+  },
+  cancelSheetHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    width: '100%',
+    marginBottom: 20,
+    backgroundColor: '#fff5f5',
+    borderRadius: 18,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.12)',
+  },
+  cancelIconCircle: {
+    width: 44, height: 44, borderRadius: 14,
+    backgroundColor: 'rgba(239,68,68,0.1)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  cancelSheetTitle: {
+    fontSize: 16,
+    fontFamily: typography.bold,
+    color: '#0f172a',
+    marginBottom: 2,
+  },
+  cancelSheetSub: {
+    fontSize: 12,
+    fontFamily: typography.medium,
+    color: '#64748b',
+  },
+  reasonsList: {
+    width: '100%',
+    gap: 8,
+    marginBottom: 16,
+  },
+  reasonItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 13,
+    paddingHorizontal: 14,
+    borderRadius: 16,
+    backgroundColor: '#f8fafc',
+    borderWidth: 1.5,
+    borderColor: '#f1f5f9',
+  },
+  reasonItemSelected: {
+    backgroundColor: '#fff5f5',
+    borderColor: 'rgba(239,68,68,0.35)',
+  },
+  reasonIconBox: {
+    width: 34, height: 34, borderRadius: 10,
+    backgroundColor: '#f1f5f9',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  reasonIconBoxSelected: {
+    backgroundColor: 'rgba(239,68,68,0.1)',
+  },
+  reasonLabel: {
+    flex: 1,
+    fontSize: 14,
+    fontFamily: typography.semiBold,
+    color: '#475569',
+  },
+  reasonLabelSelected: {
+    color: '#ef4444',
+  },
+  customInputWrap: {
+    width: '100%',
+    backgroundColor: '#f8fafc',
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: '#e2e8f0',
+    padding: 12,
+    marginBottom: 16,
+  },
+  customInput: {
+    fontSize: 14,
+    fontFamily: typography.medium,
+    color: '#0f172a',
+    minHeight: 60,
+    textAlignVertical: 'top',
+  },
+  cancelSheetActions: {
+    flexDirection: 'row',
+    gap: 10,
+    width: '100%',
+  },
+  keepBtn: {
+    flex: 1,
+    height: 52,
+    borderRadius: 16,
+    backgroundColor: '#f1f5f9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  keepBtnText: {
+    fontSize: 14,
+    fontFamily: typography.bold,
+    color: '#475569',
+  },
+  confirmCancelBtn: {
+    flex: 1,
+    height: 52,
+    borderRadius: 16,
+    backgroundColor: '#ef4444',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  confirmCancelBtnDisabled: {
+    backgroundColor: 'rgba(239,68,68,0.25)',
+  },
+  confirmCancelBtnText: {
+    fontSize: 14,
+    fontFamily: typography.bold,
+    color: '#fff',
+  },
+  confirmCancelBtnTextDisabled: {
+    color: '#fca5a5',
+  },
 
   // ── Found ─────────────────────────────────────────────────────────────────
   foundBox: { alignItems: 'center', paddingTop: 4 },
