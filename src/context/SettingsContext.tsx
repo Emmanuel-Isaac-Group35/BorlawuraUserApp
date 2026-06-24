@@ -72,6 +72,11 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             action_type: b.action_type || 'route',
             action_value: b.action_value || '/booking'
           }))
+        },
+        pricing: {
+          small: cs?.pricing?.volume_small ?? ld?.pricing?.volume_small ?? 7,
+          medium: cs?.pricing?.volume_medium ?? ld?.pricing?.volume_medium ?? 13,
+          large: cs?.pricing?.volume_large ?? ld?.pricing?.volume_large ?? 25,
         }
       };
 

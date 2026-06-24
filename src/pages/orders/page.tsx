@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  RefreshControl, Dimensions
+  RefreshControl, Dimensions, Modal, Image, Alert
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Navigation } from '../../components/feature/Navigation';
@@ -13,6 +13,8 @@ import { OrderService } from '../../services/OrderService';
 import { LinearGradient } from 'expo-linear-gradient';
 import { resolveRealUserId } from '../../utils/user';
 import { supabase } from '../../lib/supabase';
+import ViewShot from 'react-native-view-shot';
+import * as Sharing from 'expo-sharing';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -48,6 +50,30 @@ const OrdersPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'active' | 'history'>('active');
   const [isLoading, setIsLoading] = useState(false);
   const [orders, setOrders] = useState<any[]>([]);
+  
+  const [receiptVisible, setReceiptVisible] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState<any>(null);
+  
+  const viewShotRef = useRef<ViewShot>(null);
+
+  const handleShareReceipt = async () => {
+    if (viewShotRef.current && viewShotRef.current.capture) {
+      try {
+        const uri = await viewShotRef.current.capture();
+        const isAvailable = await Sharing.isAvailableAsync();
+        if (isAvailable) {
+          await Sharing.shareAsync(uri, {
+            dialogTitle: 'Share Receipt',
+            mimeType: 'image/png',
+          });
+        } else {
+          Alert.alert('Sharing not available', 'Unable to share receipt on this device.');
+        }
+      } catch (error) {
+        console.error('Failed to capture receipt:', error);
+      }
+    }
+  };
 
   // ── Real-time subscription ────────────────────────────────────────────────
   useEffect(() => {
@@ -189,11 +215,142 @@ const OrdersPage: React.FC = () => {
         showsVerticalScrollIndicator={false}
       >
         {shown.length > 0 ? (
-          shown.map(order => <OrderCard key={order.realId} order={order} />)
+          shown.map(order => (
+            <OrderCard 
+              key={order.realId} 
+              order={order} 
+              onPress={() => {
+                const isCompleted = ['completed', 'done'].includes(order.status?.toLowerCase());
+                if (isCompleted) {
+                  setSelectedOrder(order);
+                  setReceiptVisible(true);
+                } else {
+                  navigateTo('/track-order', { id: order.realId });
+                }
+              }}
+            />
+          ))
         ) : (
           <EmptyState tab={activeTab} />
         )}
       </ScrollView>
+
+      {/* ── Receipt Modal ── */}
+      <Modal
+        visible={receiptVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setReceiptVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.receiptContainer, { paddingBottom: Math.max(insets.bottom, 24) }]}>
+            <View style={styles.receiptHeader}>
+              <Text style={styles.receiptTitle}>Order Receipt</Text>
+              <TouchableOpacity onPress={() => setReceiptVisible(false)} style={styles.closeBtn}>
+                <RemixIcon name="ri-close-line" size={24} color="#64748b" />
+              </TouchableOpacity>
+            </View>
+            
+            {selectedOrder && (
+              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.receiptContent}>
+                <ViewShot ref={viewShotRef} options={{ format: 'png', quality: 1.0 }} style={styles.receiptShot}>
+                  <View style={styles.receiptTopRow}>
+                    <View style={styles.receiptLogoCircle}>
+                      <Image source={require('../../../assets/icon.png')} style={styles.receiptLogoSmall} />
+                    </View>
+                    <View style={styles.receiptTitleWrap}>
+                      <Text style={styles.receiptTitleBrand}>BORLAWURA</Text>
+                      <Text style={styles.receiptTitleSub}>OFFICIAL RECEIPT</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.receiptSlogan}>CLEANLINESS IS NEXT TO GODLINESS</Text>
+
+                  <View style={styles.receiptRow}>
+                    <Text style={styles.receiptLabel}>Receipt No</Text>
+                    <Text style={styles.receiptValue}>BRW-{selectedOrder.id}</Text>
+                  </View>
+                  <View style={styles.receiptRow}>
+                    <Text style={styles.receiptLabel}>Customer</Text>
+                    <Text style={styles.receiptValue}>{user?.full_name || 'Customer'}</Text>
+                  </View>
+                  <View style={styles.receiptRow}>
+                    <Text style={styles.receiptLabel}>Date</Text>
+                    <Text style={styles.receiptValue}>{selectedOrder.date}</Text>
+                  </View>
+                  <View style={styles.receiptRow}>
+                    <Text style={styles.receiptLabel}>Time</Text>
+                    <Text style={styles.receiptValue}>{selectedOrder.time}</Text>
+                  </View>
+
+                  <View style={styles.receiptDividerLight} />
+
+                  <Text style={styles.receiptSectionTitle}>SERVICE DETAILS</Text>
+                  <View style={styles.receiptRow}>
+                    <Text style={styles.receiptLabel}>Service Type</Text>
+                    <Text style={styles.receiptValue}>{selectedOrder.service}</Text>
+                  </View>
+                  <View style={styles.receiptRow}>
+                    <Text style={styles.receiptLabel}>Waste Category</Text>
+                    <Text style={styles.receiptValue}>{selectedOrder.wasteType}</Text>
+                  </View>
+                  <View style={styles.receiptRow}>
+                    <Text style={styles.receiptLabel}>Volume Size</Text>
+                    <Text style={styles.receiptValue}>{selectedOrder.bagSize}</Text>
+                  </View>
+                  <View style={styles.receiptRow}>
+                    <Text style={styles.receiptLabel}>Assigned Rider</Text>
+                    <Text style={styles.receiptValue}>{selectedOrder.rider || 'N/A'}</Text>
+                  </View>
+
+                  <View style={styles.receiptDividerLight} />
+
+                  <Text style={styles.receiptSectionTitle}>PAYMENT INFO</Text>
+                  <View style={styles.receiptRow}>
+                    <Text style={styles.receiptLabel}>Method</Text>
+                    <Text style={styles.receiptValue}>Cash on Pickup</Text>
+                  </View>
+                  <View style={styles.receiptRow}>
+                    <Text style={styles.receiptLabel}>Status</Text>
+                    <Text style={[styles.receiptValue, { color: '#f59e0b' }]}>UNPAID</Text>
+                  </View>
+
+                  <View style={styles.receiptDividerThick} />
+
+                  <View style={styles.receiptTotalRow}>
+                    <Text style={styles.receiptTotalLabel}>TOTAL PAID</Text>
+                    <Text style={styles.receiptTotalValue}>GHS 0.00</Text>
+                  </View>
+
+                  <View style={{ alignItems: 'center', marginVertical: 16 }}>
+                    <View style={styles.pendingBadge}>
+                      <RemixIcon name="ri-hourglass-fill" size={14} color="#b45309" />
+                      <Text style={styles.pendingBadgeText}>PAYMENT PENDING</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.barcodeWrap}>
+                    <RemixIcon name="ri-barcode-line" size={70} color="#1e293b" />
+                    <Text style={styles.barcodeText}>*BRW-{selectedOrder.id}*</Text>
+                  </View>
+
+                  <View style={styles.receiptDividerLight} />
+
+                  <View style={styles.receiptFooter}>
+                    <Text style={styles.receiptThanks}>Thank you for choosing BorlaWura!</Text>
+                    <Text style={styles.receiptThanks}>Together, we keep Ghana clean and healthy.</Text>
+                  </View>
+                </ViewShot>
+
+                {/* Share Button */}
+                <TouchableOpacity style={styles.shareBtn} onPress={handleShareReceipt}>
+                  <RemixIcon name="ri-share-forward-line" size={18} color="#ffffff" />
+                  <Text style={styles.shareBtnText}>Share / Save Receipt</Text>
+                </TouchableOpacity>
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -202,7 +359,7 @@ const OrdersPage: React.FC = () => {
 // Order Card
 // ─────────────────────────────────────────────────────────────────────────────
 
-const OrderCard: React.FC<{ order: any }> = ({ order }) => {
+const OrderCard: React.FC<{ order: any; onPress: () => void }> = ({ order, onPress }) => {
   const cfg = getStatusConfig(order.status);
   const isHistory = ['completed', 'done', 'cancelled'].includes(order.status?.toLowerCase());
   const isCompleted = ['completed', 'done'].includes(order.status?.toLowerCase());
@@ -211,7 +368,7 @@ const OrderCard: React.FC<{ order: any }> = ({ order }) => {
   return (
     <TouchableOpacity
       style={[styles.card, isHistory && styles.cardHistory]}
-      onPress={() => navigateTo('/track-order', { id: order.realId })}
+      onPress={onPress}
       activeOpacity={0.88}
     >
       {/* Top row: icon + service + status badge */}
@@ -590,6 +747,191 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: typography.bold,
     letterSpacing: 0.5,
+  },
+
+  // Receipt Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+    justifyContent: 'flex-end',
+  },
+  receiptContainer: {
+    backgroundColor: '#ffffff',
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    minHeight: '65%',
+    maxHeight: '90%',
+  },
+  receiptHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: PAD,
+    paddingVertical: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+  },
+  receiptTitle: {
+    fontSize: 18,
+    fontFamily: typography.bold,
+    color: '#0f172a',
+  },
+  closeBtn: {
+    padding: 4,
+  },
+  receiptShot: {
+    backgroundColor: '#ffffff',
+    padding: 20,
+  },
+  receiptTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  receiptLogoCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#10b981',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  receiptLogoSmall: {
+    width: 28,
+    height: 28,
+    resizeMode: 'contain',
+    tintColor: '#ffffff',
+  },
+  receiptTitleWrap: {
+    justifyContent: 'center',
+  },
+  receiptTitleBrand: {
+    fontSize: 20,
+    fontFamily: typography.bold,
+    color: '#0f172a',
+    letterSpacing: 0.5,
+  },
+  receiptTitleSub: {
+    fontSize: 10,
+    fontFamily: typography.bold,
+    color: '#10b981',
+    letterSpacing: 1.5,
+    marginTop: 2,
+  },
+  receiptSlogan: {
+    fontSize: 10,
+    fontFamily: typography.bold,
+    color: '#94a3b8',
+    letterSpacing: 1.5,
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  receiptSectionTitle: {
+    fontSize: 11,
+    fontFamily: typography.bold,
+    color: '#94a3b8',
+    letterSpacing: 2,
+    marginBottom: 16,
+  },
+  receiptDividerLight: {
+    height: 1,
+    backgroundColor: '#e2e8f0',
+    borderStyle: 'dashed',
+    marginVertical: 20,
+    width: '100%',
+  },
+  receiptDividerThick: {
+    height: 3,
+    backgroundColor: '#cbd5e1',
+    borderStyle: 'dashed',
+    marginVertical: 20,
+    width: '100%',
+  },
+  receiptRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  receiptLabel: {
+    fontSize: 14,
+    fontFamily: typography.medium,
+    color: '#64748b',
+  },
+  receiptValue: {
+    fontSize: 14,
+    fontFamily: typography.bold,
+    color: '#0f172a',
+  },
+  receiptTotalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  receiptTotalLabel: {
+    fontSize: 16,
+    fontFamily: typography.bold,
+    color: '#0f172a',
+  },
+  receiptTotalValue: {
+    fontSize: 22,
+    fontFamily: typography.bold,
+    color: '#10b981',
+  },
+  pendingBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: '#fef3c7',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#fde68a',
+  },
+  pendingBadgeText: {
+    fontSize: 12,
+    fontFamily: typography.bold,
+    color: '#b45309',
+  },
+  barcodeWrap: {
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  barcodeText: {
+    fontSize: 11,
+    fontFamily: typography.bold,
+    color: '#64748b',
+    letterSpacing: 4,
+    marginTop: 4,
+  },
+  receiptFooter: {
+    alignItems: 'center',
+  },
+  receiptThanks: {
+    fontSize: 12,
+    fontFamily: typography.medium,
+    color: '#94a3b8',
+    fontStyle: 'italic',
+    marginBottom: 4,
+  },
+  shareBtn: {
+    backgroundColor: '#10b981',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: 14,
+    marginTop: 8,
+    gap: 8,
+  },
+  shareBtnText: {
+    color: '#ffffff',
+    fontSize: 15,
+    fontFamily: typography.bold,
   },
 });
 

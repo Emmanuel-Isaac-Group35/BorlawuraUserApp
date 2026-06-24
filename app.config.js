@@ -1,4 +1,4 @@
-const googleMapsApiKey = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY?.trim();
+const googleMapsApiKey = 'dummy_key_to_prevent_crash';
 
 /** @type {import('expo/config').ExpoConfig} */
 export default {

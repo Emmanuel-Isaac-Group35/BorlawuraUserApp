@@ -1,10 +1,9 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { StyleSheet, View, ViewStyle, Platform, Text, TouchableOpacity, ActivityIndicator, Animated, Easing } from 'react-native';
-import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
+import MapView, { Marker, Polyline, UrlTile } from 'react-native-maps';
 import { RemixIcon } from '../../utils/icons';
 import { typography } from '../../utils/typography';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { hasGoogleMapsApiKey } from '../../utils/maps';
 
 interface MapMarker {
   id?: string;
@@ -156,8 +155,6 @@ export const NavigatrMap: React.FC<NavigatrMapProps> = ({
     onRegionChangeComplete?.({ latitude: nextRegion.latitude, longitude: nextRegion.longitude });
   };
 
-  const mapProvider = Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined;
-
   const flatStyle = StyleSheet.flatten(style);
   const hasHeightOrFlex = flatStyle && (flatStyle.height !== undefined || flatStyle.flex !== undefined);
   const resolvedHeight = height ?? (containerWidth > 0 ? containerWidth / aspectRatio : 200);
@@ -196,9 +193,10 @@ export const NavigatrMap: React.FC<NavigatrMapProps> = ({
       <MapView
         ref={mapRef}
         style={[styles.map, StyleSheet.absoluteFillObject]}
-        provider={mapProvider}
+        mapType="none"
         initialRegion={region}
-        showsUserLocation={false}
+        showsUserLocation={true}
+        showsMyLocationButton={true}
         showsPointsOfInterest={false}
         showsCompass={false}
         showsBuildings={true}
@@ -210,6 +208,11 @@ export const NavigatrMap: React.FC<NavigatrMapProps> = ({
         onRegionChangeComplete={handleRegionChangeComplete}
         customMapStyle={isDark ? darkMapConfig : []}
       >
+        <UrlTile 
+          urlTemplate="https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" 
+          maximumZ={19} 
+          flipY={false}
+        />
 
         {markers.map((marker, index) => (
           <Marker key={marker.id || `m-${index}`} coordinate={{ latitude: marker.lat, longitude: marker.lng }} anchor={{ x: 0.5, y: 0.5 }} flat={marker.type === 'rider'} rotation={marker.heading}>
@@ -243,13 +246,6 @@ export const NavigatrMap: React.FC<NavigatrMapProps> = ({
           </>
         )}
       </MapView>
-
-      {Platform.OS === 'android' && !hasGoogleMapsApiKey && (
-        <View style={styles.mapWarning} pointerEvents="none">
-          <RemixIcon name="ri-error-warning-line" size={16} color="#92400e" />
-          <Text style={styles.mapWarningText}>Google Maps API key is missing. Map tiles and Google search may not load.</Text>
-        </View>
-      )}
 
       {/* Center Pin Logic moved inside NavigatrMap */}
       {showCenterPin && (

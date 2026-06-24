@@ -19,7 +19,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.borlawura.user",
       "config": {
-        "googleMapsApiKey": "YOUR_GOOGLE_MAPS_API_KEY_HERE"
+        "googleMapsApiKey": "dummy_key_to_prevent_crash"
       }
     },
     "android": {
@@ -30,7 +30,7 @@
       "package": "com.borlawura.user",
       "config": {
         "googleMaps": {
-          "apiKey": "YOUR_GOOGLE_MAPS_API_KEY_HERE"
+          "apiKey": "dummy_key_to_prevent_crash"
         }
       }
     },

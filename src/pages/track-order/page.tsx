@@ -11,17 +11,18 @@ import * as Location from 'expo-location';
 import { NavigatrMap } from '../../components/feature/NavigatrMap';
 import { typography } from '../../utils/typography';
 import { sendLocalNotification } from '../../utils/notifications';
-import { fetchRoute } from '../../utils/maps';
 import { useAlert } from '../../context/AlertContext';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useAuth } from '../../context/AuthContext';
 
 const TrackOrderPage: React.FC = () => {
+  const { user } = useAuth();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const route = useRoute();
   const { width: W, height: H } = useWindowDimensions();
   const isSmall = H < 700;
-  const mapHeight = H < 700 ? 220 : (H < 850 ? 280 : 350);
+  const mapHeight = H < 700 ? 320 : (H < 850 ? 400 : 480);
   const { id: orderId } = (route.params as { id?: string }) || {};
   const { showAlert } = useAlert();
   const [order, setOrder] = useState<any>(null);
@@ -30,7 +31,6 @@ const TrackOrderPage: React.FC = () => {
   const [isLiveTracking, setIsLiveTracking] = useState(true);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [routeCoordinates, setRouteCoordinates] = useState<{ lat: number; lng: number }[]>([]);
   const watchSubscription = useRef<Location.LocationSubscription | null>(null);
 
   const getOrderRiderCoords = (row: any) => {
@@ -72,8 +72,6 @@ const TrackOrderPage: React.FC = () => {
         const { data: orderData, error: orderError } = await supabase.from('orders').select('*').eq('id', orderId).single();
         if (orderError) throw orderError;
         let riderObj = null;
-        let estimatedTime = 'Calculating...';
-        let distanceText = '-- km';
 
         if (orderData.rider_id) {
           const { data: riderData } = await supabase.from('riders').select('*').eq('id', orderData.rider_id).single();
@@ -99,18 +97,6 @@ const TrackOrderPage: React.FC = () => {
               lng: riderObj.lng,
               heading: Number(orderData.rider_heading ?? riderData.heading ?? 0) || 0
             });
-
-            if (Number.isFinite(pickupLat) && Number.isFinite(pickupLng)) {
-              try {
-                const route = await fetchRoute(riderObj.lat, riderObj.lng, pickupLat, pickupLng);
-                if (route) {
-                  estimatedTime = route.durationText;
-                  distanceText = route.distanceText;
-                  setRouteCoordinates(route.polyline);
-                  if (orderData.status === 'completed') estimatedTime = 'Arrived';
-                }
-              } catch (e) { /* telemetry optional */ }
-            }
           }
         }
 
@@ -122,9 +108,7 @@ const TrackOrderPage: React.FC = () => {
           address: orderData.address,
           latitude: orderData.pickup_latitude,
           longitude: orderData.pickup_longitude,
-          rider: riderObj,
-          estimatedArrival: estimatedTime,
-          distance: distanceText
+          rider: riderObj
         });
       } catch (e) {
         console.error('[TrackOrder] Fetch error:', e);
@@ -154,29 +138,34 @@ const TrackOrderPage: React.FC = () => {
             lng: nextRiderCoords.lng,
             heading: Number(orderData.rider_heading ?? prev.heading ?? 0) || 0
           }));
-          refreshTelemetry(nextRiderCoords.lat, nextRiderCoords.lng);
         }
       }).subscribe();
     return () => { supabase.removeChannel(orderChannel); };
   }, [orderId]);
 
-  const refreshTelemetry = async (rLat: number, rLng: number) => {
-    if (!order?.latitude || !order?.longitude) return;
-    const pickupLat = parseFloat(order.latitude);
-    const pickupLng = parseFloat(order.longitude);
-    if (!Number.isFinite(pickupLat) || !Number.isFinite(pickupLng)) return;
-
-    try {
-      const route = await fetchRoute(rLat, rLng, pickupLat, pickupLng);
-      if (route) {
-        setRouteCoordinates(route.polyline);
-        setOrder((prev: any) => ({
-          ...prev,
-          estimatedArrival: order.status === 'completed' ? 'Arrived' : route.durationText,
-          distance: route.distanceText,
-        }));
-      }
-    } catch (e) { console.log('Telemetry sync error:', e); }
+  const cancelOrder = () => {
+    Alert.alert(
+      "Cancel Order",
+      "Are you sure you want to cancel this order?",
+      [
+        { text: "No", style: "cancel" },
+        { 
+          text: "Yes, Cancel", 
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const { error } = await supabase.from('orders').update({ status: 'cancelled' }).eq('id', order.realId);
+              if (error) throw error;
+              setOrder((prev: any) => ({ ...prev, status: 'cancelled' }));
+              showAlert('Order Cancelled', 'Your order has been cancelled successfully.', 'success');
+              navigation.goBack();
+            } catch (err) {
+              showAlert('Error', 'Could not cancel the order. Please try again.', 'error');
+            }
+          }
+        }
+      ]
+    );
   };
 
   const trackingSteps = [
@@ -216,7 +205,7 @@ const TrackOrderPage: React.FC = () => {
   const mapMarkers = [
     { id: order?.rider?.id, lat: riderLocation.lat, lng: riderLocation.lng, type: 'rider' as const, label: order?.rider?.name || 'Rider', heading: riderLocation.heading },
     ...(hasPickupCoords ? [{ id: 'pickup-point', lat: pickupLat, lng: pickupLng, type: 'landmark' as const, label: 'Pickup Point' }] : []),
-    ...(userLocation ? [{ id: 'user-loc', lat: userLocation.coords.latitude, lng: userLocation.coords.longitude, type: 'user' as const }] : []),
+    ...(userLocation ? [{ id: 'user-loc', lat: userLocation.coords.latitude, lng: userLocation.coords.longitude, type: 'user' as const, label: user?.full_name || 'You' }] : []),
   ];
 
   return (
@@ -228,10 +217,6 @@ const TrackOrderPage: React.FC = () => {
           <View style={styles.orderIdBadge}>
             <Text style={styles.orderIdText}>Order #{order.id}</Text>
           </View>
-          <View style={styles.liveBadge}>
-            <View style={styles.pulseDot} />
-            <Text style={styles.liveText}>Live</Text>
-          </View>
         </View>
 
         <View style={[styles.mapCard, { marginHorizontal: isSmall ? 12 : 20 }]}>
@@ -242,15 +227,8 @@ const TrackOrderPage: React.FC = () => {
              height={mapHeight}
              variant="light"
              markers={mapMarkers}
-             showRadar={true}
-             radarTitle="Live tracking"
-             radarSubtitle={`Order #${order.id}`}
+             showRadar={false}
              fitToMarkers={true}
-             telemetry={{ distance: order.distance, duration: order.estimatedArrival }}
-             showRoute={hasPickupCoords}
-             routeOrigin={{ lat: riderLocation.lat, lng: riderLocation.lng }}
-             routeDestination={hasPickupCoords ? { lat: pickupLat, lng: pickupLng } : undefined}
-             routeCoordinates={routeCoordinates}
           />
         </View>
 
@@ -287,6 +265,13 @@ const TrackOrderPage: React.FC = () => {
            </View>
         </View>
 
+        {['pending', 'scheduled'].includes(order.status?.toLowerCase()) && (
+          <TouchableOpacity onPress={cancelOrder} style={styles.cancelOrderBtn}>
+            <RemixIcon name="ri-close-circle-line" size={18} color="#ef4444" />
+            <Text style={styles.cancelOrderBtnText}>Cancel Order</Text>
+          </TouchableOpacity>
+        )}
+
         <TouchableOpacity onPress={() => navigateTo('/home')} style={styles.footerBtn}>
           <RemixIcon name="ri-home-4-line" size={16} color="#0d9488" />
            <Text style={styles.footerBtnText}>Back to home</Text>
@@ -304,9 +289,6 @@ const styles = StyleSheet.create({
   floatHeader: { flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 20, marginBottom: 16 },
   orderIdBadge: { backgroundColor: '#f1f5f9', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10, borderWidth: 1, borderColor: '#e2e8f0' },
   orderIdText: { fontSize: 11, fontFamily: typography.bold, color: '#475569' },
-  liveBadge: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: 'rgba(16, 185, 129, 0.12)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 10, borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.2)' },
-  pulseDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#10b981' },
-  liveText: { fontSize: 10, fontFamily: typography.bold, color: '#10b981' },
   mapCard: { marginHorizontal: 20, borderRadius: 32, overflow: 'hidden', borderWidth: 1, borderColor: '#e2e8f0', backgroundColor: '#ffffff', shadowColor: '#0f172a', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.05, shadowRadius: 16, elevation: 3 },
   riderCard: { margin: 20, padding: 20, borderRadius: 24, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#f1f5f9', backgroundColor: '#ffffff', shadowColor: '#0f172a', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.04, shadowRadius: 12, elevation: 2 },
   riderAvatar: { width: 52, height: 52, borderRadius: 16, backgroundColor: '#f8fafc' },
@@ -332,6 +314,8 @@ const styles = StyleSheet.create({
   footerBtnText: { fontSize: 13, fontFamily: typography.bold, color: '#0d9488' },
   errorBtn: { marginTop: 8, backgroundColor: '#10b981', paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12 },
   errorBtnText: { fontSize: 13, fontFamily: typography.bold, color: '#fff' },
+  cancelOrderBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginHorizontal: 24, marginTop: 32, marginBottom: 8, paddingVertical: 14, backgroundColor: '#fef2f2', borderRadius: 16, borderWidth: 1, borderColor: '#fecaca' },
+  cancelOrderBtnText: { fontSize: 14, fontFamily: typography.bold, color: '#ef4444' },
 });
 
 export default TrackOrderPage;

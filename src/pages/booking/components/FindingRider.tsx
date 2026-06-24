@@ -13,6 +13,7 @@ import { sendLocalNotification } from '../../../utils/notifications';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
 import * as Haptics from 'expo-haptics';
+import { useAuth } from '../../../context/AuthContext';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -124,6 +125,7 @@ const useElapsedTime = (running: boolean) => {
 export const FindingRider: React.FC<FindingRiderProps> = ({
   userLat, userLng, orderId, selectedRiderId, onRiderFound, onCancel,
 }) => {
+  const { user } = useAuth();
   const { width: W, height: H } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   
@@ -347,7 +349,7 @@ export const FindingRider: React.FC<FindingRiderProps> = ({
           interactive={false}
           fitToMarkers={onlineRiders.length > 0}
           markers={[
-            { lat, lng, type: 'user', label: 'Your location' },
+            { lat, lng, type: 'user', label: user?.full_name || 'You' },
             ...onlineRiders.filter(r => r.lat && r.lng).map(r => ({
               lat: r.lat, lng: r.lng, type: 'rider' as const, label: 'Rider',
             })),

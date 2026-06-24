@@ -333,7 +333,70 @@ const ProfilePage: React.FC = () => {
            </View>
         </LinearGradient>
 
+        <View style={styles.sectionContainer}>
+           <Text style={styles.sectionTitle}>Account Settings</Text>
+           <View style={styles.menuList}>
+              <TouchableOpacity style={styles.menuItem} onPress={() => navigateTo('/profile/addresses')}>
+                 <View style={[styles.menuIconBox, {backgroundColor: '#f0fdf4'}]}>
+                    <RemixIcon name="ri-map-pin-line" size={20} color="#10b981" />
+                 </View>
+                 <View style={styles.menuText}>
+                    <Text style={styles.menuTitle}>Saved Addresses</Text>
+                    <Text style={styles.menuSubtitle}>Manage pickup locations</Text>
+                 </View>
+                 <RemixIcon name="ri-arrow-right-s-line" size={20} color="#cbd5e1" />
+              </TouchableOpacity>
 
+              <TouchableOpacity style={styles.menuItem} onPress={() => navigateTo('/profile/payment-methods')}>
+                 <View style={[styles.menuIconBox, {backgroundColor: '#eff6ff'}]}>
+                    <RemixIcon name="ri-bank-card-line" size={20} color="#3b82f6" />
+                 </View>
+                 <View style={styles.menuText}>
+                    <Text style={styles.menuTitle}>Payment Methods</Text>
+                    <Text style={styles.menuSubtitle}>Cards and mobile money</Text>
+                 </View>
+                 <RemixIcon name="ri-arrow-right-s-line" size={20} color="#cbd5e1" />
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.menuItem} onPress={() => navigateTo('/profile/notifications')}>
+                 <View style={[styles.menuIconBox, {backgroundColor: '#fef2f2'}]}>
+                    <RemixIcon name="ri-notification-3-line" size={20} color="#ef4444" />
+                 </View>
+                 <View style={styles.menuText}>
+                    <Text style={styles.menuTitle}>Notifications</Text>
+                    <Text style={styles.menuSubtitle}>Alerts and updates</Text>
+                 </View>
+                 <RemixIcon name="ri-arrow-right-s-line" size={20} color="#cbd5e1" />
+              </TouchableOpacity>
+           </View>
+        </View>
+        
+        <View style={styles.sectionContainer}>
+           <Text style={styles.sectionTitle}>Support & About</Text>
+           <View style={styles.menuList}>
+              <TouchableOpacity style={styles.menuItem} onPress={() => navigateTo('/support')}>
+                 <View style={[styles.menuIconBox, {backgroundColor: '#fffbeb'}]}>
+                    <RemixIcon name="ri-customer-service-2-line" size={20} color="#f59e0b" />
+                 </View>
+                 <View style={styles.menuText}>
+                    <Text style={styles.menuTitle}>Help & Support</Text>
+                    <Text style={styles.menuSubtitle}>Contact our team</Text>
+                 </View>
+                 <RemixIcon name="ri-arrow-right-s-line" size={20} color="#cbd5e1" />
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.menuItem} onPress={() => navigateTo('/profile/about')}>
+                 <View style={[styles.menuIconBox, {backgroundColor: '#f8fafc'}]}>
+                    <RemixIcon name="ri-information-line" size={20} color="#64748b" />
+                 </View>
+                 <View style={styles.menuText}>
+                    <Text style={styles.menuTitle}>About Borlawura</Text>
+                    <Text style={styles.menuSubtitle}>App version and info</Text>
+                 </View>
+                 <RemixIcon name="ri-arrow-right-s-line" size={20} color="#cbd5e1" />
+              </TouchableOpacity>
+           </View>
+        </View>
         <TouchableOpacity onPress={handleLogout} style={styles.logoutBtn}>
            <RemixIcon name="ri-logout-box-r-line" size={18} color="#ef4444" />
            <Text style={styles.logoutBtnText}>Sign Out</Text>

@@ -1,7 +1,6 @@
 import * as Location from 'expo-location';
 
-const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY?.trim() || '';
-export const hasGoogleMapsApiKey = GOOGLE_MAPS_API_KEY.length > 0;
+export const hasGoogleMapsApiKey = false; // Using OpenStreetMap APIs exclusively
 
 const buildRouteFallback = (
   originLat: number,
@@ -39,7 +38,7 @@ const buildRouteFallback = (
 };
 
 /**
- * Decodes a Google Maps Directions API encoded polyline string into coordinates.
+ * Decodes a polyline string into coordinates.
  */
 function decodePolyline(encoded: string): { lat: number; lng: number }[] {
   const points: { lat: number; lng: number }[] = [];
@@ -75,28 +74,21 @@ function decodePolyline(encoded: string): { lat: number; lng: number }[] {
 }
 
 /**
- * Reverse Geocodes coordinates to a human-readable address using Google Geocoding API
- * Fallback to Expo Native Location if key is missing or request fails
+ * Reverse Geocodes coordinates using Nominatim API
  */
 export const reverseGeocode = async (latitude: number, longitude: number): Promise<string> => {
   const fallbackGps = `GPS: ${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
-  
-  if (!GOOGLE_MAPS_API_KEY) {
-    console.warn("Google Maps API Key is missing. Falling back to native geocoding.");
-    return await tryNativeGeocode(latitude, longitude) || fallbackGps;
-  }
-
   try {
     const response = await fetch(
-      `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${GOOGLE_MAPS_API_KEY}`
+      `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=jsonv2`
     );
     const data = await response.json();
-    if (data.status === 'OK' && data.results && data.results[0]) {
-      return data.results[0].formatted_address;
+    if (data && data.display_name) {
+      return data.display_name;
     }
     return await tryNativeGeocode(latitude, longitude) || fallbackGps;
   } catch (error: any) {
-    console.warn("Google Geocode Error, trying native fallback:", error.message);
+    console.warn("Nominatim Reverse Geocode Error, trying native fallback:", error.message);
     return await tryNativeGeocode(latitude, longitude) || fallbackGps;
   }
 };
@@ -126,7 +118,7 @@ export interface RouteResult {
 }
 
 /**
- * Fetches a driving route with road-following polyline coordinates using Google Directions API
+ * Fetches a driving route using OSRM API
  */
 export const fetchRoute = async (
   originLat: number,
@@ -139,40 +131,36 @@ export const fetchRoute = async (
     return null;
   }
 
-  if (!GOOGLE_MAPS_API_KEY) {
-    console.warn("Google Maps API Key is missing. Cannot fetch route from Google.");
-    return buildRouteFallback(originLat, originLng, destLat, destLng);
-  }
-
   try {
     const response = await fetch(
-      `https://maps.googleapis.com/maps/api/directions/json?origin=${originLat},${originLng}&destination=${destLat},${destLng}&mode=driving&key=${GOOGLE_MAPS_API_KEY}`
+      `https://router.project-osrm.org/route/v1/driving/${originLng},${originLat};${destLng},${destLat}?overview=full&geometries=polyline`
     );
     const data = await response.json();
-    if (data.status === 'OK' && data.routes && data.routes[0]) {
+    if (data.code === 'Ok' && data.routes && data.routes[0]) {
       const route = data.routes[0];
-      const leg = route.legs[0];
-      const points = decodePolyline(route.overview_polyline.points);
+      const durationSeconds = route.duration;
+      const distanceMeters = route.distance;
+      const durationMinutes = Math.max(Math.round(durationSeconds / 60), 1);
+      const distanceKm = distanceMeters / 1000;
       
       return {
-        durationText: leg.duration.text,
-        durationSeconds: leg.duration.value,
-        distanceText: leg.distance.text,
-        distanceMeters: leg.distance.value,
-        polyline: points,
+        durationText: `${durationMinutes} min${durationMinutes === 1 ? '' : 's'}`,
+        durationSeconds,
+        distanceText: distanceKm >= 1 ? `${distanceKm.toFixed(1)} km` : `${Math.round(distanceMeters)} m`,
+        distanceMeters,
+        polyline: decodePolyline(route.geometry),
       };
     }
-    console.warn('Google Directions API returned non-OK status:', data.status);
+    console.warn('OSRM API returned non-OK status:', data.code);
     return buildRouteFallback(originLat, originLng, destLat, destLng);
   } catch (error) {
-    console.error('Google Directions API Error:', error);
+    console.error('OSRM API Error:', error);
     return buildRouteFallback(originLat, originLng, destLat, destLng);
   }
 };
 
 /**
- * Calculates estimated distance and time between two points using Google Directions API
- * Mocks Google Distance Matrix response structure for compatibility
+ * Calculates estimated distance and time between two points using OSRM Route
  */
 export const getDistanceMatrix = async (origins: string[], destinations: string[]) => {
   try {
@@ -202,85 +190,72 @@ export const getDistanceMatrix = async (origins: string[], destinations: string[
       ],
     };
   } catch (error) {
-    console.error('Google Distance Matrix calculation Error:', error);
+    console.error('Distance Matrix calculation Error:', error);
     return null;
   }
 };
 
 /**
- * Searches for places based on user input (Google Places Autocomplete API)
+ * Searches for places using Photon API (OpenStreetMap data)
  */
 export const fetchPlacesAutocomplete = async (input: string) => {
   if (!input) return [];
 
-  if (!GOOGLE_MAPS_API_KEY) {
-    console.warn("Google Maps API Key is missing. Autocomplete is unavailable.");
-    return [];
-  }
-
   try {
     const response = await fetch(
-      `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(input)}&components=country:gh&key=${GOOGLE_MAPS_API_KEY}`
+      `https://photon.komoot.io/api/?q=${encodeURIComponent(input)}&limit=5&lat=5.6037&lon=-0.1870`
     );
     const data = await response.json();
-    if (data.status === 'OK' && data.predictions) {
-      return data.predictions.map((item: any) => ({
-        place_id: item.place_id,
-        description: item.description,
-        structured_formatting: {
-          main_text: item.structured_formatting.main_text,
-          secondary_text: item.structured_formatting.secondary_text
-        }
-      }));
+    if (data && data.features) {
+      return data.features.map((f: any) => {
+        const props = f.properties;
+        const coords = f.geometry.coordinates; // [lng, lat]
+        const description = [props.name, props.street, props.city, props.state, props.country].filter(Boolean).join(', ');
+        
+        return {
+          place_id: `${coords[1]}:${coords[0]}:${encodeURIComponent(description)}`,
+          description,
+          structured_formatting: {
+            main_text: props.name || props.street || '',
+            secondary_text: [props.city, props.country].filter(Boolean).join(', ')
+          }
+        };
+      }).filter((x: any) => x.description);
     }
     return [];
   } catch (error) {
-    console.error("Google Places Autocomplete Error:", error);
+    console.error("Places Autocomplete Error:", error);
     return [];
   }
 };
 
 /**
- * Gets detailed info (including coordinates) for a specific place ID using Google Place Details API
+ * Gets detailed info (including coordinates) parsing our custom placeId
  */
 export const fetchPlaceDetails = async (placeId: string) => {
   if (!placeId) return null;
 
   try {
-    // Handle our legacy/fallback place_id format "lat:lng" (just in case)
     if (placeId.includes(':')) {
-      const [lat, lng] = placeId.split(':').map(Number);
-      if (!isNaN(lat) && !isNaN(lng)) {
-          const displayName = await reverseGeocode(lat, lng);
-          return {
-              address: displayName,
-              latitude: lat,
-              longitude: lng,
-          };
+      const parts = placeId.split(':');
+      if (parts.length >= 2) {
+        const lat = parseFloat(parts[0]);
+        const lng = parseFloat(parts[1]);
+        const address = parts.slice(2).join(':');
+        
+        if (!isNaN(lat) && !isNaN(lng)) {
+            const displayName = address ? decodeURIComponent(address) : await reverseGeocode(lat, lng);
+            return {
+                address: displayName,
+                latitude: lat,
+                longitude: lng,
+            };
+        }
       }
-      return null;
-    }
-
-    if (!GOOGLE_MAPS_API_KEY) {
-      console.warn("Google Maps API Key is missing. Place details is unavailable.");
-      return null;
-    }
-
-    const response = await fetch(
-      `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=formatted_address,geometry&key=${GOOGLE_MAPS_API_KEY}`
-    );
-    const data = await response.json();
-    if (data.status === 'OK' && data.result) {
-      const { formatted_address, geometry } = data.result;
-      return {
-        address: formatted_address,
-        latitude: geometry.location.lat,
-        longitude: geometry.location.lng,
-      };
     }
     return null;
   } catch (error) {
-    console.error("Google Place Details Error:", error);
+    console.error("Place Details Error:", error);
     return null;
   }
 };

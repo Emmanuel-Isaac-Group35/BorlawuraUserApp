@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, Image } from 'react-native';
 import { RemixIcon } from '../../../utils/icons';
 import { supabase } from '../../../lib/supabase';
 import { typography } from '../../../utils/typography';
-import { PRICE_TABLE } from '../../../utils/pricing';
+import { useSettings } from '../../../context/SettingsContext';
 
 interface PricingSummaryProps {
   bookingData: {
@@ -36,8 +36,10 @@ export const PricingSummary: React.FC<PricingSummaryProps> = ({ bookingData }) =
     }
   }, [bookingData.riderId]);
 
-  // Price calculations matching the main page
-  const volumePrice = PRICE_TABLE[bookingData.bagSize] ?? 0;
+  const { settings } = useSettings();
+  
+  // Price calculations using dynamic settings or fallback
+  const volumePrice = settings?.pricing?.[bookingData.bagSize as keyof typeof settings.pricing] ?? 0;
   const totalPrice = volumePrice;
 
   const details = [
