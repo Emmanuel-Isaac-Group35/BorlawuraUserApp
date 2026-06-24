@@ -4,6 +4,7 @@ import { RemixIcon } from '../../../utils/icons';
 import { supabase } from '../../../lib/supabase';
 import { typography } from '../../../utils/typography';
 import { useSettings } from '../../../context/SettingsContext';
+import { PRICE_TABLE } from '../../../utils/pricing';
 
 interface PricingSummaryProps {
   bookingData: {
@@ -39,7 +40,8 @@ export const PricingSummary: React.FC<PricingSummaryProps> = ({ bookingData }) =
   const { settings } = useSettings();
   
   // Price calculations using dynamic settings or fallback
-  const volumePrice = settings?.pricing?.[bookingData.bagSize as keyof typeof settings.pricing] ?? 0;
+  const pricingKey = `volume_${bookingData.bagSize}` as keyof typeof settings.pricing;
+  const volumePrice = settings?.pricing?.[pricingKey] ?? PRICE_TABLE[bookingData.bagSize] ?? 0;
   const totalPrice = volumePrice;
 
   const details = [

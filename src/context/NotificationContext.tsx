@@ -123,31 +123,10 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         if (status === 'CHANNEL_ERROR') console.log("[Notifications] DB Log Subscription bypassed.");
       });
 
-    // 2. Listen for Order Status Changes (The core "Sync" - MUST WORK)
-    const orderChannel = supabase.channel('global-order-sync')
-      .on('postgres_changes', { 
-        event: 'UPDATE', 
-        schema: 'public', 
-        table: 'orders', 
-        filter: `user_id=eq.${searchId}` 
-      }, (payload) => {
-        const status = payload.new.status;
-        const title = `Order ${status.toUpperCase()}`;
-        let message = `Your order status has been updated to ${status}.`;
-
-        if (status === 'accepted') message = "A rider has accepted your mission request!";
-        if (status === 'arrived') message = "Your rider has arrived at the pickup location.";
-        if (status === 'completed') message = "Mission successful! Your waste has been collected.";
-
-        sendLocalNotification(title, message);
-        fetchNotifications(); // Refresh to show the latest state
-      }).subscribe((status) => {
-        if (status === 'CHANNEL_ERROR') console.warn("[Sync] Critical: Order sync channel failed.");
-      });
+    // Note: GlobalOrderListener.tsx handles the actual Order Status notifications.
 
     return () => {
       supabase.removeChannel(notifChannel);
-      supabase.removeChannel(orderChannel);
     };
   }, [user, isLoggedIn, fetchNotifications]);
 

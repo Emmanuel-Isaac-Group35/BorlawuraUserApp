@@ -209,7 +209,7 @@ export const NavigatrMap: React.FC<NavigatrMapProps> = ({
         customMapStyle={isDark ? darkMapConfig : []}
       >
         <UrlTile 
-          urlTemplate="https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" 
+          urlTemplate="https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png" 
           maximumZ={19} 
           flipY={false}
         />

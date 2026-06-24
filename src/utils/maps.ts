@@ -80,13 +80,34 @@ export const reverseGeocode = async (latitude: number, longitude: number): Promi
   const fallbackGps = `GPS: ${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
   try {
     const response = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=jsonv2`
+      `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=jsonv2`,
+      { headers: { 'User-Agent': 'BorlaWuraUserApp/1.0 (contact@borlawura.com)' } }
     );
     const data = await response.json();
-    if (data && data.display_name) {
-      return data.display_name;
+    
+    // First try to build a clean name from the address components
+    if (data && data.address) {
+      const addr = data.address;
+      const cleanName = [addr.road || addr.pedestrian, addr.suburb || addr.neighbourhood, addr.city || addr.town || addr.village].filter(Boolean).join(', ');
+      if (cleanName) return cleanName;
     }
-    return await tryNativeGeocode(latitude, longitude) || fallbackGps;
+    
+    // Fallback to display_name but filter out Plus Codes
+    if (data && data.display_name) {
+      const parts = data.display_name.split(',').map((p: string) => p.trim());
+      const filtered = parts.filter((p: string) => !/^[A-Z0-9]{4,8}\+[A-Z0-9]{2,3}$/.test(p));
+      if (filtered.length > 0) return filtered.join(', ');
+    }
+    
+    // If Nominatim fails to give a good name, try Native
+    const nativeResult = await tryNativeGeocode(latitude, longitude);
+    
+    // If Native returns a plus code, fall back to GPS string
+    if (nativeResult && !/^[A-Z0-9]{4,8}\+[A-Z0-9]{2,3}$/.test(nativeResult.split(',')[0])) {
+        return nativeResult;
+    }
+    
+    return fallbackGps;
   } catch (error: any) {
     console.warn("Nominatim Reverse Geocode Error, trying native fallback:", error.message);
     return await tryNativeGeocode(latitude, longitude) || fallbackGps;

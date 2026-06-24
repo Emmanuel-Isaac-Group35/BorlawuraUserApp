@@ -300,7 +300,6 @@ export const FindingRider: React.FC<FindingRiderProps> = ({
           const rider = await fetchRider(payload.new.rider_id);
           if (!rider) return;
           if (ACCEPTED_STATUSES.includes(payload.new.status)) {
-            sendLocalNotification('Rider Assigned!', `${rider.name} is on the way to collect your waste.`, { orderId });
             triggerRiderFound(rider, 2000);
           } else {
             setLocalRider(rider);

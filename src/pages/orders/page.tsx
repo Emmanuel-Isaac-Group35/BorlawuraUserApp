@@ -228,6 +228,28 @@ const OrdersPage: React.FC = () => {
                   navigateTo('/track-order', { id: order.realId });
                 }
               }}
+              onCancel={() => {
+                Alert.alert(
+                  "Cancel Order",
+                  "Are you sure you want to cancel this order?",
+                  [
+                    { text: "No", style: "cancel" },
+                    { 
+                      text: "Yes, Cancel", 
+                      style: "destructive",
+                      onPress: async () => {
+                        try {
+                          const { error } = await supabase.from('orders').update({ status: 'cancelled' }).eq('id', order.realId);
+                          if (error) throw error;
+                          fetchOrders();
+                        } catch (err) {
+                          Alert.alert('Error', 'Could not cancel the order. Please try again.');
+                        }
+                      }
+                    }
+                  ]
+                );
+              }}
             />
           ))
         ) : (
@@ -359,18 +381,16 @@ const OrdersPage: React.FC = () => {
 // Order Card
 // ─────────────────────────────────────────────────────────────────────────────
 
-const OrderCard: React.FC<{ order: any; onPress: () => void }> = ({ order, onPress }) => {
+const OrderCard: React.FC<{ order: any; onPress: () => void; onCancel?: () => void }> = ({ order, onPress, onCancel }) => {
   const cfg = getStatusConfig(order.status);
   const isHistory = ['completed', 'done', 'cancelled'].includes(order.status?.toLowerCase());
   const isCompleted = ['completed', 'done'].includes(order.status?.toLowerCase());
   const isCancelled = order.status?.toLowerCase() === 'cancelled';
+  const isPending = ['pending', 'scheduled'].includes(order.status?.toLowerCase());
 
   return (
-    <TouchableOpacity
-      style={[styles.card, isHistory && styles.cardHistory]}
-      onPress={onPress}
-      activeOpacity={0.88}
-    >
+    <View style={[styles.card, isHistory && styles.cardHistory]}>
+      <TouchableOpacity onPress={onPress} activeOpacity={0.88}>
       {/* Top row: icon + service + status badge */}
       <View style={styles.cardTop}>
         <View style={[styles.serviceIcon, isHistory && styles.serviceIconHistory]}>
@@ -415,10 +435,21 @@ const OrderCard: React.FC<{ order: any; onPress: () => void }> = ({ order, onPre
       <View style={styles.cardFooter}>
         {!isHistory ? (
           // Active → Track button
-          <View style={styles.trackBtn}>
-            <RemixIcon name="ri-radar-line" size={14} color="#10b981" />
-            <Text style={styles.trackBtnText}>Track Order</Text>
-            <RemixIcon name="ri-arrow-right-s-line" size={16} color="#10b981" />
+          <View style={{ flexDirection: 'row', gap: 12 }}>
+            {isPending && onCancel && (
+              <TouchableOpacity 
+                style={[styles.trackBtn, { flex: 1, backgroundColor: '#fef2f2', borderColor: '#fecaca', borderWidth: 1 }]} 
+                onPress={onCancel}
+              >
+                <RemixIcon name="ri-close-circle-line" size={14} color="#ef4444" />
+                <Text style={[styles.trackBtnText, { color: '#ef4444' }]}>Cancel</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity style={[styles.trackBtn, { flex: 1 }]} onPress={onPress}>
+              <RemixIcon name="ri-radar-line" size={14} color="#10b981" />
+              <Text style={styles.trackBtnText}>Track Order</Text>
+              <RemixIcon name="ri-arrow-right-s-line" size={16} color="#10b981" />
+            </TouchableOpacity>
           </View>
         ) : isCompleted ? (
           // Completed → completion note
@@ -434,7 +465,8 @@ const OrderCard: React.FC<{ order: any; onPress: () => void }> = ({ order, onPre
           </View>
         )}
       </View>
-    </TouchableOpacity>
+      </TouchableOpacity>
+    </View>
   );
 };
 
@@ -778,6 +810,9 @@ const styles = StyleSheet.create({
   },
   closeBtn: {
     padding: 4,
+  },
+  receiptContent: {
+    padding: PAD,
   },
   receiptShot: {
     backgroundColor: '#ffffff',

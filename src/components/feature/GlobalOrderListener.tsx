@@ -9,7 +9,42 @@ import Constants from 'expo-constants';
 export const GlobalOrderListener: React.FC = () => {
   const { user, isLoggedIn } = useAuth();
   const lastStatusRef = useRef<{[key: string]: string}>({});
+  const notified5MinRef = useRef<{[key: string]: boolean}>({});
   const pollerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const getDistanceMeters = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const R = 6371000;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+  };
+
+  const checkProximityWarning = (order: any) => {
+    if (!['accepted', 'assigned', 'active', 'in_progress', 'heading'].includes(order.status?.toLowerCase())) return;
+    if (notified5MinRef.current[order.id]) return;
+
+    const rLat = parseFloat(order.rider_lat);
+    const rLng = parseFloat(order.rider_lng);
+    const pLat = parseFloat(order.pickup_latitude);
+    const pLng = parseFloat(order.pickup_longitude);
+
+    if (Number.isFinite(rLat) && Number.isFinite(pLat) && Number.isFinite(rLng) && Number.isFinite(pLng)) {
+      const dist = getDistanceMeters(pLat, pLng, rLat, rLng);
+      // If within ~1.65km (approx 5 mins at typical city speeds)
+      if (dist > 0 && dist < 1650) {
+        notified5MinRef.current[order.id] = true;
+        sendLocalNotification(
+          'Rider Nearby! ⏱️',
+          'Your rider is about 5 minutes away from your location.',
+          { orderId: order.id }
+        );
+      }
+    }
+  };
 
   const checkOrdersStatus = async () => {
     if (!isLoggedIn || !user) return;
@@ -40,6 +75,8 @@ export const GlobalOrderListener: React.FC = () => {
         if (newStatus !== oldStatus && oldStatus !== undefined) {
           processStatusChange(order, newStatus);
         }
+        
+        checkProximityWarning(order);
         
         // Always update the ref for the first run or changes
         lastStatusRef.current[orderId] = newStatus;
@@ -133,6 +170,7 @@ export const GlobalOrderListener: React.FC = () => {
               processStatusChange(order, order.status);
               lastStatusRef.current[order.id] = order.status;
            }
+           checkProximityWarning(order);
         }
       }).subscribe();
 

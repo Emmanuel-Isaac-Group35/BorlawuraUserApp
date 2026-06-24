@@ -9,11 +9,13 @@ import { navigateTo } from '../../utils/navigation';
 import * as Sharing from 'expo-sharing';
 import * as Location from 'expo-location';
 import { NavigatrMap } from '../../components/feature/NavigatrMap';
+import { fetchRoute } from '../../utils/maps';
 import { typography } from '../../utils/typography';
 import { sendLocalNotification } from '../../utils/notifications';
 import { useAlert } from '../../context/AlertContext';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../../context/AuthContext';
+import { PaymentModal } from './components/PaymentModal';
 
 const TrackOrderPage: React.FC = () => {
   const { user } = useAuth();
@@ -22,7 +24,7 @@ const TrackOrderPage: React.FC = () => {
   const route = useRoute();
   const { width: W, height: H } = useWindowDimensions();
   const isSmall = H < 700;
-  const mapHeight = H < 700 ? 320 : (H < 850 ? 400 : 480);
+  const mapHeight = H < 700 ? 450 : (H < 850 ? 550 : 650);
   const { id: orderId } = (route.params as { id?: string }) || {};
   const { showAlert } = useAlert();
   const [order, setOrder] = useState<any>(null);
@@ -31,6 +33,7 @@ const TrackOrderPage: React.FC = () => {
   const [isLiveTracking, setIsLiveTracking] = useState(true);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [routeCoords, setRouteCoords] = useState<{lat: number, lng: number}[]>([]);
   const watchSubscription = useRef<Location.LocationSubscription | null>(null);
 
   const getOrderRiderCoords = (row: any) => {
@@ -104,6 +107,8 @@ const TrackOrderPage: React.FC = () => {
           id: orderData.id.slice(0, 8).toUpperCase(),
           realId: orderData.id,
           status: orderData.status,
+          paymentStatus: orderData.payment_status,
+          amountDue: orderData.amount_due || 25.00,
           service: orderData.service_type || 'Waste Pickup',
           address: orderData.address,
           latitude: orderData.pickup_latitude,
@@ -128,6 +133,7 @@ const TrackOrderPage: React.FC = () => {
         setOrder((prev: any) => prev ? ({
           ...prev,
           status: orderData.status,
+          paymentStatus: orderData.payment_status !== undefined ? orderData.payment_status : prev.paymentStatus,
           latitude: orderData.pickup_latitude ?? prev.latitude,
           longitude: orderData.pickup_longitude ?? prev.longitude,
         }) : prev);
@@ -143,6 +149,25 @@ const TrackOrderPage: React.FC = () => {
     return () => { supabase.removeChannel(orderChannel); };
   }, [orderId]);
 
+  useEffect(() => {
+    if (order?.latitude && order?.longitude && riderLocation.lat && riderLocation.lng) {
+      const getRoute = async () => {
+        const originLat = riderLocation.lat;
+        const originLng = riderLocation.lng;
+        const destLat = parseFloat(order.latitude);
+        const destLng = parseFloat(order.longitude);
+        if (Number.isFinite(originLat) && Number.isFinite(destLat)) {
+          const route = await fetchRoute(originLat, originLng, destLat, destLng);
+          if (route && route.polyline) {
+            setRouteCoords(route.polyline);
+          }
+        }
+      };
+      // Throttle or call occasionally, but since it's a test app, we just call it when coords change significantly
+      getRoute();
+    }
+  }, [riderLocation.lat, riderLocation.lng, order?.latitude, order?.longitude]);
+
   const cancelOrder = () => {
     Alert.alert(
       "Cancel Order",
@@ -157,10 +182,10 @@ const TrackOrderPage: React.FC = () => {
               const { error } = await supabase.from('orders').update({ status: 'cancelled' }).eq('id', order.realId);
               if (error) throw error;
               setOrder((prev: any) => ({ ...prev, status: 'cancelled' }));
-              showAlert('Order Cancelled', 'Your order has been cancelled successfully.', 'success');
+              showAlert({ title: 'Order Cancelled', message: 'Your order has been cancelled successfully.', type: 'success' });
               navigation.goBack();
             } catch (err) {
-              showAlert('Error', 'Could not cancel the order. Please try again.', 'error');
+              showAlert({ title: 'Error', message: 'Could not cancel the order. Please try again.', type: 'error' });
             }
           }
         }
@@ -227,6 +252,8 @@ const TrackOrderPage: React.FC = () => {
              height={mapHeight}
              variant="light"
              markers={mapMarkers}
+             showRoute={true}
+             routeCoordinates={routeCoords}
              showRadar={false}
              fitToMarkers={true}
           />
@@ -272,11 +299,30 @@ const TrackOrderPage: React.FC = () => {
           </TouchableOpacity>
         )}
 
+        {order.status === 'completed' && (
+          <TouchableOpacity onPress={() => navigateTo('/orders')} style={[styles.cancelOrderBtn, { backgroundColor: '#f0fdf4', borderColor: '#bbf7d0', marginTop: 16 }]}>
+            <RemixIcon name="ri-file-list-3-fill" size={18} color="#10b981" />
+            <Text style={[styles.cancelOrderBtnText, { color: '#059669' }]}>View Receipt</Text>
+          </TouchableOpacity>
+        )}
+
         <TouchableOpacity onPress={() => navigateTo('/home')} style={styles.footerBtn}>
           <RemixIcon name="ri-home-4-line" size={16} color="#0d9488" />
            <Text style={styles.footerBtnText}>Back to home</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* PAYMENT MODAL */}
+      <PaymentModal 
+        visible={order?.status === 'arrived' && order?.paymentStatus !== 'paid'}
+        orderId={order?.realId}
+        amountDue={order?.amountDue}
+        paymentStatus={order?.paymentStatus}
+        onClose={() => {}}
+        onSuccess={() => {
+          showAlert({ title: 'Payment Successful', message: 'Your payment was received. Thank you!', type: 'success' });
+        }}
+      />
     </SafeAreaView>
   );
 };

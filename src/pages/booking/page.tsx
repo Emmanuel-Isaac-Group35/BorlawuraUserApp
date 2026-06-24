@@ -17,6 +17,7 @@ import { useRoute, useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { PRICE_TABLE } from '../../utils/pricing';
+import { useSettings } from '../../context/SettingsContext';
 
 const calculateEstimatedPrice = (serviceType: string, bagSize: string) => {
   return PRICE_TABLE[bagSize] ?? 0;
@@ -51,6 +52,7 @@ const BookingPage: React.FC = () => {
 
   const [completedOrder, setCompletedOrder] = useState<any>(null);
   const { user } = useAuth();
+  const { settings } = useSettings();
 
   // Reset tab bar visibility on mount
   useEffect(() => {
@@ -175,7 +177,9 @@ const BookingPage: React.FC = () => {
         waste_size: bookingData.bagSize,
         notes: `${bookingData.notes || ''}`.trim(),
         status: 'pending',
-        scheduled_at: new Date().toISOString() // Simpler for now
+        scheduled_at: new Date().toISOString(), // Simpler for now
+        amount: settings?.pricing?.[`volume_${bookingData.bagSize}` as keyof typeof settings.pricing] ?? PRICE_TABLE[bookingData.bagSize] ?? 0,
+        amount_due: settings?.pricing?.[`volume_${bookingData.bagSize}` as keyof typeof settings.pricing] ?? PRICE_TABLE[bookingData.bagSize] ?? 0
       };
 
       if (isEditing && params.editId) {

@@ -21,18 +21,20 @@ export interface Order {
   user_id: string;
   status: OrderStatus;
   sub_status?: string;
-  service_type: string;
+  pickup_latitude: string;
+  pickup_longitude: string;
   address: string;
-  pickup_latitude: number;
-  pickup_longitude: number;
-  waste_type: string;
-  waste_size: string;
-  notes?: string;
-  scheduled_at: string;
-  rider_id?: string;
+  instructions?: string;
+  waste_type?: string;
+  volume_estimate?: string;
   created_at: string;
-  updated_at?: string;
+  updated_at: string;
   cancelled_at?: string;
+  rider_id?: string;
+  scheduled_time?: string;
+  payment_status?: 'pending' | 'paid' | 'failed';
+  payment_method?: 'cash' | 'momo' | 'card';
+  amount_due?: number;
 }
 
 export interface Rider {
